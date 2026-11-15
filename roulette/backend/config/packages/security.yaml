@@ -1,0 +1,68 @@
+security:
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+
+    providers:
+        app_users:
+            entity:
+                class: App\Entity\User
+                property: username
+
+    firewalls:
+        dev:
+            # Ensure dev tools and static assets are always allowed
+            pattern: ^/(_profiler(/|$)|(_wdt|assets|build)/)
+            security: false
+
+        main:
+            lazy: true
+            provider: app_users
+
+            # F07 R10, R11: credentials are posted as JSON and the session is
+            # carried by a cookie that scripts on the page cannot read.
+            json_login:
+                check_path: api_login
+                username_path: username
+                password_path: password
+
+            logout:
+                path: api_logout
+
+            # F07 R13. Without this, one password is guessable at thousands
+            # of attempts a minute.
+            login_throttling:
+                max_attempts: 5
+                interval: '15 minutes'
+
+            # F07 R18: an API answers 401 as JSON. Redirecting a fetch() to
+            # an HTML login page gives the SPA a 200 full of markup.
+            entry_point: App\Security\JsonAuthenticationEntryPoint
+
+    # Only the *first* matching rule is applied.
+    access_control:
+        # Reachable while signed out, or nobody could ever sign in.
+        - { path: ^/api/login$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/me$, roles: PUBLIC_ACCESS }
+        # F07 R19, R20: the game itself stays open to everyone.
+        - { path: ^/api/health$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/wheel$, roles: PUBLIC_ACCESS }
+        - { path: ^/api/spin$, roles: PUBLIC_ACCESS }
+        # F08: identifying yourself as a player is not signing in. These are
+        # open because asking who you are cannot require knowing who you are;
+        # the spin's own guard is the player session, not the firewall
+        # (F08 R12, R16).
+        - { path: ^/api/player/, roles: PUBLIC_ACCESS }
+        - { path: ^/api/branding/logo$, roles: PUBLIC_ACCESS }
+        # F07 R17: everything else under /api/admin needs an account.
+        - { path: ^/api/admin, roles: ROLE_ADMIN }
+
+when@test:
+    security:
+        password_hashers:
+            # Hashing is resource-intensive by design; in tests the cost is
+            # dropped so the suite does not spend its time on bcrypt.
+            Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+                algorithm: auto
+                cost: 4
+                time_cost: 3
+                memory_cost: 10

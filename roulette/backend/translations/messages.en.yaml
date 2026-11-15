@@ -1,0 +1,82 @@
+# F12 R13: one file per language. A translator edits one of these and needs
+# to know nothing else about the application.
+#
+# English is the source and the fallback (F12 R2): every key lives here
+# first, and a key missing from another language falls back to this text
+# rather than showing a raw key on screen. TranslationsTest fails if any
+# language's key set has drifted from this one (F12 R14).
+#
+# Placeholders are %named%, never positional, so a translator can move them
+# to wherever the sentence needs them.
+
+api:
+    invalid_json: 'The request body is not valid JSON.'
+    invalid_object: 'The request body must be a JSON object.'
+    internal_error: 'Internal server error'
+    sign_in_required: 'You need to sign in.'
+
+auth:
+    # F07 R12: the same message whichever half was wrong, so the page cannot
+    # become a way of finding out who has an account.
+    bad_credentials: 'That username or password is not right.'
+    nobody_signed_in: 'Nobody is signed in.'
+
+player:
+    details_invalid: 'Those details could not be used.'
+    spin_requires_identity: 'Tell us who you are before you spin.'
+    phone_required: 'Enter your phone number.'
+    phone_invalid: 'That does not look like a phone number. It needs between %min% and %max% digits.'
+    first_name_required: 'Enter your first name.'
+    last_name_required: 'Enter your last name.'
+    first_name_too_long: 'A first name can be at most %max% characters.'
+    last_name_too_long: 'A last name can be at most %max% characters.'
+    birthday_required: 'Enter your birthday.'
+    birthday_invalid: 'Enter your birthday as a date, for example 1994-03-12.'
+    birthday_future: 'A birthday cannot be in the future.'
+    birthday_too_early: 'Please check that birthday.'
+
+wheel:
+    invalid: 'The wheel configuration is invalid.'
+    prizes_required: 'A list of prizes is required.'
+    prizes_must_be_list: 'The prizes must be a list.'
+    prize_must_be_object: 'Each prize must be an object.'
+    too_few_prizes: 'A wheel needs at least %min% prizes. It has %count%.'
+    too_many_prizes: 'A wheel can have at most %max% prizes. It has %count%.'
+    prize_name_required: 'A prize needs a name.'
+    prize_name_too_long: 'A prize name can be at most %max% characters.'
+    prize_id_invalid: 'A prize id must be a positive whole number, or absent for a new prize.'
+    probability_not_whole: 'A probability must be a whole number.'
+    probability_out_of_range: 'A probability must be between %min% and %max%.'
+    probability_total: 'The probabilities must total %required%. They currently total %total%.'
+    prize_gone: 'This prize no longer exists. Reload the page and try again.'
+
+branding:
+    invalid: 'The branding is invalid.'
+    must_be_text: 'This must be text.'
+    too_long: 'This can be at most %max% characters.'
+    choose_one_of: 'Choose one of: %values%.'
+
+logo:
+    required: 'Choose an image to upload.'
+    not_an_image: 'That file is not an image.'
+    too_large: 'The logo must be %max%MB or smaller.'
+    wrong_type: 'The logo must be a PNG, JPEG or WebP image. SVG is not accepted.'
+    upload_failed: 'The upload did not complete. Please try again.'
+    svg_unreadable: 'That SVG could not be read. Please export it again.'
+    svg_entities: 'That SVG declares XML entities, which are not allowed. Export it without them and try again.'
+    sanitised_notice: 'Some content was removed from the SVG for safety: %removed%.'
+
+# Shown in the admin's theme picker. The application's own words, so they
+# are translated (F12 R9) — unlike anything the admin types (F12 R10).
+theme:
+    plain: 'Plain'
+    black-friday: 'Black Friday'
+    christmas: 'Christmas'
+    new-year: 'New Year'
+    halloween: 'Halloween'
+    birthday: 'Happy Birthday'
+
+# F12 R11: supplied by the application when the admin has set no tagline of
+# their own, so it is ours to translate. An admin's own tagline never is.
+tagline:
+    default: 'One spin, one prize. Good luck.'

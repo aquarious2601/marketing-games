@@ -1,0 +1,34 @@
+# Dependencies
+/*/backend/vendor/
+/*/frontend/node_modules/
+
+# Test artefacts
+/*/backend/.phpunit.cache/
+/*/frontend/coverage/
+/*/frontend/test-results/
+/*/frontend/playwright-report/
+/*/frontend/blob-report/
+/*/frontend/.playwright/
+*.tsbuildinfo
+
+# Build output
+/*/frontend/dist/
+/*/backend/var/
+/*/backend/public/bundles/
+
+# Environment & secrets
+.env.local
+.env.*.local
+/*/backend/.env.local
+/*/backend/.env.*.local
+/*/backend/config/jwt/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

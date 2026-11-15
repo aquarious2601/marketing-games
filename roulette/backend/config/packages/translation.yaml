@@ -1,0 +1,22 @@
+framework:
+    # F12 R2: English is the fallback, and the one language every message is
+    # guaranteed to exist in.
+    default_locale: en
+
+    # F12 R1. Listing them explicitly is what makes an unsupported
+    # Accept-Language fall back rather than produce a half-translated page.
+    enabled_locales: ['en', 'fr', 'zh', 'vi']
+
+    # F12 R3: the request's locale comes from the browser's Accept-Language,
+    # negotiated against enabled_locales above. The player page also sends
+    # the header explicitly once somebody has picked a language (F12 R7), so
+    # the API answers in the language they are actually reading.
+    set_locale_from_accept_language: true
+
+    translator:
+        default_path: '%kernel.project_dir%/translations'
+        # A missing translation in fr/zh/vi shows the English, which is a
+        # worse experience than a translated one and a far better one than a
+        # raw message key on screen.
+        fallbacks:
+            - en

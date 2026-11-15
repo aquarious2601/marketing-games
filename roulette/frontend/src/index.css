@@ -1,0 +1,313 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Player page scenery (F04)
+
+   The layers themselves are built in src/branding/ThemeScene.tsx; what lives
+   here is the handful of things Tailwind has no vocabulary for — keyframes,
+   and the per-theme type treatment keyed off the `data-theme` attribute the
+   player screen already carries.
+
+   Nothing in here touches the admin page: every rule is scoped either to a
+   `scene-*`/`player-*` class used only by the player page, or to a
+   `[data-theme]` element, which only the player screen is (F04 R27).
+   ========================================================================== */
+
+/* -- Ambient motion ------------------------------------------------------- */
+
+/*
+ * Each of these moves transform or opacity and nothing else, so a scene can
+ * animate on a composited layer while the wheel spends six seconds spinning
+ * on another one. `--scene-shift` and `--scene-duration` are set per layer,
+ * because a tiled field only loops invisibly when it slides by exactly one
+ * tile.
+ */
+
+@keyframes scene-fall {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(var(--scene-shift, 200px));
+  }
+}
+
+@keyframes scene-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--scene-shift, 30px)));
+  }
+}
+
+@keyframes scene-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(var(--scene-shift, -10px));
+  }
+}
+
+@keyframes scene-twinkle {
+  0%,
+  100% {
+    opacity: var(--scene-dim, 0.35);
+  }
+  50% {
+    opacity: var(--scene-lit, 0.9);
+  }
+}
+
+@keyframes scene-burst {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  55% {
+    transform: scale(1);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/*
+ * Every ambient animation on the page is declared inside this block and
+ * nowhere else, which is what makes the reduced-motion promise true by
+ * construction rather than by remembering to add an override: with the
+ * preference set, the rules simply never apply and the scenes stand still.
+ * A test in ThemeScene.test.tsx reads this file and fails if an `animation`
+ * declaration ever escapes it.
+ *
+ * The spin itself is the deliberate exception and lives in React state, not
+ * here — see F03 §13 for why a game whose point is the spin must not render
+ * a dead button.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .scene-fall {
+    animation: scene-fall var(--scene-duration, 20s) linear infinite;
+  }
+
+  .scene-slide {
+    animation: scene-slide var(--scene-duration, 4s) linear infinite;
+  }
+
+  .scene-bob {
+    animation: scene-bob var(--scene-duration, 6s) ease-in-out infinite;
+  }
+
+  .scene-twinkle {
+    animation: scene-twinkle var(--scene-duration, 5s) ease-in-out infinite;
+  }
+
+  .scene-burst {
+    animation: scene-burst var(--scene-duration, 7s) ease-out infinite;
+  }
+}
+
+/* -- The reward ----------------------------------------------------------- */
+
+/*
+ * The prize panel arrives rather than appears. It is revealed over a wheel
+ * the player has been watching turn for six seconds, and an instant swap in
+ * the middle of that reads as a glitch rather than a prize.
+ *
+ * The keyframes carry the centring translate as well as the scale, because
+ * the panel is centred with a transform and an animated `transform` replaces
+ * it outright. Guarded like every other animation here: with reduced motion
+ * asked for, none of this applies and the panel is simply there, Tailwind's
+ * own translate holding it in place.
+ */
+
+@keyframes result-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.86);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .player-result {
+    animation: result-pop 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* -- Size ----------------------------------------------------------------- */
+
+/*
+ * The card and the wheel grow with the device.
+ *
+ * This was phone-sized and stayed phone-sized: a 272px wheel on a 1280px
+ * monitor, with prize names too small to read. The sizes below step up
+ * through the Tailwind breakpoints, but each one is also clamped against the
+ * viewport *height*, which is the constraint that actually bites on a
+ * desktop: a 480px wheel plus a header plus a button is taller than a laptop
+ * browser window, and a player who has to scroll to find the Spin button has
+ * been given a worse game, not a bigger one.
+ *
+ * `min()` of three terms — the card's own width, a per-breakpoint cap, and a
+ * share of the viewport height — does in one declaration what a pile of
+ * breakpoint classes could not, because it also covers a phone held
+ * sideways, where the width says desktop and the height says no.
+ *
+ * Written here rather than as Tailwind classes because the three-term min()
+ * repeated five times is unreadable in a className, and because the rule is
+ * one idea that wants one comment.
+ */
+
+.player-card {
+  max-width: 24rem;
+}
+
+/*
+ * Three terms, in the order they bite:
+ *
+ * - `100%` — never wider than the card it sits in, which is what keeps a
+ *   375px phone free of horizontal scroll.
+ * - `--wheel-cap` — the step for this breakpoint. The reason a desktop gets a
+ *   480px wheel and a phone does not.
+ * - the height clamp — what is left of the window once the header, the Spin
+ *   button and the card's padding have taken their share (`--wheel-chrome`,
+ *   measured per breakpoint rather than guessed), floored so that a short
+ *   laptop window gets a wheel that is merely small rather than useless. Past
+ *   that floor the page may scroll; a 150px wheel would be the worse bargain.
+ */
+/*
+ * `--wheel-chrome` gained 2.5rem in F08 for the "Playing as … Not you?"
+ * line under the Spin button, and another 2rem in F12 for the language
+ * picker beneath it. It is spent here, out
+ * of the wheel's share, rather than left to overflow — a page that scrolls to
+ * reach the Spin button is the one thing the player view is not allowed to
+ * do, and a slightly smaller wheel is the cheap way to pay for a line that
+ * only exists once somebody is identified, which is the only time the wheel
+ * exists either.
+ */
+.player-wheel {
+  --wheel-cap: 19rem;
+  --wheel-chrome: 25.5rem;
+  --wheel-floor: 15rem;
+
+  width: min(100%, var(--wheel-cap), max(var(--wheel-floor), calc(100dvh - var(--wheel-chrome))));
+}
+
+@media (min-width: 640px) {
+  .player-card {
+    max-width: 28rem;
+  }
+
+  .player-wheel {
+    --wheel-cap: 22rem;
+    --wheel-chrome: 29.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .player-card {
+    max-width: 30rem;
+  }
+
+  .player-wheel {
+    --wheel-cap: 26rem;
+    --wheel-chrome: 33.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .player-card {
+    max-width: 32rem;
+  }
+
+  .player-wheel {
+    --wheel-cap: 28rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .player-card {
+    max-width: 34rem;
+  }
+
+  .player-wheel {
+    --wheel-cap: 30rem;
+  }
+}
+
+/* -- Type treatment ------------------------------------------------------- */
+
+/*
+ * The heading is the one place a theme is allowed to change more than colour.
+ * It is the first thing read, and "deep green" alone does not say Christmas —
+ * a serif does half the work. Only system font stacks are used: there is no
+ * webfont to download at a market stall on a bad connection, and F04's "no
+ * fonts per theme" line was about shipping typefaces, which this does not do.
+ */
+
+.player-heading {
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* A small tracked line above and below the heading, on every theme. */
+/*
+ * The small tracked line under the heading, and the "You won" label on the
+ * result panel. The tracking stops at 0.16em on purpose: 0.22em looked
+ * better but pushed the tagline past the width of a 375px phone.
+ */
+.player-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+[data-theme='black-friday'] .player-heading {
+  text-transform: uppercase;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+[data-theme='christmas'] .player-heading {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+[data-theme='new-year'] .player-heading {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.01em;
+}
+
+[data-theme='halloween'] .player-heading {
+  font-family: 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+[data-theme='birthday'] .player-heading {
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}

@@ -1,0 +1,67 @@
+# F12: 中文。源文本与规则见 messages.en.yaml。
+
+api:
+    invalid_json: '请求内容不是有效的 JSON。'
+    invalid_object: '请求内容必须是一个 JSON 对象。'
+    internal_error: '服务器内部错误'
+    sign_in_required: '请先登录。'
+
+auth:
+    bad_credentials: '用户名或密码不正确。'
+    nobody_signed_in: '当前没有登录用户。'
+
+player:
+    details_invalid: '这些信息无法使用。'
+    spin_requires_identity: '请先告诉我们您是谁，然后再转动转盘。'
+    phone_required: '请输入您的手机号码。'
+    phone_invalid: '这看起来不像手机号码。需要 %min% 到 %max% 位数字。'
+    first_name_required: '请输入您的名字。'
+    last_name_required: '请输入您的姓氏。'
+    first_name_too_long: '名字最多 %max% 个字符。'
+    last_name_too_long: '姓氏最多 %max% 个字符。'
+    birthday_required: '请输入您的生日。'
+    birthday_invalid: '请按日期格式输入生日，例如 1994-03-12。'
+    birthday_future: '生日不能是未来的日期。'
+    birthday_too_early: '请检查这个生日。'
+
+wheel:
+    invalid: '转盘配置无效。'
+    prizes_required: '需要一份奖品列表。'
+    prizes_must_be_list: '奖品必须是一个列表。'
+    prize_must_be_object: '每个奖品都必须是一个对象。'
+    too_few_prizes: '转盘至少需要 %min% 个奖品，现在只有 %count% 个。'
+    too_many_prizes: '转盘最多 %max% 个奖品，现在有 %count% 个。'
+    prize_name_required: '奖品需要一个名称。'
+    prize_name_too_long: '奖品名称最多 %max% 个字符。'
+    prize_id_invalid: '奖品编号必须是正整数；新奖品请留空。'
+    probability_not_whole: '概率必须是整数。'
+    probability_out_of_range: '概率必须在 %min% 到 %max% 之间。'
+    probability_total: '概率总和必须为 %required%，当前为 %total%。'
+    prize_gone: '该奖品已不存在。请重新加载页面后再试。'
+
+branding:
+    invalid: '品牌设置无效。'
+    must_be_text: '此项必须是文本。'
+    too_long: '此项最多 %max% 个字符。'
+    choose_one_of: '请从以下选项中选择：%values%。'
+
+logo:
+    required: '请选择要上传的图片。'
+    not_an_image: '该文件不是图片。'
+    too_large: '标志大小不得超过 %max%MB。'
+    wrong_type: '标志必须是 PNG、JPEG 或 WebP 图片，不接受 SVG。'
+    upload_failed: '上传未完成，请重试。'
+    svg_unreadable: '无法读取该 SVG 文件，请重新导出。'
+    svg_entities: '该 SVG 声明了 XML 实体，这是不允许的。请在导出时去掉它们后重试。'
+    sanitised_notice: '出于安全考虑，已从该 SVG 中移除部分内容：%removed%。'
+
+theme:
+    plain: '简约'
+    black-friday: '黑色星期五'
+    christmas: '圣诞节'
+    new-year: '新年'
+    halloween: '万圣节'
+    birthday: '生日快乐'
+
+tagline:
+    default: '一次转动，一份奖品。祝您好运！'
