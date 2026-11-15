@@ -216,8 +216,8 @@ final class SecurityControllerTest extends DatabaseWebTestCase
             server: ['CONTENT_TYPE' => 'application/json'],
             content: json_encode([
                 'prizes' => [
-                    ['name' => 'Should never be stored', 'probability' => 100],
-                    ['name' => 'Nor this', 'probability' => 0],
+                    ['name' => 'Should never be stored', 'probability' => 100, 'rewardId' => $this->aRewardId()],
+                    ['name' => 'Nor this', 'probability' => 0, 'rewardId' => $this->aRewardId()],
                 ],
             ], \JSON_THROW_ON_ERROR),
         );

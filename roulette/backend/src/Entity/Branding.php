@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Branding\Currency;
 use App\Branding\Theme;
 use App\Repository\BrandingRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -49,6 +50,14 @@ class Branding
 
     #[ORM\Column(name: 'logo_content_type', length: 40, nullable: true)]
     private ?string $logoContentType = null;
+
+    /**
+     * F13 R27: one currency per campaign. A shop trades in one, and
+     * per-reward currency would allow a wheel offering €5 off and ₫50,000
+     * off at once — not a campaign anybody runs, and a bug nobody catches.
+     */
+    #[ORM\Column(length: 3, options: ['default' => Currency::DEFAULT])]
+    private string $currency = Currency::DEFAULT;
 
     #[ORM\Column(name: 'updated_at')]
     private \DateTimeImmutable $updatedAt;
@@ -145,6 +154,18 @@ class Branding
     {
         $this->logoFilename = null;
         $this->logoContentType = null;
+        $this->touch();
+    }
+
+    /** F13 R27. */
+    public function getCurrency(): Currency
+    {
+        return Currency::fromStorage($this->currency);
+    }
+
+    public function setCurrency(Currency $currency): void
+    {
+        $this->currency = $currency->value;
         $this->touch();
     }
 

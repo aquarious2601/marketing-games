@@ -1,3 +1,4 @@
+import type { Reward } from '../api/rewards'
 import { NAME_MAX_LENGTH, type DraftPrize, type PrizeErrors } from '../wheel/editor'
 import { useT } from '../i18n/I18nContext'
 import { colourFor } from '../wheel/palette'
@@ -8,7 +9,9 @@ interface PrizeRowProps {
   total: number
   errors: PrizeErrors
   canRemove: boolean
-  onChange: (change: Partial<Pick<DraftPrize, 'name' | 'probability'>>) => void
+  /** The catalogue to pick from (F13 R7). */
+  rewards: Reward[]
+  onChange: (change: Partial<Pick<DraftPrize, 'name' | 'probability' | 'rewardId'>>) => void
   onMove: (offset: number) => void
   onRemove: () => void
 }
@@ -19,6 +22,7 @@ export function PrizeRow({
   total,
   errors,
   canRemove,
+  rewards,
   onChange,
   onMove,
   onRemove,
@@ -26,6 +30,7 @@ export function PrizeRow({
   const t = useT()
   const nameId = `prize-${prize.key}-name`
   const probabilityId = `prize-${prize.key}-probability`
+  const rewardId = `prize-${prize.key}-reward`
   const position = index + 1
 
   return (
@@ -99,6 +104,38 @@ export function PrizeRow({
               </p>
             )}
           </div>
+        </div>
+
+        {/* F13 R7: what this slice gives away. Beside the label rather than
+            replacing it, because the two are deliberately separate — the
+            catalogue names the reward and the slice names what the player
+            reads (F13 R8). */}
+        <div className="mt-2">
+          <label htmlFor={rewardId} className="block text-xs font-medium text-slate-600">
+            {t('game.reward')}
+          </label>
+          <select
+            id={rewardId}
+            value={prize.rewardId ?? ''}
+            onChange={(event) =>
+              onChange({ rewardId: event.target.value === '' ? null : Number(event.target.value) })
+            }
+            aria-invalid={errors.rewardId !== undefined}
+            data-testid="prize-reward"
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            <option value="">—</option>
+            {rewards.map((reward) => (
+              <option key={reward.id} value={reward.id}>
+                {reward.name}
+              </option>
+            ))}
+          </select>
+          {errors.rewardId !== undefined && (
+            <p role="alert" className="mt-1 text-xs text-rose-600">
+              {errors.rewardId}
+            </p>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">

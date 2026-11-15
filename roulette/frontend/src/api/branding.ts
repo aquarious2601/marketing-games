@@ -6,6 +6,12 @@ export interface Branding {
   /** The effective phrase: the admin's, or the default. Never null. */
   tagline: string
   theme: string
+  /**
+   * F13 R27, R28. The code and its symbol travel together, so neither the
+   * admin nor the player page needs its own table of symbols.
+   */
+  currency: string
+  currencySymbol: string
   /** Null when no logo is set, or the file is missing (F04 R26). */
   logoUrl: string | null
 }
@@ -15,8 +21,16 @@ export interface ThemeOption {
   label: string
 }
 
+export interface CurrencyOption {
+  value: string
+  label: string
+  symbol: string
+}
+
 export interface AdminBranding extends Branding {
   themes: ThemeOption[]
+  /** F13 R27: the currencies a campaign may be counted in. */
+  currencies: CurrencyOption[]
   /** What the admin actually set; null means the default is in use. */
   ownTagline: string | null
   defaultTagline: string

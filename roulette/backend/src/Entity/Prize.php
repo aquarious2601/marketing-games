@@ -37,6 +37,19 @@ class Prize
     #[ORM\JoinColumn(name: 'wheel_id', nullable: false, onDelete: 'CASCADE')]
     private ?Wheel $wheel = null;
 
+    /**
+     * What this slice gives away (F13 R7).
+     *
+     * RESTRICT, not SET NULL — the opposite of how spin.prize_id behaves
+     * (F02 R11), and deliberately. A spin is history and must survive its
+     * prize being deleted; a slice is configuration and must never exist
+     * pointing at nothing.
+     */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'reward_id', nullable: false, onDelete: 'RESTRICT')]
+    private ?Reward $reward = null;
+
+    /** F13 R8: the slice's own words, not the reward's name. */
     #[ORM\Column(length: self::NAME_MAX_LENGTH)]
     private string $name;
 
@@ -46,9 +59,10 @@ class Prize
     #[ORM\Column(type: 'smallint')]
     private int $position;
 
-    public function __construct(string $name, int $probability, int $position)
+    public function __construct(string $name, int $probability, int $position, ?Reward $reward = null)
     {
         $this->name = $name;
+        $this->reward = $reward;
         $this->probability = $probability;
         $this->position = $position;
     }
@@ -66,6 +80,16 @@ class Prize
     public function setWheel(?Wheel $wheel): void
     {
         $this->wheel = $wheel;
+    }
+
+    public function getReward(): ?Reward
+    {
+        return $this->reward;
+    }
+
+    public function setReward(Reward $reward): void
+    {
+        $this->reward = $reward;
     }
 
     public function getName(): string

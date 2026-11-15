@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Repository\SpinRepository;
+use App\Reward\RewardType;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -56,6 +57,34 @@ class Spin
     #[ORM\Column(name: 'prize_probability', type: 'smallint')]
     private int $prizeProbability;
 
+    /**
+     * The reward, by value (F13 R25).
+     *
+     * Four denormalised columns on one row will look like duplication to
+     * whoever reads this schema next. It is the same decision as the prize
+     * snapshot above, for the same reason: the log is a record of what
+     * happened, and a record that changes when somebody edits a dropdown is
+     * not a record. The player is the one exception, referenced rather than
+     * copied so that deleting them means something (F08 R25).
+     */
+    #[ORM\Column(name: 'reward_type', length: 20)]
+    private string $rewardType;
+
+    #[ORM\Column(name: 'reward_value', type: 'smallint', nullable: true)]
+    private ?int $rewardValue = null;
+
+    /**
+     * F13 R16–R19. Null for a free product and for a losing item; unique
+     * across every spin ever recorded, which the index — not the generator
+     * — is what actually guarantees.
+     */
+    #[ORM\Column(name: 'reward_code', length: 12, nullable: true, unique: true)]
+    private ?string $rewardCode = null;
+
+    /** F13 R21: null until somebody at the counter says otherwise. */
+    #[ORM\Column(name: 'claimed_at', nullable: true)]
+    private ?\DateTimeImmutable $claimedAt = null;
+
     #[ORM\Column(name: 'spun_at')]
     private \DateTimeImmutable $spunAt;
 
@@ -65,6 +94,10 @@ class Spin
         $this->player = $player;
         $this->prizeName = $prize->getName();
         $this->prizeProbability = $prize->getProbability();
+
+        $reward = $prize->getReward();
+        $this->rewardType = ($reward?->getType() ?? RewardType::FreeProduct)->value;
+        $this->rewardValue = $reward?->getValue();
         $this->spunAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
     }
 
@@ -96,5 +129,57 @@ class Spin
     public function getSpunAt(): \DateTimeImmutable
     {
         return $this->spunAt;
+    }
+
+    public function getRewardType(): RewardType
+    {
+        return RewardType::fromStorage($this->rewardType);
+    }
+
+    public function getRewardValue(): ?int
+    {
+        return $this->rewardValue;
+    }
+
+    public function getRewardCode(): ?string
+    {
+        return $this->rewardCode;
+    }
+
+    public function setRewardCode(string $code): void
+    {
+        $this->rewardCode = $code;
+    }
+
+    public function getClaimedAt(): ?\DateTimeImmutable
+    {
+        return $this->claimedAt;
+    }
+
+    public function isClaimed(): bool
+    {
+        return null !== $this->claimedAt;
+    }
+
+    /** F13 R15, R24: a losing item is never claimed. */
+    public function isClaimable(): bool
+    {
+        return $this->getRewardType()->isClaimable();
+    }
+
+    /**
+     * F13 R23. Idempotent on the way in: claiming something already claimed
+     * keeps the original moment rather than quietly moving it, so a second
+     * tap at the counter cannot rewrite when it happened.
+     */
+    public function setClaimed(bool $claimed): void
+    {
+        if (!$claimed) {
+            $this->claimedAt = null;
+
+            return;
+        }
+
+        $this->claimedAt ??= new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
     }
 }

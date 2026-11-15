@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
+use App\Entity\Reward;
 use App\Entity\User;
+use App\Repository\RewardRepository;
+use App\Reward\RewardType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -51,6 +54,7 @@ abstract class DatabaseWebTestCase extends WebTestCase
         $connection->executeStatement('TRUNCATE TABLE branding');
         $connection->executeStatement('TRUNCATE TABLE `user`');
         $connection->executeStatement('TRUNCATE TABLE prize');
+        $connection->executeStatement('TRUNCATE TABLE reward');
         $connection->executeStatement('TRUNCATE TABLE wheel');
         $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');
 
@@ -67,14 +71,21 @@ abstract class DatabaseWebTestCase extends WebTestCase
     {
         $password = 'a-password-long-enough';
 
-        $user = new User($username);
-        $user->setRoles(['ROLE_ADMIN']);
-        $user->setPassword(
-            static::getContainer()->get(UserPasswordHasherInterface::class)->hashPassword($user, $password),
-        );
+        // Reused when it already exists, so a test that signs in twice —
+        // once through a helper that sets something up, once for itself —
+        // is not a duplicate-username error about nothing it did.
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['username' => $username]);
 
-        $this->entityManager->persist($user);
-        $this->entityManager->flush();
+        if (!$user instanceof User) {
+            $user = new User($username);
+            $user->setRoles(['ROLE_ADMIN']);
+            $user->setPassword(
+                static::getContainer()->get(UserPasswordHasherInterface::class)->hashPassword($user, $password),
+            );
+
+            $this->entityManager->persist($user);
+            $this->entityManager->flush();
+        }
 
         $this->client->request(
             'POST',
@@ -105,6 +116,50 @@ abstract class DatabaseWebTestCase extends WebTestCase
         ]);
 
         self::assertResponseIsSuccessful('The test could not identify a player.');
+    }
+
+    /**
+     * A reward id a wheel payload can point at (F13 R7).
+     *
+     * Every slice has to say what it gives away now, so a test that saves a
+     * wheel needs something in the catalogue. Created once and reused,
+     * because what these tests are about is the wheel, not the catalogue —
+     * RewardControllerTest covers that.
+     */
+    protected function aRewardId(string $name = 'Test reward'): int
+    {
+        return $this->rewardId($name, RewardType::FreeProduct);
+    }
+
+    /** A losing reward, for tests that need a slice nobody can claim. */
+    protected function aLosingRewardId(string $name = 'Test losing'): int
+    {
+        return $this->rewardId($name, RewardType::Nothing);
+    }
+
+    /** A discount, for the tests about codes (F13 R16). */
+    protected function aDiscountRewardId(string $name = 'Test discount', int $percent = 10): int
+    {
+        return $this->rewardId($name, RewardType::PercentOff, $percent);
+    }
+
+    private function rewardId(string $name, RewardType $type, ?int $value = null): int
+    {
+        $repository = static::getContainer()->get(RewardRepository::class);
+        \assert($repository instanceof RewardRepository);
+
+        $reward = $repository->findByName($name);
+
+        if (null === $reward) {
+            $reward = new Reward($name, $type, $value);
+            $this->entityManager->persist($reward);
+            $this->entityManager->flush();
+        }
+
+        $id = $reward->getId();
+        \assert(null !== $id);
+
+        return $id;
     }
 
     /**

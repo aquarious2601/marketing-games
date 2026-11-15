@@ -49,6 +49,10 @@ wheel:
     probability_out_of_range: 'A probability must be between %min% and %max%.'
     probability_total: 'The probabilities must total %required%. They currently total %total%.'
     prize_gone: 'This prize no longer exists. Reload the page and try again.'
+    prize_reward_required: 'Choose what this slice gives away.'
+    unknown_reward: 'That reward no longer exists. Reload the page and try again.'
+    one_losing_slice: 'A wheel can have only one losing slice.'
+    default_losing_label: 'Try again'
 
 branding:
     invalid: 'The branding is invalid.'
@@ -80,3 +84,32 @@ theme:
 # their own, so it is ours to translate. An admin's own tagline never is.
 tagline:
     default: 'One spin, one prize. Good luck.'
+
+# F13: the reward catalogue. The type names and the defaults are the
+# application's own words; a reward the admin has renamed is not (F13 R29).
+reward:
+    type:
+        free_product: 'Free product'
+        percent_off: 'Percentage off'
+        amount_off: 'Amount off'
+        nothing: 'Nothing'
+    default_losing: 'Maybe next time'
+    default_5_percent: '5% off your next order'
+    default_10_percent: '10% off your next order'
+    default_free_sample: 'Free sample'
+    default_free_gift: 'Free gift'
+    default_grand_prize: 'Grand prize'
+    invalid: 'That reward could not be saved.'
+    name_required: 'A reward needs a name.'
+    name_too_long: 'A reward name can be at most %max% characters.'
+    name_taken: 'There is already a reward called that.'
+    type_invalid: 'Choose one of: %values%.'
+    value_required: 'This type of reward needs a value.'
+    percent_out_of_range: 'A percentage must be between %min% and %max%.'
+    amount_too_small: 'An amount must be at least %min%.'
+    value_not_allowed: 'This type of reward does not take a value.'
+    in_use: 'This reward is on the wheel, used by: %slices%. Change those slices first.'
+    not_found: 'That reward does not exist.'
+
+spin:
+    not_claimable: 'A losing spin cannot be claimed.'

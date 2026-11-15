@@ -8,6 +8,7 @@ use App\Branding\BrandingPresenter;
 use App\Branding\BrandingProvider;
 use App\Branding\LogoRejected;
 use App\Branding\LogoStore;
+use App\Branding\Currency;
 use App\Branding\Theme;
 use App\Dto\Violation;
 use App\Entity\Branding;
@@ -64,6 +65,9 @@ final class BrandingController extends AbstractController
                 ],
                 Theme::cases(),
             ),
+            // F13 R27: the codes and their symbols, so the selector needs
+            // no table of its own.
+            'currencies' => Currency::all(),
         ]);
     }
 
@@ -87,6 +91,7 @@ final class BrandingController extends AbstractController
         $campaignName = $this->readName($payload, 'campaignName', $violations);
         $tagline = $this->readText($payload, 'tagline', Branding::TAGLINE_MAX_LENGTH, $violations);
         $theme = $this->readTheme($payload, $violations);
+        $currency = $this->readCurrency($payload, $violations);
 
         if ([] !== $violations) {
             return $this->invalid($violations);
@@ -96,6 +101,13 @@ final class BrandingController extends AbstractController
         $branding->setNames($companyName, $campaignName);
         $branding->setTagline($tagline);
         $branding->setTheme($theme ?? Theme::Plain);
+
+        // F13 R27: absent leaves it alone, unlike the theme, which resets to
+        // Plain. The difference is deliberate — a theme is a look somebody
+        // chose today, a currency is a fact about the shop.
+        if (null !== $currency) {
+            $branding->setCurrency($currency);
+        }
 
         $this->entityManager->flush();
 
@@ -203,6 +215,35 @@ final class BrandingController extends AbstractController
         }
 
         return $value;
+    }
+
+    /**
+     * F13 R27. Absent keeps what is stored, so a client that has not caught
+     * up with this feature cannot silently reset a shop's currency.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     */
+    private function readCurrency(array $payload, array &$violations): ?Currency
+    {
+        $value = $payload['currency'] ?? null;
+
+        if (null === $value) {
+            return null;
+        }
+
+        $currency = \is_string($value) ? Currency::tryFrom($value) : null;
+
+        if (null === $currency) {
+            $violations[] = new Violation(
+                'currency',
+                $this->translator->trans('branding.choose_one_of', [
+                    '%values%' => implode(', ', array_column(Currency::cases(), 'value')),
+                ]),
+            );
+        }
+
+        return $currency;
     }
 
     /**

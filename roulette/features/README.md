@@ -57,6 +57,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F10](./F10-hand-over-to-the-next-player.md) | Hand over to the next player | Player | Done |
 | [F11](./F11-admin-tables.md) | Admin tables | Admin | Done |
 | [F12](./F12-multiple-languages.md) | Multiple languages | Both | Done |
+| [F13](./F13-reward-configuration.md) | Reward configuration | Both | Done |
 
 ## Running the tests
 

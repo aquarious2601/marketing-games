@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchSpinLog, type LoggedSpin } from '../api/players'
+import { fetchSpinLog, setSpinClaimed, type LoggedSpin } from '../api/players'
 import { useT, type Translate } from '../i18n/I18nContext'
 import { Cell, DataTable, Row, type Column } from './DataTable'
 import { EMPTY, formatDateTime } from './tableFormat'
@@ -12,10 +12,12 @@ import { EMPTY, formatDateTime } from './tableFormat'
  * and in a player's history, which is the point of one shared table.
  */
 const SPIN_COLUMNS = (t: Translate): Column[] => [
-  { key: 'prize', label: t('spins.colPrize'), width: '30%' },
-  { key: 'player', label: t('spins.colPlayer'), width: '24%' },
-  { key: 'phone', label: t('spins.colPhone'), width: '22%' },
-  { key: 'spun', label: t('spins.colSpun'), width: '24%' },
+  { key: 'prize', label: t('spins.colPrize'), width: '20%' },
+  { key: 'player', label: t('spins.colPlayer'), width: '16%' },
+  { key: 'phone', label: t('spins.colPhone'), width: '16%' },
+  { key: 'code', label: t('spins.colCode'), width: '14%' },
+  { key: 'spun', label: t('spins.colSpun'), width: '18%' },
+  { key: 'status', label: t('spins.colStatus'), width: '16%' },
 ]
 
 type LoadPhase = 'loading' | 'ready' | 'failed'
@@ -42,8 +44,26 @@ export function SpinsModule() {
   // is not (F09 R16).
   const [total, setTotal] = useState(0)
   const [filter, setFilter] = useState('')
+  const [claimError, setClaimError] = useState<string | null>(null)
 
   const columns = SPIN_COLUMNS(t)
+
+  /**
+   * F13 R22, R23. The row is replaced with what the server returned rather
+   * than the whole log reloaded: a counter is a place where the list should
+   * not jump under somebody's finger between two taps.
+   */
+  const onClaim = async (spin: LoggedSpin) => {
+    setClaimError(null)
+
+    try {
+      const updated = await setSpinClaimed(spin.id, spin.claimedAt === null)
+
+      setSpins((current) => current.map((row) => (row.id === updated.id ? updated : row)))
+    } catch {
+      setClaimError(t('spins.claimFailed'))
+    }
+  }
 
   const load = useCallback(async (phone: string, signal?: AbortSignal) => {
     setPhase('loading')
@@ -150,7 +170,7 @@ export function SpinsModule() {
           <DataTable
             label={t('spins.log')}
             columns={columns}
-            minWidth="40rem"
+            minWidth="52rem"
             testId="spin-log"
           >
             {spins.map((spin) => (
@@ -178,12 +198,45 @@ export function SpinsModule() {
                   </>
                 )}
 
+                {/* F13 R19: a free product and a losing item carry none. */}
+                <Cell mono testId="spin-code">
+                  {spin.code ?? EMPTY}
+                </Cell>
+
                 <Cell numeric muted>
                   {formatDateTime(spin.spunAt)}
+                </Cell>
+
+                {/* F13 R24: a losing row offers nothing to press, because
+                    there is nothing to hand over. */}
+                <Cell testId="spin-status">
+                  {!spin.claimable ? (
+                    <span className="text-slate-400">{EMPTY}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void onClaim(spin)}
+                      data-testid="spin-claim"
+                      aria-pressed={spin.claimedAt !== null}
+                      className={
+                        spin.claimedAt !== null
+                          ? 'rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100'
+                          : 'rounded-full border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50'
+                      }
+                    >
+                      {spin.claimedAt !== null ? t('spins.claimed') : t('spins.claim')}
+                    </button>
+                  )}
                 </Cell>
               </Row>
             ))}
           </DataTable>
+        )}
+
+        {claimError !== null && (
+          <p role="alert" className="mt-3 text-sm text-rose-600" data-testid="spins-claim-error">
+            {claimError}
+          </p>
         )}
 
         {/* F09 R16: a capped list must never present itself as the whole. */}

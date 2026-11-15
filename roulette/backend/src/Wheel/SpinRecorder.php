@@ -7,6 +7,8 @@ namespace App\Wheel;
 use App\Entity\Player;
 use App\Entity\Spin;
 use App\Entity\Wheel;
+use App\Reward\CodeGenerator;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -18,9 +20,19 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class SpinRecorder
 {
+    /**
+     * How many times a code collision is retried (F13 R17).
+     *
+     * With 30^8 codes a collision is vanishingly unlikely, so three is not
+     * about the odds — it is about never looping forever if the generator
+     * is broken. The unique index, not this, is what guarantees uniqueness.
+     */
+    private const CODE_ATTEMPTS = 3;
+
     public function __construct(
         private readonly PrizeDraw $draw,
         private readonly EntityManagerInterface $entityManager,
+        private readonly CodeGenerator $codes,
     ) {
     }
 
@@ -34,10 +46,41 @@ final class SpinRecorder
         return $this->entityManager->wrapInTransaction(function () use ($wheel, $player): Spin {
             $spin = new Spin($this->draw->draw($wheel), $player);
 
+            // F13 R16: issued inside the same transaction that records the
+            // spin, so a code that exists is always a code somebody won.
+            if ($spin->getRewardType()->needsCode()) {
+                $this->issueCode($spin);
+            }
+
             $this->entityManager->persist($spin);
             $this->entityManager->flush();
 
             return $spin;
         });
+    }
+
+    /**
+     * F13 R16-R18.
+     *
+     * Retried against the unique index rather than checked first: a SELECT
+     * before the INSERT would still race two simultaneous spins, and the
+     * index is the only thing that cannot be raced.
+     */
+    private function issueCode(Spin $spin): void
+    {
+        for ($attempt = 1; $attempt <= self::CODE_ATTEMPTS; ++$attempt) {
+            $spin->setRewardCode($this->codes->generate());
+
+            try {
+                $this->entityManager->persist($spin);
+                $this->entityManager->flush();
+
+                return;
+            } catch (UniqueConstraintViolationException $collision) {
+                if ($attempt === self::CODE_ATTEMPTS) {
+                    throw $collision;
+                }
+            }
+        }
     }
 }

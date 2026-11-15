@@ -38,6 +38,10 @@ wheel:
     probability_out_of_range: 'Une probabilité doit être comprise entre %min% et %max%.'
     probability_total: 'Le total des probabilités doit être %required%. Il est actuellement de %total%.'
     prize_gone: "Ce lot n'existe plus. Rechargez la page et réessayez."
+    prize_reward_required: 'Choisissez ce que donne cette part.'
+    unknown_reward: "Cette récompense n'existe plus. Rechargez la page et réessayez."
+    one_losing_slice: 'Une roue ne peut avoir qu’une seule part perdante.'
+    default_losing_label: 'Pas de chance'
 
 branding:
     invalid: "L'identité visuelle n'est pas valide."
@@ -65,3 +69,30 @@ theme:
 
 tagline:
     default: 'Un tour, un lot. Bonne chance !'
+
+reward:
+    type:
+        free_product: 'Produit offert'
+        percent_off: 'Remise en pourcentage'
+        amount_off: 'Remise en montant'
+        nothing: 'Rien'
+    default_losing: 'Pas de chance'
+    default_5_percent: '5 % sur votre prochaine commande'
+    default_10_percent: '10 % sur votre prochaine commande'
+    default_free_sample: 'Échantillon offert'
+    default_free_gift: 'Cadeau offert'
+    default_grand_prize: 'Gros lot'
+    invalid: "Cette récompense n'a pas pu être enregistrée."
+    name_required: 'Une récompense doit avoir un nom.'
+    name_too_long: 'Un nom de récompense ne peut pas dépasser %max% caractères.'
+    name_taken: 'Une récompense porte déjà ce nom.'
+    type_invalid: 'Choisissez parmi : %values%.'
+    value_required: 'Ce type de récompense demande une valeur.'
+    percent_out_of_range: 'Un pourcentage doit être compris entre %min% et %max%.'
+    amount_too_small: 'Un montant doit valoir au moins %min%.'
+    value_not_allowed: 'Ce type de récompense ne prend pas de valeur.'
+    in_use: 'Cette récompense est sur la roue, utilisée par : %slices%. Modifiez ces parts d’abord.'
+    not_found: "Cette récompense n'existe pas."
+
+spin:
+    not_claimable: 'Un tour perdant ne peut pas être réclamé.'

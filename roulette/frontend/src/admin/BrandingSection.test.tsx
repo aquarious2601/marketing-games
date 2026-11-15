@@ -48,8 +48,11 @@ function branding(overrides: Partial<AdminBranding> = {}): AdminBranding {
     ownTagline: null,
     defaultTagline: DEFAULT_TAGLINE,
     theme: 'plain',
+    currency: 'VND',
+    currencySymbol: '₫',
     logoUrl: null,
     themes: THEMES,
+    currencies: [{ value: 'VND', label: 'VND', symbol: '₫' }],
     ...overrides,
   }
 }

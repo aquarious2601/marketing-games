@@ -16,8 +16,12 @@ import {
   type DraftPrize,
 } from './editor'
 
+/**
+ * A slice with a reward on it (F13 R7), because that is the normal case —
+ * the tests about a *missing* reward say so explicitly.
+ */
 function draft(name: string, probability: string, id: number | null = null): DraftPrize {
-  return { ...createPrize(), id, name, probability }
+  return { ...createPrize(), id, name, probability, rewardId: 1 }
 }
 
 /** A valid two-prize wheel, the smallest thing that can be saved. */
@@ -37,9 +41,10 @@ describe('fromConfiguration', () => {
       id: 1,
       updatedAt: '2026-11-14T20:00:00+00:00',
       totalProbability: 100,
+      includesLosingSlice: false,
       prizes: [
-        { id: 7, name: 'Try again', probability: 60, position: 0, colour: '#475569' },
-        { id: 8, name: 'Free gift', probability: 40, position: 1, colour: '#E11D48' },
+        { id: 7, name: 'Try again', probability: 60, position: 0, colour: '#475569', rewardId: 1 },
+        { id: 8, name: 'Free gift', probability: 40, position: 1, colour: '#E11D48', rewardId: 1 },
       ],
     }
 
@@ -55,9 +60,10 @@ describe('fromConfiguration', () => {
       id: 1,
       updatedAt: '',
       totalProbability: 100,
+      includesLosingSlice: false,
       prizes: [
-        { id: 1, name: 'A', probability: 50, position: 0, colour: '#000000' },
-        { id: 2, name: 'A', probability: 50, position: 1, colour: '#000000' },
+        { id: 1, name: 'A', probability: 50, position: 0, colour: '#000000', rewardId: 1 },
+        { id: 2, name: 'A', probability: 50, position: 1, colour: '#000000', rewardId: 1 },
       ],
     })
 
@@ -69,7 +75,7 @@ describe('toSubmission', () => {
   it('trims names and converts probabilities to numbers', () => {
     const submission = toSubmission([draft('  Free gift  ', '40', 3)])
 
-    expect(submission).toEqual([{ id: 3, name: 'Free gift', probability: 40 }])
+    expect(submission).toEqual([{ id: 3, name: 'Free gift', probability: 40, rewardId: 1 }])
   })
 })
 
@@ -269,6 +275,19 @@ describe('validate', () => {
 
     expect(result.prizeErrors).toHaveLength(2)
     expect(result.prizeErrors[1]).toEqual({})
+  })
+
+  /**
+   * F13 R7. Checked here rather than left to the server, so the Save
+   * button is honest: a slice with nothing to give away is not a wheel
+   * that can be saved.
+   */
+  it('refuses a slice with no reward', () => {
+    const result = validate([{ ...draft('A', '60'), rewardId: null }, draft('B', '40')])
+
+    expect(result.prizeErrors[0].rewardId).toBeDefined()
+    expect(result.prizeErrors[1].rewardId).toBeUndefined()
+    expect(result.isValid).toBe(false)
   })
 })
 

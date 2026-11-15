@@ -2,15 +2,17 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import { fetchSpinLog, type LoggedSpin } from '../api/players'
+import { fetchSpinLog, setSpinClaimed, type LoggedSpin } from '../api/players'
 import { SpinsModule } from './SpinsModule'
 
 vi.mock('../api/players', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/players')>()),
   fetchSpinLog: vi.fn(),
+  setSpinClaimed: vi.fn(),
 }))
 
 const fetchSpinLogMock = vi.mocked(fetchSpinLog)
+const setSpinClaimedMock = vi.mocked(setSpinClaimed)
 
 function spin(overrides: Partial<LoggedSpin> = {}): LoggedSpin {
   return {
@@ -18,12 +20,20 @@ function spin(overrides: Partial<LoggedSpin> = {}): LoggedSpin {
     prizeName: 'Free sample',
     spunAt: '2026-11-15T10:02:11+00:00',
     player: { id: 1, phone: '0912345678', firstName: 'Anh', lastName: 'Le' },
+    // F13: a claimable discount with a code is the ordinary case; the
+    // tests about a losing row or a free product say so explicitly.
+    rewardType: 'percent_off',
+    rewardValue: 10,
+    code: 'A7K3-M9PX',
+    claimable: true,
+    claimedAt: null,
     ...overrides,
   }
 }
 
 beforeEach(() => {
   fetchSpinLogMock.mockReset()
+  setSpinClaimedMock.mockReset()
   fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1 })
 })
 
@@ -143,7 +153,8 @@ describe('the spin log', () => {
 
 /** F11: the table standard, and that both listings really share it. */
 describe('the table itself', () => {
-  const HEADERS = ['Prize', 'Player', 'Phone', 'Spun']
+  // F13 added Code and Status; Spun moved along with them.
+  const HEADERS = ['Prize', 'Player', 'Phone', 'Code', 'Spun', 'Status']
 
   /** F11 R1, R2 */
   it('labels every column', async () => {
@@ -229,7 +240,7 @@ describe('the table itself', () => {
     render(<SpinsModule />)
     await screen.findByTestId('spin-log')
 
-    const when = screen.getByTestId('spin-row').querySelectorAll('td')[3]
+    const when = screen.getByTestId('spin-row').querySelectorAll('td')[4]
 
     expect(when).not.toHaveTextContent('2026-11-15T10:02:11+00:00')
     expect(when).toHaveClass('tabular-nums')
@@ -243,6 +254,108 @@ describe('the table itself', () => {
 
     expect(screen.getByTestId('th-phone')).toHaveTextContent('Phone')
     expect(screen.getByTestId('th-spun')).toHaveTextContent('Spun')
+  })
+})
+
+/** F13 R19, R21–R24: the code, the status and the claim. */
+describe('rewards on a log row', () => {
+  it('shows the code for a discount', async () => {
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    expect(screen.getByTestId('spin-code')).toHaveTextContent('A7K3-M9PX')
+  })
+
+  /** F13 R19: a free product is claimed by showing the screen. */
+  it('shows a dash where there is no code', async () => {
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin({ rewardType: 'free_product', rewardValue: null, code: null })],
+      total: 1,
+    })
+
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    expect(screen.getByTestId('spin-code')).toHaveTextContent('—')
+    // Still claimable: it is a real prize, just one with no code.
+    expect(screen.getByTestId('spin-claim')).toBeInTheDocument()
+  })
+
+  /** F13 R24 */
+  it('offers nothing to press on a losing row', async () => {
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin({ rewardType: 'nothing', rewardValue: null, code: null, claimable: false })],
+      total: 1,
+    })
+
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    expect(screen.queryByTestId('spin-claim')).not.toBeInTheDocument()
+    expect(screen.getByTestId('spin-status')).toHaveTextContent('—')
+  })
+
+  /** F13 R22 */
+  it('marks a reward claimed', async () => {
+    setSpinClaimedMock.mockResolvedValue(spin({ claimedAt: '2026-11-15T11:00:00+00:00' }))
+
+    const user = userEvent.setup()
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    expect(screen.getByTestId('spin-claim')).toHaveTextContent('Claim')
+
+    await user.click(screen.getByTestId('spin-claim'))
+
+    await waitFor(() => expect(setSpinClaimedMock).toHaveBeenCalledWith(9, true))
+    expect(await screen.findByTestId('spin-claim')).toHaveTextContent('Claimed')
+  })
+
+  /** F13 R23: the same control takes it back. */
+  it('unclaims what was claimed by mistake', async () => {
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin({ claimedAt: '2026-11-15T11:00:00+00:00' })],
+      total: 1,
+    })
+    setSpinClaimedMock.mockResolvedValue(spin({ claimedAt: null }))
+
+    const user = userEvent.setup()
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    await user.click(screen.getByTestId('spin-claim'))
+
+    await waitFor(() => expect(setSpinClaimedMock).toHaveBeenCalledWith(9, false))
+  })
+
+  /**
+   * The row is replaced rather than the log reloaded: a counter is no place
+   * for the list to jump under somebody's finger between two taps.
+   */
+  it('does not reload the whole log to claim one row', async () => {
+    setSpinClaimedMock.mockResolvedValue(spin({ claimedAt: '2026-11-15T11:00:00+00:00' }))
+
+    const user = userEvent.setup()
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    fetchSpinLogMock.mockClear()
+    await user.click(screen.getByTestId('spin-claim'))
+    await waitFor(() => expect(setSpinClaimedMock).toHaveBeenCalled())
+
+    expect(fetchSpinLogMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a claim that could not be changed', async () => {
+    setSpinClaimedMock.mockRejectedValue(new ApiError('offline', 500))
+
+    const user = userEvent.setup()
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    await user.click(screen.getByTestId('spin-claim'))
+
+    expect(await screen.findByTestId('spins-claim-error')).toBeInTheDocument()
   })
 })
 

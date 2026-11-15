@@ -3,8 +3,14 @@ import { StrictMode } from 'react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiValidationError } from '../api/client'
+import { fetchRewards } from '../api/rewards'
 import { fetchWheel, saveWheel, type WheelConfiguration } from '../api/wheel'
 import { GameModule } from './GameModule'
+
+vi.mock('../api/rewards', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/rewards')>()),
+  fetchRewards: vi.fn(),
+}))
 
 vi.mock('../api/wheel', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/wheel')>()),
@@ -12,6 +18,21 @@ vi.mock('../api/wheel', async (importOriginal) => ({
   saveWheel: vi.fn(),
 }))
 
+
+const REWARDS = [
+  { id: 1, name: 'Free sample', type: 'free_product' as const, value: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+  { id: 2, name: 'Ten off', type: 'percent_off' as const, value: 10, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+  { id: 3, name: 'Maybe next time', type: 'nothing' as const, value: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+]
+
+const REWARD_TYPES = [
+  { value: 'free_product' as const, label: 'Free product' },
+  { value: 'percent_off' as const, label: 'Percentage off' },
+  { value: 'amount_off' as const, label: 'Amount off' },
+  { value: 'nothing' as const, label: 'Nothing' },
+]
+
+const fetchRewardsMock = vi.mocked(fetchRewards)
 const fetchWheelMock = vi.mocked(fetchWheel)
 const saveWheelMock = vi.mocked(saveWheel)
 
@@ -25,12 +46,13 @@ function configuration(
     id: 1,
     updatedAt: '2026-11-14T20:00:00+00:00',
     totalProbability: prizes.reduce((sum, [, p]) => sum + p, 0),
+    includesLosingSlice: false,
     prizes: prizes.map(([name, probability], index) => ({
       id: index + 1,
       name,
       probability,
       position: index,
-      colour: '#475569',
+      colour: '#475569', rewardId: 1,
     })),
   }
 }
@@ -45,6 +67,8 @@ function wheelOf(count: number): WheelConfiguration {
 }
 
 beforeEach(() => {
+  fetchRewardsMock.mockReset()
+  fetchRewardsMock.mockResolvedValue({ rewards: REWARDS, types: REWARD_TYPES })
   fetchWheelMock.mockReset()
   saveWheelMock.mockReset()
   fetchWheelMock.mockResolvedValue(configuration())
@@ -343,10 +367,15 @@ describe('saving', () => {
     await user.click(saveButton())
 
     await waitFor(() =>
-      expect(saveWheelMock).toHaveBeenCalledWith([
-        { id: 1, name: 'Changed', probability: 60 },
-        { id: 2, name: 'Free gift', probability: 40 },
-      ]),
+      expect(saveWheelMock).toHaveBeenCalledWith(
+        [
+          // F13 R7: every slice says what it gives away.
+          { id: 1, name: 'Changed', probability: 60, rewardId: 1 },
+          { id: 2, name: 'Free gift', probability: 40, rewardId: 1 },
+        ],
+        // F13 R11: the toggle travels with the prizes, in one save.
+        false,
+      ),
     )
   })
 

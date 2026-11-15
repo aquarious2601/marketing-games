@@ -9,6 +9,9 @@ namespace App\Dto;
  *
  * `$id` is null for a prize the admin has just added; an existing prize keeps
  * its id so that saving does not change its identity (F01 R11).
+ *
+ * `$rewardId` is what the slice gives away (F13 R7). Required, because a
+ * slice pointing at nothing is a slice nobody can honour.
  */
 final readonly class PrizeDraft
 {
@@ -16,6 +19,7 @@ final readonly class PrizeDraft
         public ?int $id,
         public string $name,
         public int $probability,
+        public int $rewardId,
     ) {
     }
 }

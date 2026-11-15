@@ -8,6 +8,7 @@ import {
   type PlayerIdentity,
   type PlayerPrize,
   type PlayerWheel,
+  type SpinReward,
 } from '../api/player'
 import { ThemeScene } from '../branding/ThemeScene'
 import { useT } from '../i18n/I18nContext'
@@ -47,6 +48,10 @@ export function PlayerPage() {
       // Replaced the moment the wheel loads; this only covers the first paint.
       tagline: t('player.tagline'),
       theme: 'plain',
+      // Replaced the moment the wheel loads, like everything else here;
+      // this only has to be a currency, not the right one.
+      currency: 'VND',
+      currencySymbol: '₫',
       logoUrl: null,
     },
   })
@@ -55,6 +60,8 @@ export function PlayerPage() {
   const [animation, setAnimation] = useState<SpinAnimation>(() => atRest())
   const [awaitingSpin, setAwaitingSpin] = useState(false)
   const [result, setResult] = useState<PlayerPrize | null>(null)
+  // F13 R20: held beside the prize, because the panel shows both.
+  const [reward, setReward] = useState<SpinReward | null>(null)
   const [error, setError] = useState<string | null>(null)
   // F08 R12: what the *server* said, never something this page decided.
   const [player, setPlayer] = useState<PlayerIdentity | null>(null)
@@ -65,6 +72,7 @@ export function PlayerPage() {
   // Held in a ref so the transition-end handler always sees the latest
   // result rather than the one captured when the spin started.
   const pendingResult = useRef<PlayerPrize | null>(null)
+  const pendingReward = useRef<SpinReward | null>(null)
 
   /**
    * The wheel and the identity are fetched together, not one after the other.
@@ -119,7 +127,9 @@ export function PlayerPage() {
   const reveal = useCallback(() => {
     if (pendingResult.current !== null) {
       setResult(pendingResult.current)
+      setReward(pendingReward.current)
       pendingResult.current = null
+      pendingReward.current = null
     }
   }, [])
 
@@ -146,6 +156,7 @@ export function PlayerPage() {
 
     setAwaitingSpin(true)
     setResult(null)
+    setReward(null)
     setError(null)
 
     try {
@@ -157,6 +168,7 @@ export function PlayerPage() {
       setWheel(current)
 
       pendingResult.current = outcome.prize
+      pendingReward.current = outcome.reward
 
       // F03 R12: every player gets the full spin, including those whose
       // system asks for reduced motion. See F03 section 13 for that decision
@@ -167,6 +179,7 @@ export function PlayerPage() {
     } catch (caught) {
       // F02 R17 / F03 R14: no prize announced, no animation, wheel unmoved.
       pendingResult.current = null
+      pendingReward.current = null
 
       /**
        * F08 R16: a 403 means the server is not willing to say who this is any
@@ -205,6 +218,7 @@ export function PlayerPage() {
   const handOver = async () => {
     setPlayer(null)
     setResult(null)
+    setReward(null)
     setError(null)
     setAnimation(atRest())
 
@@ -345,7 +359,7 @@ export function PlayerPage() {
             </div>
           </div>
 
-          {result !== null && <ResultPanel name={result.name} />}
+          {result !== null && <ResultPanel name={result.name} reward={reward} />}
         </div>
 
         {/*
@@ -456,7 +470,7 @@ export function PlayerPage() {
  * slices either side of it stay visible: the player can see where the wheel
  * stopped as well as read what it stopped on.
  */
-function ResultPanel({ name }: { name: string }) {
+function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null }) {
   const t = useT()
 
   return (
@@ -491,6 +505,21 @@ function ResultPanel({ name }: { name: string }) {
       <p className="mt-1 text-xl font-bold" style={{ color: 'var(--panel-heading)' }}>
         {name}
       </p>
+      {/* F13 R20. In a monospace face and spaced out, because this is read
+          aloud across a counter and typed back in by somebody else. Only a
+          discount has one (F13 R19); a free product is still claimed by
+          showing the screen. */}
+      {reward?.code != null && (
+        <p className="mt-3" data-testid="reward-code">
+          <span className="player-kicker block" style={{ color: 'var(--panel-heading)' }}>
+            {t('player.yourCode')}
+          </span>
+          <span className="mt-0.5 block font-mono text-lg font-bold tracking-[0.12em]">
+            {reward.code}
+          </span>
+        </p>
+      )}
+
       <p className="mt-2 text-xs">{t('player.claim')}</p>
     </div>
   )

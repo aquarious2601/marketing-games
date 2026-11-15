@@ -1,4 +1,4 @@
-import { apiGet, type RequestOptions } from './client'
+import { apiGet, apiPut, type RequestOptions } from './client'
 
 /**
  * A player as the admin may see them (F08 R20).
@@ -49,6 +49,15 @@ export interface LoggedSpin {
   /** The spin's own snapshot (F02 R10), so a deleted prize still has a name. */
   prizeName: string
   spunAt: string
+  /** F13 R25: what was won, as it was at the moment it was won. */
+  rewardType: 'free_product' | 'percent_off' | 'amount_off' | 'nothing'
+  rewardValue: number | null
+  /** F13 R19: null for a free product and for a losing item. */
+  code: string | null
+  /** F13 R24: false for a losing item, which has nothing to hand over. */
+  claimable: boolean
+  /** F13 R21: null until somebody at the counter says otherwise. */
+  claimedAt: string | null
   /**
    * Null for an anonymous spin (F09 R15) — one from before F08, or one whose
    * player has been deleted. The spin still happened and the prize still
@@ -61,6 +70,26 @@ export interface SpinLog {
   spins: LoggedSpin[]
   /** As above: how many match, not how many came back (F09 R16). */
   total: number
+}
+
+/**
+ * Marking a reward handed over, or taking that back (F13 R22, R23).
+ *
+ * The state wanted rather than two verbs, because staff press the same
+ * control to correct a mistake as to make one.
+ */
+export async function setSpinClaimed(
+  id: number,
+  claimed: boolean,
+  options?: RequestOptions,
+): Promise<LoggedSpin> {
+  const { spin } = await apiPut<{ spin: LoggedSpin }>(
+    `/admin/spins/${id}/claim`,
+    { claimed },
+    options,
+  )
+
+  return spin
 }
 
 /** F09 R13, R18. */

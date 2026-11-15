@@ -17,8 +17,22 @@ export interface PlayerWheel {
   branding: Branding
 }
 
+/**
+ * What was won, beside the slice it was won on (F13 R20).
+ *
+ * The type and value are here rather than parsed out of the prize's name,
+ * because that name is the admin's words and may say anything (F13 R8).
+ */
+export interface SpinReward {
+  type: 'free_product' | 'percent_off' | 'amount_off' | 'nothing'
+  value: number | null
+  /** F13 R19: null for a free product and for a losing item. */
+  code: string | null
+}
+
 export interface SpinResult {
   prize: PlayerPrize
+  reward: SpinReward
   spunAt: string
 }
 

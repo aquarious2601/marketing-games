@@ -25,7 +25,8 @@ final class WheelPresenter
      *     id: int|null,
      *     updatedAt: string,
      *     totalProbability: int,
-     *     prizes: list<array{id: int|null, name: string, probability: int, position: int, colour: string}>
+     *     includesLosingSlice: bool,
+     *     prizes: list<array{id: int|null, name: string, probability: int, position: int, colour: string, rewardId: int|null}>
      * }
      */
     public function present(Wheel $wheel): array
@@ -39,6 +40,9 @@ final class WheelPresenter
                 'probability' => $prize->getProbability(),
                 'position' => $prize->getPosition(),
                 'colour' => $this->palette->colourFor($prize->getPosition()),
+                // F13 R7: what this slice gives away. The admin's selector
+                // needs the id; the label beside it is the slice's own.
+                'rewardId' => $prize->getReward()?->getId(),
             ];
         }
 
@@ -51,6 +55,7 @@ final class WheelPresenter
             'id' => $wheel->getId(),
             'updatedAt' => $wheel->getUpdatedAt()->format(\DateTimeInterface::ATOM),
             'totalProbability' => $wheel->getTotalProbability(),
+            'includesLosingSlice' => $wheel->includesLosingSlice(),
             'prizes' => $prizes,
         ];
     }

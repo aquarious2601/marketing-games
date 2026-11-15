@@ -249,6 +249,7 @@ final class BrandingControllerTest extends DatabaseWebTestCase
                 'id' => $p['id'],
                 'name' => $p['name'],
                 'probability' => $p['probability'],
+                'rewardId' => $p['rewardId'],
             ],
             $this->decodeResponse()['prizes'],
         );

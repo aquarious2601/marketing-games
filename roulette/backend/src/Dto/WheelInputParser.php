@@ -93,6 +93,7 @@ final class WheelInputParser
             $id = $this->parseId($rawPrize, $index, $violations);
             $name = $this->parseName($rawPrize, $index, $violations);
             $probability = $this->parseProbability($rawPrize, $index, $violations);
+            $rewardId = $this->parseRewardId($rawPrize, $index, $violations);
 
             if (null === $probability) {
                 $everyProbabilityValid = false;
@@ -100,8 +101,8 @@ final class WheelInputParser
                 $total += $probability;
             }
 
-            if (null !== $name && null !== $probability) {
-                $prizes[] = new PrizeDraft($id, $name, $probability);
+            if (null !== $name && null !== $probability && null !== $rewardId) {
+                $prizes[] = new PrizeDraft($id, $name, $probability, $rewardId);
             }
         }
 
@@ -121,7 +122,15 @@ final class WheelInputParser
             return [null, $violations];
         }
 
-        return [new WheelDraft($prizes), []];
+        // F13 R11. Absent means off, so a client that has not caught up with
+        // this feature cannot silently turn a losing slice on.
+        $includesLosing = $payload['includesLosingSlice'] ?? false;
+
+        if (!\is_bool($includesLosing)) {
+            return [null, [new Violation('includesLosingSlice', $this->translator->trans('api.invalid_object'))]];
+        }
+
+        return [new WheelDraft($prizes, $includesLosing), []];
     }
 
     /**
@@ -146,6 +155,32 @@ final class WheelInputParser
         }
 
         return $id;
+    }
+
+    /**
+     * F13 R7: a slice has to say what it gives away.
+     *
+     * Only the shape is checked here. Whether the id names a reward that
+     * exists is the writer's job, because this parser deliberately knows
+     * nothing about the database.
+     *
+     * @param array<mixed>    $rawPrize
+     * @param list<Violation> $violations
+     */
+    private function parseRewardId(array $rawPrize, int $index, array &$violations): ?int
+    {
+        $rewardId = $rawPrize['rewardId'] ?? null;
+
+        if (!\is_int($rewardId) || $rewardId < 1) {
+            $violations[] = new Violation(
+                sprintf('prizes[%d].rewardId', $index),
+                $this->translator->trans('wheel.prize_reward_required'),
+            );
+
+            return null;
+        }
+
+        return $rewardId;
     }
 
     /**

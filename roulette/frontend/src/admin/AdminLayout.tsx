@@ -76,9 +76,14 @@ export function AdminLayout() {
  * code and the database already use — the spin table, `spunAt`, the spin log
  * — and an interface that invents a second word for an existing thing makes
  * every later conversation ambiguous.
+ *
+ * Rewards sits beside Game rather than after Players (F13): the catalogue is
+ * something you set up, like the wheel, and the two modules after it are
+ * things you read.
  */
 const MODULES: ReadonlyArray<{ path: string; label: MessageKey }> = [
   { path: 'game', label: 'game.title' },
+  { path: 'rewards', label: 'rewards.title' },
   { path: 'players', label: 'players.title' },
   { path: 'spins', label: 'spins.title' },
 ]

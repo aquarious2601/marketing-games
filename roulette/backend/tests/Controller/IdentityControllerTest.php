@@ -469,7 +469,9 @@ final class IdentityControllerTest extends DatabaseWebTestCase
 
         $this->client->request('POST', self::SPIN_URI);
 
-        self::assertSame(['prize', 'spunAt'], array_keys($this->decodeResponse()));
+        // F13 R20 adds the reward block. Still no probability anywhere in
+        // it, which is what this test is really guarding (F02 R2).
+        self::assertSame(['prize', 'reward', 'spunAt'], array_keys($this->decodeResponse()));
         self::assertStringNotContainsString(
             'phone',
             (string) $this->client->getResponse()->getContent(),

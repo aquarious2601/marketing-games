@@ -74,7 +74,8 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $branding = $this->decodeResponse()['branding'];
 
         self::assertSame(
-            ['companyName', 'campaignName', 'tagline', 'theme', 'logoUrl'],
+            // F13 R28 adds the campaign currency and its symbol.
+            ['companyName', 'campaignName', 'tagline', 'theme', 'currency', 'currencySymbol', 'logoUrl'],
             array_keys($branding),
         );
         self::assertSame('One spin, one prize. Good luck.', $branding['tagline']);
@@ -221,8 +222,8 @@ final class PlayerControllerTest extends DatabaseWebTestCase
             server: ['CONTENT_TYPE' => 'application/json'],
             content: json_encode([
                 'prizes' => [
-                    ['name' => 'Something else', 'probability' => 50],
-                    ['name' => 'Another thing', 'probability' => 50],
+                    ['name' => 'Something else', 'probability' => 50, 'rewardId' => $this->aRewardId()],
+                    ['name' => 'Another thing', 'probability' => 50, 'rewardId' => $this->aRewardId()],
                 ],
             ], \JSON_THROW_ON_ERROR),
         );

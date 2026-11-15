@@ -12,7 +12,8 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 [F06](./F06-theme-scenes.md) theme scenes,
 [F08](./F08-player-identification.md) player identification,
 [F10](./F10-hand-over-to-the-next-player.md) handing over to the next player,
-[F12](./F12-multiple-languages.md) English, French, Chinese and Vietnamese._
+[F12](./F12-multiple-languages.md) English, French, Chinese and Vietnamese,
+[F13](./F13-reward-configuration.md) the reward catalogue and its codes._
 
 | Candidate | Sketch |
 |---|---|
@@ -47,10 +48,12 @@ three; if this reaches six, the navigation is its own decision again.
 | Candidate | Sketch |
 |---|---|
 | **CSV export of the spin log** | The clear next step for the Spins module, and the honest answer when a shop wants more than the 200 rows the page shows. |
-| **Prize stock** | Limited quantities, behaviour when a prize is exhausted. A section in the Game module. |
+| **Prize stock** | Limited quantities, behaviour when a prize is exhausted. **The natural next feature** — [F13](./F13-reward-configuration.md) made a reward a thing with its own row, so a stock count is a column rather than a migration. |
+| **Code expiry** | A voucher with no end date is a liability the shop carries indefinitely. [F13](./F13-reward-configuration.md) issues codes and gives them no lifetime. |
+| **A migration path for the reward catalogue** | `prize.reward_id` is `NOT NULL` and this project has no migrations. A database with existing prizes cannot take [F13](./F13-reward-configuration.md) without one. |
 | **Campaign scheduling** | Start and end dates, active/paused, multiple campaigns — including switching theme by date. |
 | **Theme editor** | Adding or editing themes. The five in [F04](./F04-branding-and-themes.md) are fixed in code and contrast-checked; an editor would need to keep that guarantee. |
-| **Claim verification** | Staff marking a prize as handed over. Almost certainly a column in [F09](./F09-admin-modules.md)'s Spins module, which is a reason not to fill that row with anything else. |
+| **Claim verification** | ~~Staff marking a prize as handed over.~~ **Done in [F13](./F13-reward-configuration.md)** R21–R24: a claim control on each Spins row, reversible, and absent on a losing row. What is still missing is *who* claimed it, which is an audit trail and its own feature. |
 | **Dashboard** | Spins, unique players, prizes given, conversion. Deliberately kept off the Spins module ([F09](./F09-admin-modules.md) §13) rather than built by halves. Note that "unique players" counts rows, not people, until the phone numbers are canonicalised per country — see above. |
 | **Filtering the log by date or prize** | Not asked for yet. The phone filter was, because it answers a question at the counter. |
 

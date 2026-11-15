@@ -168,6 +168,57 @@ export const en = {
   'spins.colPlayer': 'Player',
   'spins.colPhone': 'Phone',
   'spins.colSpun': 'Spun',
+  'spins.colCode': 'Code',
+  'spins.colStatus': 'Status',
+  'spins.claimed': 'Claimed',
+  'spins.notClaimed': 'Not claimed',
+  'spins.claim': 'Claim',
+  'spins.unclaim': 'Undo',
+  'spins.claimFailed': 'That could not be changed. Please try again.',
+
+  // -- Reward types (F13 R2) ------------------------------------------
+  'rewardType.free_product': 'Free product',
+  'rewardType.percent_off': 'Percentage off',
+  'rewardType.amount_off': 'Amount off',
+  'rewardType.nothing': 'Nothing',
+
+  // -- Rewards module (F13) -------------------------------------------
+  'rewards.title': 'Rewards',
+  'rewards.lead': 'What the wheel can give away. Every slice points at one of these.',
+  'rewards.list': 'Reward catalogue',
+  'rewards.count': '%count% rewards',
+  'rewards.countOne': '1 reward',
+  'rewards.add': 'Add a reward',
+  'rewards.edit': 'Edit',
+  'rewards.delete': 'Delete',
+  'rewards.cancel': 'Cancel',
+  'rewards.name': 'Name',
+  'rewards.type': 'Type',
+  'rewards.value': 'Value',
+  'rewards.colName': 'Name',
+  'rewards.colType': 'Type',
+  'rewards.colValue': 'Value',
+  'rewards.colUsedBy': 'On the wheel',
+  'rewards.colAdded': 'Added',
+  'rewards.none': 'No rewards yet. Add one to put it on the wheel.',
+  'rewards.loading': 'Loading the rewards…',
+  'rewards.loadFailed': 'The rewards could not be loaded.',
+  'rewards.saveFailed': 'That reward could not be saved.',
+  'rewards.deleteFailed': 'That reward could not be deleted.',
+  'rewards.unused': 'Not used',
+
+  // -- Game module additions (F13 R11, R7) ----------------------------
+  'game.losingToggle': 'Include a losing item',
+  'game.losingToggleHint':
+    'Adds a slice that wins nothing. Rename it and set its odds like any other.',
+  'game.reward': 'Gives away',
+  'game.noRewards': 'Add a reward first — every slice has to give something away.',
+
+  // -- Player result (F13 R20) ----------------------------------------
+  'player.yourCode': 'Your code',
+
+  // -- Branding addition (F13 R27) ------------------------------------
+  'branding.currency': 'Currency',
 } as const
 
 export type MessageKey = keyof typeof en

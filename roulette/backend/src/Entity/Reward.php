@@ -1,0 +1,123 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Entity;
+
+use App\Repository\RewardRepository;
+use App\Reward\RewardType;
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * Something the shop gives away (F13 R1).
+ *
+ * A catalogue rather than a type on the slice, because a reward is a thing
+ * the business has: it outlives any one wheel, and the stock count, expiry
+ * and redemption rules that will be wanted next all belong to it rather than
+ * to the slice it happened to sit on. See F13 section 13.
+ *
+ * The slice keeps its own label (F13 R8), so this name is what the *admin*
+ * calls the reward, not necessarily what a player reads.
+ */
+#[ORM\Entity(repositoryClass: RewardRepository::class)]
+#[ORM\Table(name: 'reward')]
+#[ORM\UniqueConstraint(name: 'uniq_reward_name', columns: ['name'])]
+class Reward
+{
+    /** F13 R4 */
+    public const NAME_MAX_LENGTH = 60;
+
+    /** F13 R12: what the losing slice is called before the admin renames it. */
+    public const DEFAULT_LOSING_KEY = 'reward.default_losing';
+
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
+
+    #[ORM\Column(length: self::NAME_MAX_LENGTH, unique: true)]
+    private string $name;
+
+    #[ORM\Column(length: 20)]
+    private string $type;
+
+    /**
+     * Null for a free product and for nothing (F13 R3). Nullable rather than
+     * zero, so "this type has no value" and "this discount is zero" stay
+     * different facts.
+     */
+    #[ORM\Column(type: 'smallint', nullable: true)]
+    private ?int $value = null;
+
+    #[ORM\Column(name: 'created_at')]
+    private \DateTimeImmutable $createdAt;
+
+    public function __construct(string $name, RewardType $type, ?int $value = null)
+    {
+        $this->name = $name;
+        $this->type = $type->value;
+        $this->value = $type->needsValue() ? $value : null;
+        $this->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+    }
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    public function setName(string $name): void
+    {
+        $this->name = $name;
+    }
+
+    public function getType(): RewardType
+    {
+        return RewardType::fromStorage($this->type);
+    }
+
+    /**
+     * Setting the type clears a value the new type cannot carry, so a reward
+     * changed from 10% off to a free product cannot keep a stray 10 that
+     * nothing displays and something later reads.
+     */
+    public function setType(RewardType $type): void
+    {
+        $this->type = $type->value;
+
+        if (!$type->needsValue()) {
+            $this->value = null;
+        }
+    }
+
+    public function getValue(): ?int
+    {
+        return $this->value;
+    }
+
+    public function setValue(?int $value): void
+    {
+        $this->value = $this->getType()->needsValue() ? $value : null;
+    }
+
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+
+    /** F13 R15, R24. */
+    public function isClaimable(): bool
+    {
+        return $this->getType()->isClaimable();
+    }
+
+    /** F13 R16, R19. */
+    public function needsCode(): bool
+    {
+        return $this->getType()->needsCode();
+    }
+}

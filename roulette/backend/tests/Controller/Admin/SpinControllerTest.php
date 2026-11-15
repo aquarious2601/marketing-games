@@ -74,7 +74,12 @@ final class SpinControllerTest extends DatabaseWebTestCase
 
         $spin = $this->decodeResponse()['spins'][0];
 
-        self::assertSame(['id', 'prizeName', 'spunAt', 'player'], array_keys($spin));
+        self::assertSame(
+            // F13 R25: the reward snapshot, the code and the claim ride
+            // along with every log row now.
+            ['id', 'prizeName', 'spunAt', 'player', 'rewardType', 'rewardValue', 'code', 'claimable', 'claimedAt'],
+            array_keys($spin),
+        );
         self::assertNotSame('', $spin['prizeName']);
         self::assertSame(
             ['id', 'phone', 'firstName', 'lastName'],
@@ -160,8 +165,8 @@ final class SpinControllerTest extends DatabaseWebTestCase
 
         $this->put('/api/admin/wheel', [
             'prizes' => [
-                ['name' => 'Something else', 'probability' => 50],
-                ['name' => 'Another thing', 'probability' => 50],
+                ['name' => 'Something else', 'probability' => 50, 'rewardId' => $this->aRewardId()],
+                ['name' => 'Another thing', 'probability' => 50, 'rewardId' => $this->aRewardId()],
             ],
         ]);
         self::assertResponseIsSuccessful();

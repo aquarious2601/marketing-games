@@ -6,6 +6,7 @@ import {
   REQUIRED_TOTAL,
   addPrize,
   canAddPrize,
+  createPrize,
   canRemovePrize,
   fromConfiguration,
   isDirty,
@@ -18,6 +19,7 @@ import {
   type PrizeErrors,
 } from '../wheel/editor'
 import { WheelPreview, type PreviewSlice } from '../wheel/WheelPreview'
+import { fetchRewards, type Reward } from '../api/rewards'
 import { useT } from '../i18n/I18nContext'
 import { BrandingSection } from './BrandingSection'
 import { PrizeRow } from './PrizeRow'
@@ -49,9 +51,21 @@ export function GameModule() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [serverViolations, setServerViolations] = useState<ApiViolation[]>([])
   const [justSaved, setJustSaved] = useState(false)
+  // F13 R11, R7.
+  const [losing, setLosing] = useState(false)
+  const [savedLosing, setSavedLosing] = useState(false)
+  const [rewards, setRewards] = useState<Reward[]>([])
 
   const validation = useMemo(() => validate(drafts), [drafts])
-  const dirty = useMemo(() => isDirty(drafts, saved), [drafts, saved])
+  const dirty = useMemo(
+    () => isDirty(drafts, saved) || losing !== savedLosing,
+    [drafts, saved, losing, savedLosing],
+  )
+
+  const losingReward = useMemo(
+    () => rewards.find((reward) => reward.type === 'nothing') ?? null,
+    [rewards],
+  )
 
   /**
    * `signal` lets a superseded load be dropped.
@@ -64,7 +78,12 @@ export function GameModule() {
     setLoad({ phase: 'loading' })
 
     try {
-      const configuration = await fetchWheel({ signal })
+      // The catalogue comes with the wheel: a slice selector with nothing
+      // to select from is not a page worth rendering (F13 R7).
+      const [configuration, catalogue] = await Promise.all([
+        fetchWheel({ signal }),
+        fetchRewards({ signal }),
+      ])
 
       if (signal?.aborted === true) {
         return
@@ -74,6 +93,9 @@ export function GameModule() {
 
       setDrafts(initial)
       setSaved(initial)
+      setLosing(configuration.includesLosingSlice)
+      setSavedLosing(configuration.includesLosingSlice)
+      setRewards(catalogue.rewards)
       setLoad({ phase: 'ready' })
     } catch {
       if (signal?.aborted === true) {
@@ -129,11 +151,13 @@ export function GameModule() {
     setServerViolations([])
 
     try {
-      const configuration = await saveWheel(toSubmission(drafts))
+      const configuration = await saveWheel(toSubmission(drafts), losing)
       const stored = fromConfiguration(configuration)
 
       setDrafts(stored)
       setSaved(stored)
+      setLosing(configuration.includesLosingSlice)
+      setSavedLosing(configuration.includesLosingSlice)
       setJustSaved(true)
     } catch (error) {
       // The admin's edits stay in the form either way: nothing here replaces
@@ -207,6 +231,42 @@ export function GameModule() {
           <h2 className="mb-1 text-sm font-semibold uppercase tracking-[0.15em] text-slate-500">
             {t('game.prizes')}
           </h2>
+
+          {/*
+            F13 R11–R13. Turning it on adds a slice pointing at the losing
+            reward; turning it off takes that slice away. Its probability is
+            not redistributed automatically — the admin decides where those
+            points go, and the total has to reach 100 before this will save
+            (F01 R8), which is the prompt to decide.
+          */}
+          <label className="mb-3 mt-2 flex items-start gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={losing}
+              disabled={losingReward === null}
+              onChange={(event) => {
+                const wanted = event.target.checked
+                setLosing(wanted)
+                setJustSaved(false)
+
+                if (losingReward === null) {
+                  return
+                }
+
+                setDrafts((current) =>
+                  wanted
+                    ? [...current, losingSlice(losingReward.id, t('rewardType.nothing'))]
+                    : current.filter((draft) => draft.rewardId !== losingReward.id),
+                )
+              }}
+              data-testid="losing-toggle"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300"
+            />
+            <span>
+              <span className="font-medium">{t('game.losingToggle')}</span>
+              <span className="block text-xs text-slate-500">{t('game.losingToggleHint')}</span>
+            </span>
+          </label>
           <p className="mb-3 text-sm text-slate-500">
             {t('game.prizesLead')}
           </p>
@@ -220,6 +280,7 @@ export function GameModule() {
                 total={drafts.length}
                 errors={errorsFor[index] ?? {}}
                 canRemove={canRemovePrize(drafts)}
+                rewards={rewards}
                 onChange={(change) => mutate((current) => updatePrize(current, index, change))}
                 onMove={(offset) => mutate((current) => movePrize(current, index, offset))}
                 onRemove={() => mutate((current) => removePrize(current, index))}
@@ -287,6 +348,18 @@ export function GameModule() {
       </div>
     </>
   )
+}
+
+/**
+ * The slice the toggle adds (F13 R12).
+ *
+ * It arrives with no probability, deliberately: the admin has to say where
+ * those points come from, and a slice that silently took them off another
+ * would change the odds behind their back. The total then fails F01 R8
+ * until they decide, which is the prompt.
+ */
+function losingSlice(rewardId: number, label: string): DraftPrize {
+  return { ...createPrize(), name: label, rewardId }
 }
 
 function TotalBadge({ total, error }: { total: number | null; error: string | null }) {

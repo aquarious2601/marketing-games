@@ -25,6 +25,8 @@ final class BrandingPresenter
      *     campaignName: string|null,
      *     tagline: string,
      *     theme: string,
+     *     currency: string,
+     *     currencySymbol: string,
      *     logoUrl: string|null
      * }
      */
@@ -37,6 +39,10 @@ final class BrandingPresenter
             // page should never have to know which.
             'tagline' => $branding->getTagline(),
             'theme' => $branding->getTheme()->value,
+            // F13 R28: the symbol travels with the code so neither the admin
+            // nor the player page has to carry its own table of them.
+            'currency' => $branding->getCurrency()->value,
+            'currencySymbol' => $branding->getCurrency()->symbol(),
             'logoUrl' => $this->logoUrl($branding),
         ];
     }

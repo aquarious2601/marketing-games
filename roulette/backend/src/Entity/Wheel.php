@@ -38,6 +38,14 @@ class Wheel
     private \DateTimeImmutable $updatedAt;
 
     /**
+     * F13 R11. Off by default: a new wheel is all prizes until somebody
+     * decides otherwise, which is the friendlier of the two defaults for a
+     * shop setting up its first campaign.
+     */
+    #[ORM\Column(name: 'includes_losing_slice', options: ['default' => false])]
+    private bool $includesLosingSlice = false;
+
+    /**
      * Ordered by position (F01 R7), so every reader sees the same order
      * without having to remember to sort.
      *
@@ -66,6 +74,17 @@ class Wheel
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    /** F13 R11. */
+    public function includesLosingSlice(): bool
+    {
+        return $this->includesLosingSlice;
+    }
+
+    public function setIncludesLosingSlice(bool $includes): void
+    {
+        $this->includesLosingSlice = $includes;
     }
 
     public function touch(): void

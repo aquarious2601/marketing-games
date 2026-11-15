@@ -19,6 +19,13 @@ use Symfony\Component\Translation\Translator;
  */
 final class WheelInputParserTest extends TestCase
 {
+    /**
+     * F13 R7: a slice has to say what it gives away. The parser only checks
+     * the shape of the id — whether it names a reward that exists is the
+     * writer's job — so any positive number exercises the same path.
+     */
+    private const REWARD_ID = 7;
+
     private WheelInputParser $parser;
 
     protected function setUp(): void
@@ -42,8 +49,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['id' => 1, 'name' => 'Try again', 'probability' => 60],
-                ['name' => 'Free gift', 'probability' => 40],
+                ['id' => 1, 'name' => 'Try again', 'probability' => 60, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Free gift', 'probability' => 40, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -63,8 +70,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft] = $this->parser->parse([
             'prizes' => [
-                ['name' => '   Free gift   ', 'probability' => 50],
-                ['name' => 'Try again', 'probability' => 50],
+                ['name' => '   Free gift   ', 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Try again', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -77,8 +84,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => '5 euro voucher', 'probability' => 50],
-                ['name' => '5 euro voucher', 'probability' => 50],
+                ['name' => '5 euro voucher', 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => '5 euro voucher', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -91,8 +98,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => 'Try again', 'probability' => 60],
-                ['name' => 'Free gift', 'probability' => 37],
+                ['name' => 'Try again', 'probability' => 60, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Free gift', 'probability' => 37, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -106,7 +113,7 @@ final class WheelInputParserTest extends TestCase
     public function testItRejectsFewerThanTwoPrizes(): void
     {
         [$draft, $violations] = $this->parser->parse([
-            'prizes' => [['name' => 'Everyone wins', 'probability' => 100]],
+            'prizes' => [['name' => 'Everyone wins', 'probability' => 100, 'rewardId' => self::REWARD_ID]],
         ]);
 
         self::assertNull($draft);
@@ -119,7 +126,7 @@ final class WheelInputParserTest extends TestCase
         $prizes = [];
 
         for ($i = 0; $i < 13; ++$i) {
-            $prizes[] = ['name' => 'Prize '.$i, 'probability' => 0 === $i ? 88 : 1];
+            $prizes[] = ['name' => 'Prize '.$i, 'probability' => 0 === $i ? 88 : 1, 'rewardId' => self::REWARD_ID];
         }
 
         [$draft, $violations] = $this->parser->parse(['prizes' => $prizes]);
@@ -133,7 +140,7 @@ final class WheelInputParserTest extends TestCase
         $prizes = [];
 
         for ($i = 0; $i < 12; ++$i) {
-            $prizes[] = ['name' => 'Prize '.$i, 'probability' => 0 === $i ? 89 : 1];
+            $prizes[] = ['name' => 'Prize '.$i, 'probability' => 0 === $i ? 89 : 1, 'rewardId' => self::REWARD_ID];
         }
 
         [$draft, $violations] = $this->parser->parse(['prizes' => $prizes]);
@@ -147,8 +154,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => '    ', 'probability' => 50],
-                ['name' => 'Free gift', 'probability' => 50],
+                ['name' => '    ', 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -162,8 +169,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => str_repeat('a', 41), 'probability' => 50],
-                ['name' => 'Free gift', 'probability' => 50],
+                ['name' => str_repeat('a', 41), 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -176,8 +183,8 @@ final class WheelInputParserTest extends TestCase
         // 40 accented characters is 80 bytes but a legal name.
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => str_repeat('é', 40), 'probability' => 50],
-                ['name' => 'Free gift', 'probability' => 50],
+                ['name' => str_repeat('é', 40), 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -195,8 +202,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => 'Free gift', 'probability' => $probability],
-                ['name' => 'Try again', 'probability' => 50],
+                ['name' => 'Free gift', 'probability' => $probability, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Try again', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -228,8 +235,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => 'Free gift', 'probability' => $probability],
-                ['name' => 'Try again', 'probability' => 50],
+                ['name' => 'Free gift', 'probability' => $probability, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Try again', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -256,8 +263,8 @@ final class WheelInputParserTest extends TestCase
     {
         [, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => 'Free gift', 'probability' => 'fifty'],
-                ['name' => 'Try again', 'probability' => 50],
+                ['name' => 'Free gift', 'probability' => 'fifty', 'rewardId' => self::REWARD_ID],
+                ['name' => 'Try again', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -268,8 +275,8 @@ final class WheelInputParserTest extends TestCase
     {
         [, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => '', 'probability' => 0],
-                ['name' => 'Free gift', 'probability' => 200],
+                ['name' => '', 'probability' => 0, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Free gift', 'probability' => 200, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -284,8 +291,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['id' => 0, 'name' => 'Free gift', 'probability' => 50],
-                ['name' => 'Try again', 'probability' => 50],
+                ['id' => 0, 'name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Try again', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -297,8 +304,8 @@ final class WheelInputParserTest extends TestCase
     {
         [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['id' => null, 'name' => 'Free gift', 'probability' => 50],
-                ['name' => 'Try again', 'probability' => 50],
+                ['id' => null, 'name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => 'Try again', 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
@@ -326,7 +333,7 @@ final class WheelInputParserTest extends TestCase
         yield 'not an object' => ['nonsense', ''];
         yield 'no prizes key' => [['wheel' => []], 'prizes'];
         yield 'prizes not an array' => [['prizes' => 'lots'], 'prizes'];
-        yield 'prizes keyed, not a list' => [['prizes' => ['a' => ['name' => 'x', 'probability' => 100]]], 'prizes'];
+        yield 'prizes keyed, not a list' => [['prizes' => ['a' => ['name' => 'x', 'probability' => 100, 'rewardId' => self::REWARD_ID]]], 'prizes'];
         yield 'a prize that is not an object' => [['prizes' => ['just a string', 'another']], 'prizes[0]'];
     }
 

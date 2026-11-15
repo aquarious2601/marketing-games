@@ -18,6 +18,8 @@ final readonly class WheelDraft
      */
     public function __construct(
         public array $prizes,
+        /** F13 R11. */
+        public bool $includesLosingSlice = false,
     ) {
     }
 }

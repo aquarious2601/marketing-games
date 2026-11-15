@@ -38,6 +38,10 @@ wheel:
     probability_out_of_range: 'Xác suất phải từ %min% đến %max%.'
     probability_total: 'Tổng xác suất phải bằng %required%. Hiện đang là %total%.'
     prize_gone: 'Phần thưởng này không còn nữa. Hãy tải lại trang và thử lại.'
+    prize_reward_required: 'Hãy chọn phần thưởng cho ô này.'
+    unknown_reward: 'Phần thưởng này không còn nữa. Hãy tải lại trang và thử lại.'
+    one_losing_slice: 'Vòng quay chỉ được có một ô không trúng.'
+    default_losing_label: 'Chúc may mắn lần sau'
 
 branding:
     invalid: 'Thông tin thương hiệu không hợp lệ.'
@@ -65,3 +69,30 @@ theme:
 
 tagline:
     default: 'Một lượt quay, một phần thưởng. Chúc may mắn!'
+
+reward:
+    type:
+        free_product: 'Sản phẩm miễn phí'
+        percent_off: 'Giảm theo phần trăm'
+        amount_off: 'Giảm theo số tiền'
+        nothing: 'Không có gì'
+    default_losing: 'Chúc may mắn lần sau'
+    default_5_percent: 'Giảm 5% cho đơn hàng tiếp theo'
+    default_10_percent: 'Giảm 10% cho đơn hàng tiếp theo'
+    default_free_sample: 'Hàng dùng thử miễn phí'
+    default_free_gift: 'Quà tặng miễn phí'
+    default_grand_prize: 'Giải đặc biệt'
+    invalid: 'Không lưu được phần thưởng đó.'
+    name_required: 'Phần thưởng cần có tên.'
+    name_too_long: 'Tên phần thưởng không được dài quá %max% ký tự.'
+    name_taken: 'Đã có phần thưởng mang tên này.'
+    type_invalid: 'Hãy chọn một trong: %values%.'
+    value_required: 'Loại phần thưởng này cần một giá trị.'
+    percent_out_of_range: 'Phần trăm phải từ %min% đến %max%.'
+    amount_too_small: 'Số tiền phải ít nhất là %min%.'
+    value_not_allowed: 'Loại phần thưởng này không nhận giá trị.'
+    in_use: 'Phần thưởng này đang nằm trên vòng quay, được dùng bởi: %slices%. Hãy sửa các ô đó trước.'
+    not_found: 'Phần thưởng đó không tồn tại.'
+
+spin:
+    not_claimable: 'Lượt quay không trúng thì không thể nhận thưởng.'

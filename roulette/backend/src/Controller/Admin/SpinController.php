@@ -9,8 +9,12 @@ use App\Player\PlayerPresenter;
 use App\Repository\SpinRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * The whole spin log (F09 R13–R20).
@@ -27,6 +31,8 @@ final class SpinController extends AbstractController
     public function __construct(
         private readonly SpinRepository $spins,
         private readonly PlayerPresenter $presenter,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -53,5 +59,49 @@ final class SpinController extends AbstractController
              */
             'total' => $this->spins->countMatching($filter),
         ]);
+    }
+
+    /**
+     * Marking a reward handed over, or taking that back (F13 R22, R23).
+     *
+     * A PUT with the state wanted rather than two verbs, because the thing
+     * being set is a property with two values and staff at a counter press
+     * the same control to correct a mistake as to make one.
+     */
+    #[Route('/{id}/claim', name: 'claim', methods: ['PUT'], requirements: ['id' => '\d+'])]
+    public function claim(Request $request, #[MapEntity(id: 'id')] Spin $spin): JsonResponse
+    {
+        // F13 R24: a losing item has nothing to hand over. Refused rather
+        // than ignored, so a client that offers the control learns it should
+        // not have.
+        if (!$spin->isClaimable()) {
+            return new JsonResponse(
+                [
+                    'error' => [
+                        'status' => Response::HTTP_UNPROCESSABLE_ENTITY,
+                        'message' => $this->translator->trans('spin.not_claimable'),
+                    ],
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
+        }
+
+        try {
+            /** @var mixed $payload */
+            $payload = json_decode($request->getContent(), true, flags: \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            $payload = null;
+        }
+
+        // Absent means claim: the common case is one tap on a row, and a
+        // body is only needed to say "actually, no".
+        $claimed = \is_array($payload) && \array_key_exists('claimed', $payload)
+            ? true === $payload['claimed']
+            : true;
+
+        $spin->setClaimed($claimed);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['spin' => $this->presenter->presentLoggedSpin($spin)]);
     }
 }

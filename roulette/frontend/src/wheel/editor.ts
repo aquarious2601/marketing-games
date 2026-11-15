@@ -25,11 +25,17 @@ export interface DraftPrize {
   name: string
   /** Held as text so the field can be empty mid-edit without becoming 0. */
   probability: string
+  /**
+   * F13 R7. Null only while a freshly added slice has not been given one
+   * yet; `validate` refuses to let that be saved.
+   */
+  rewardId: number | null
 }
 
 export interface PrizeErrors {
   name?: string
   probability?: string
+  rewardId?: string
 }
 
 export interface DraftValidation {
@@ -55,6 +61,7 @@ export function fromConfiguration(configuration: WheelConfiguration): DraftPrize
     id: prize.id,
     name: prize.name,
     probability: String(prize.probability),
+    rewardId: prize.rewardId,
   }))
 }
 
@@ -63,11 +70,14 @@ export function toSubmission(drafts: DraftPrize[]): PrizeSubmission[] {
     id: draft.id,
     name: draft.name.trim(),
     probability: Number(draft.probability),
+    // Coerced here rather than guarded: `validate` has already refused a
+    // draft with no reward, so nothing reaches this with a null.
+    rewardId: draft.rewardId ?? 0,
   }))
 }
 
 export function createPrize(): DraftPrize {
-  return { key: nextKey(), id: null, name: '', probability: '' }
+  return { key: nextKey(), id: null, name: '', probability: '', rewardId: null }
 }
 
 export function canAddPrize(drafts: DraftPrize[]): boolean {
@@ -107,7 +117,7 @@ export function movePrize(drafts: DraftPrize[], index: number, offset: number): 
 export function updatePrize(
   drafts: DraftPrize[],
   index: number,
-  change: Partial<Pick<DraftPrize, 'name' | 'probability'>>,
+  change: Partial<Pick<DraftPrize, 'name' | 'probability' | 'rewardId'>>,
 ): DraftPrize[] {
   return drafts.map((draft, i) => (i === index ? { ...draft, ...change } : draft))
 }
@@ -123,6 +133,20 @@ function parseProbability(raw: string): number | null {
   }
 
   return Number(raw)
+}
+
+/**
+ * F13 R7. Checked here rather than left to the server, so the Save button
+ * is honest: a slice with nothing to give away is not a wheel that can be
+ * saved, and the admin should see that before pressing.
+ */
+function rewardProblem(draft: DraftPrize): string | undefined {
+  // English here, like every other message in this module: `validate` is a
+  // pure function the tests call directly, and threading a translator
+  // through it would make a rule about wheels depend on React. The admin
+  // sees the server's translated violation on save; this one only has to
+  // stop the button working.
+  return draft.rewardId === null ? 'Choose what this slice gives away.' : undefined
 }
 
 export function validate(drafts: DraftPrize[]): DraftValidation {
@@ -156,6 +180,13 @@ export function validate(drafts: DraftPrize[]): DraftValidation {
       total += probability
     }
 
+    // F13 R7
+    const reward = rewardProblem(draft)
+
+    if (reward !== undefined) {
+      errors.rewardId = reward
+    }
+
     prizeErrors.push(errors)
   }
 
@@ -175,7 +206,10 @@ export function validate(drafts: DraftPrize[]): DraftValidation {
     totalError = `The probabilities must total ${REQUIRED_TOTAL}. They currently total ${total}.`
   }
 
-  const hasPrizeError = prizeErrors.some((errors) => errors.name !== undefined || errors.probability !== undefined)
+  // Any problem on any slice, rather than a list of the fields that can
+  // have one: F13 added `rewardId` and this line had to be remembered,
+  // which is exactly the kind of thing that gets forgotten next time.
+  const hasPrizeError = prizeErrors.some((errors) => Object.keys(errors).length > 0)
 
   return {
     prizeErrors,

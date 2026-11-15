@@ -87,6 +87,19 @@ final class PlayerController extends AbstractController
 
         return new JsonResponse([
             'prize' => $this->presenter->presentPrize($prize),
+            /*
+             * F13 R20. The type and value travel with the code because the
+             * result panel renders "10% off" from them rather than parsing
+             * the slice's label, which is the admin's words and may say
+             * anything (F13 R8).
+             *
+             * Still no probability anywhere in here (F02 R2).
+             */
+            'reward' => [
+                'type' => $spin->getRewardType()->value,
+                'value' => $spin->getRewardValue(),
+                'code' => $spin->getRewardCode(),
+            ],
             'spunAt' => $spin->getSpunAt()->format(\DateTimeInterface::ATOM),
         ]);
     }

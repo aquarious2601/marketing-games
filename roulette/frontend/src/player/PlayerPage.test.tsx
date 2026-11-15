@@ -10,6 +10,7 @@ import {
   registerPlayer,
   spin,
   type PlayerWheel,
+  type SpinReward,
 } from '../api/player'
 import { THEMES, THEME_NAMES } from '../branding/themes'
 import { colourFor } from '../wheel/palette'
@@ -47,6 +48,8 @@ const PLAIN_BRANDING = {
   campaignName: null,
   tagline: 'One spin, one prize. Good luck.',
   theme: 'plain',
+  currency: 'VND',
+  currencySymbol: '₫',
   logoUrl: null,
 }
 
@@ -56,15 +59,23 @@ function wheel(branding: Partial<PlayerWheel['branding']> = {}): PlayerWheel {
       id: index + 1,
       name,
       position: index,
-      colour: '#475569',
+      colour: '#475569', rewardId: 1,
     })),
     branding: { ...PLAIN_BRANDING, ...branding },
   }
 }
 
-function result(position: number) {
+function result(position: number, reward?: Partial<SpinReward>) {
   return {
     prize: wheel().prizes[position],
+    // F13 R20: a free product by default, so the existing tests describe
+    // the case that carries no code. The code tests pass their own.
+    reward: {
+      type: 'free_product' as const,
+      value: null,
+      code: null,
+      ...reward,
+    },
     spunAt: '2026-11-14T20:00:00+00:00',
   }
 }
@@ -996,6 +1007,52 @@ describe('being somebody else', () => {
     expect(await screen.findByTestId('identity-phone')).toBeInTheDocument()
     expect(screen.queryByTestId('spin-result')).not.toBeInTheDocument()
     await waitFor(() => expect(forgetPlayerMock).toHaveBeenCalledOnce())
+  })
+})
+
+/** F13 R19, R20: the code the player shows at the counter. */
+describe('the code on the result', () => {
+  async function spinTo(reward: Partial<SpinReward>) {
+    spinMock.mockResolvedValue(result(2, reward))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+
+    return user
+  }
+
+  it('shows the code for a discount', async () => {
+    await spinTo({ type: 'percent_off', value: 10, code: 'A7K3-M9PX' })
+
+    expect(screen.getByTestId('reward-code')).toHaveTextContent('A7K3-M9PX')
+    expect(screen.getByTestId('reward-code')).toHaveTextContent('Your code')
+  })
+
+  /** F13 R19: still claimed by showing the screen. */
+  it('shows no code for a free product', async () => {
+    await spinTo({ type: 'free_product', value: null, code: null })
+
+    expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
+    expect(screen.getByTestId('spin-result')).toHaveTextContent(/show this screen/i)
+  })
+
+  it('shows no code for a losing item', async () => {
+    await spinTo({ type: 'nothing', value: null, code: null })
+
+    expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
+  })
+
+  /** F10 R3: the hand-over clears the code with the prize. */
+  it('clears the code when the device is handed on', async () => {
+    const user = await spinTo({ type: 'percent_off', value: 10, code: 'A7K3-M9PX' })
+
+    await user.click(screen.getByTestId('next-player-button'))
+    await screen.findByTestId('identity-phone')
+
+    expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
   })
 })
 

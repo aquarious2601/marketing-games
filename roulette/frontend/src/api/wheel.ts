@@ -7,12 +7,16 @@ export interface WheelPrize {
   probability: number
   position: number
   colour: string
+  /** F13 R7: what this slice gives away. */
+  rewardId: number | null
 }
 
 export interface WheelConfiguration {
   id: number | null
   updatedAt: string
   totalProbability: number
+  /** F13 R11. */
+  includesLosingSlice: boolean
   prizes: WheelPrize[]
 }
 
@@ -21,6 +25,8 @@ export interface PrizeSubmission {
   id: number | null
   name: string
   probability: number
+  /** F13 R7: required — a slice pointing at nothing cannot be honoured. */
+  rewardId: number
 }
 
 export async function fetchWheel(options?: RequestOptions): Promise<WheelConfiguration> {
@@ -33,7 +39,8 @@ export async function fetchWheel(options?: RequestOptions): Promise<WheelConfigu
  */
 export async function saveWheel(
   prizes: PrizeSubmission[],
+  includesLosingSlice: boolean,
   options?: RequestOptions,
 ): Promise<WheelConfiguration> {
-  return apiPut<WheelConfiguration>('/admin/wheel', { prizes }, options)
+  return apiPut<WheelConfiguration>('/admin/wheel', { prizes, includesLosingSlice }, options)
 }

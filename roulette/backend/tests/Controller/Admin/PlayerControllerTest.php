@@ -283,8 +283,8 @@ final class PlayerControllerTest extends DatabaseWebTestCase
 
         $this->put('/api/admin/wheel', [
             'prizes' => [
-                ['name' => 'Something else', 'probability' => 50],
-                ['name' => 'Another thing', 'probability' => 50],
+                ['name' => 'Something else', 'probability' => 50, 'rewardId' => $this->aRewardId()],
+                ['name' => 'Another thing', 'probability' => 50, 'rewardId' => $this->aRewardId()],
             ],
         ]);
         self::assertResponseIsSuccessful();

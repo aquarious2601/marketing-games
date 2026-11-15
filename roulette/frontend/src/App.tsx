@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AdminLayout } from './admin/AdminLayout'
 import { GameModule } from './admin/GameModule'
 import { PlayersModule } from './admin/PlayersModule'
+import { RewardsModule } from './admin/RewardsModule'
 import { SpinsModule } from './admin/SpinsModule'
 import { AdminShell } from './auth/AdminShell'
 import { LoginPage } from './auth/LoginPage'
@@ -40,6 +41,7 @@ function App() {
         <Route index element={<Navigate to="game" replace />} />
         <Route path="game" element={<GameModule />} />
         <Route path="players" element={<PlayersModule />} />
+        <Route path="rewards" element={<RewardsModule />} />
         <Route path="spins" element={<SpinsModule />} />
         {/* F09 R4: an unrecognised module is the Game module, not a dead
             end inside an otherwise working admin. */}

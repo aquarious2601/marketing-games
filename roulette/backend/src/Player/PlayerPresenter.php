@@ -80,7 +80,7 @@ final class PlayerPresenter
      * deleted, is a prize that left the shop and belongs in the log. The page
      * reads one shape either way.
      *
-     * @return array{id: int|null, prizeName: string, spunAt: string, player: array{id: int|null, phone: string, firstName: string, lastName: string}|null}
+     * @return array{id: int|null, prizeName: string, spunAt: string, player: array{id: int|null, phone: string, firstName: string, lastName: string}|null, rewardType: string, rewardValue: int|null, code: string|null, claimable: bool, claimedAt: string|null}
      */
     public function presentLoggedSpin(Spin $spin): array
     {
@@ -89,6 +89,13 @@ final class PlayerPresenter
         return [
             ...$this->presentSpin($spin),
             'player' => null === $player ? null : $this->presentBriefly($player),
+            // F13 R25: the snapshot, so the log still says what was won
+            // after the catalogue has moved on.
+            'rewardType' => $spin->getRewardType()->value,
+            'rewardValue' => $spin->getRewardValue(),
+            'code' => $spin->getRewardCode(),
+            'claimable' => $spin->isClaimable(),
+            'claimedAt' => $spin->getClaimedAt()?->format(\DateTimeInterface::ATOM),
         ];
     }
 

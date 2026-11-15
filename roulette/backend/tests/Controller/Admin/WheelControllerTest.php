@@ -140,7 +140,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
     {
         $prizes = $this->asPayload($this->currentPrizes());
         $prizes[0]['probability'] = 35;
-        $prizes[] = ['name' => 'Mystery box', 'probability' => 5];
+        $prizes[] = ['name' => 'Mystery box', 'probability' => 5, 'rewardId' => $this->aRewardId()];
 
         $this->put(self::URI, ['prizes' => $prizes]);
 
@@ -245,7 +245,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
     /** F01 R1 */
     public function testItRejectsFewerThanTwoPrizes(): void
     {
-        $this->put(self::URI, ['prizes' => [['name' => 'Everyone wins', 'probability' => 100]]]);
+        $this->put(self::URI, ['prizes' => [['name' => 'Everyone wins', 'probability' => 100, 'rewardId' => $this->aRewardId()]]]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
     }
@@ -256,7 +256,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $prizes = [];
 
         for ($i = 0; $i < 13; ++$i) {
-            $prizes[] = ['name' => 'Prize '.$i, 'probability' => 0 === $i ? 88 : 1];
+            $prizes[] = ['name' => 'Prize '.$i, 'probability' => 0 === $i ? 88 : 1, 'rewardId' => $this->aRewardId()];
         }
 
         $this->put(self::URI, ['prizes' => $prizes]);
@@ -281,7 +281,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
     {
         self::assertSame(0, $this->countRows('wheel'));
 
-        $this->put(self::URI, ['prizes' => [['name' => 'Only one', 'probability' => 100]]]);
+        $this->put(self::URI, ['prizes' => [['name' => 'Only one', 'probability' => 100, 'rewardId' => $this->aRewardId()]]]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertSame(0, $this->countRows('wheel'), 'A rejected request should store nothing at all.');
@@ -304,8 +304,12 @@ final class WheelControllerTest extends DatabaseWebTestCase
     public function testItAcceptsTheBoundaryValues(): void
     {
         $this->put(self::URI, ['prizes' => [
-            ['name' => str_repeat('x', Prize::NAME_MAX_LENGTH), 'probability' => Wheel::REQUIRED_TOTAL_PROBABILITY - 1],
-            ['name' => 'y', 'probability' => Prize::MIN_PROBABILITY],
+            [
+                'name' => str_repeat('x', Prize::NAME_MAX_LENGTH),
+                'probability' => Wheel::REQUIRED_TOTAL_PROBABILITY - 1,
+                'rewardId' => $this->aRewardId(),
+            ],
+            ['name' => 'y', 'probability' => Prize::MIN_PROBABILITY, 'rewardId' => $this->aRewardId()],
         ]]);
 
         self::assertResponseIsSuccessful();
@@ -338,6 +342,9 @@ final class WheelControllerTest extends DatabaseWebTestCase
                 'id' => $prize['id'],
                 'name' => $prize['name'],
                 'probability' => $prize['probability'],
+                // F13 R7: a slice still has to say what it gives away when
+                // it is sent back unchanged.
+                'rewardId' => $prize['rewardId'],
             ],
             $prizes,
         );

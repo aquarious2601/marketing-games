@@ -6,6 +6,7 @@ import App from '../App'
 import { fetchSession } from '../api/auth'
 import { fetchBranding } from '../api/branding'
 import { fetchPlayers, fetchSpinLog } from '../api/players'
+import { fetchRewards } from '../api/rewards'
 import { fetchWheel } from '../api/wheel'
 import { SessionProvider } from '../auth/SessionContext'
 
@@ -37,6 +38,11 @@ vi.mock('../api/branding', async (importOriginal) => ({
   saveBranding: vi.fn(),
 }))
 
+vi.mock('../api/rewards', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/rewards')>()),
+  fetchRewards: vi.fn(),
+}))
+
 vi.mock('../api/players', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/players')>()),
   fetchPlayers: vi.fn(),
@@ -44,6 +50,7 @@ vi.mock('../api/players', async (importOriginal) => ({
   fetchSpinLog: vi.fn(),
 }))
 
+const fetchRewardsMock = vi.mocked(fetchRewards)
 const fetchSessionMock = vi.mocked(fetchSession)
 const fetchWheelMock = vi.mocked(fetchWheel)
 const fetchBrandingMock = vi.mocked(fetchBranding)
@@ -54,9 +61,10 @@ const WHEEL = {
   id: 1,
   updatedAt: '2026-11-15T09:00:00+00:00',
   totalProbability: 100,
+  includesLosingSlice: false,
   prizes: [
-    { id: 1, name: 'Try again', probability: 60, position: 0, colour: '#475569' },
-    { id: 2, name: 'Free gift', probability: 40, position: 1, colour: '#E11D48' },
+    { id: 1, name: 'Try again', probability: 60, position: 0, colour: '#475569', rewardId: 1 },
+    { id: 2, name: 'Free gift', probability: 40, position: 1, colour: '#E11D48', rewardId: 2 },
   ],
 }
 
@@ -67,6 +75,9 @@ const BRANDING = {
   theme: 'plain',
   logoUrl: null,
   themes: [{ value: 'plain', label: 'Plain' }],
+  currency: 'VND',
+  currencySymbol: '₫',
+  currencies: [{ value: 'VND', label: 'VND', symbol: '₫' }],
   ownTagline: null,
   defaultTagline: 'One spin, one prize. Good luck.',
 }
@@ -86,9 +97,21 @@ const SPIN = {
   prizeName: 'Free sample',
   spunAt: '2026-11-15T10:02:11+00:00',
   player: { id: 1, phone: '0912345678', firstName: 'Anh', lastName: 'Le' },
+  rewardType: 'percent_off' as const,
+  rewardValue: 10,
+  code: 'A7K3-M9PX',
+  claimable: true,
+  claimedAt: null,
 }
 
 beforeEach(() => {
+  fetchRewardsMock.mockReset()
+  fetchRewardsMock.mockResolvedValue({
+    rewards: [
+      { id: 1, name: 'Free sample', type: 'free_product', value: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+    ],
+    types: [{ value: 'free_product', label: 'Free product' }],
+  })
   fetchSessionMock.mockReset()
   fetchWheelMock.mockReset()
   fetchBrandingMock.mockReset()
@@ -148,6 +171,15 @@ describe('which URL opens which module', () => {
     expect(screen.queryByTestId('branding-section')).not.toBeInTheDocument()
   })
 
+  /** F13 R5: the catalogue has its own URL like every other module. */
+  it('opens the Rewards module at /admin/rewards', async () => {
+    renderAdmin('/admin/rewards')
+
+    expect(await heading()).toHaveTextContent('Rewards')
+    expect(await screen.findByTestId('rewards-section')).toBeInTheDocument()
+    expect(screen.queryByTestId('players-section')).not.toBeInTheDocument()
+  })
+
   it('opens the Spins module at /admin/spins', async () => {
     renderAdmin('/admin/spins')
 
@@ -166,7 +198,7 @@ describe('which URL opens which module', () => {
 
 /** F09 R5 */
 describe('the tab strip', () => {
-  it('names the three modules', async () => {
+  it('names every module', async () => {
     renderAdmin('/admin')
     await heading()
 
@@ -174,6 +206,9 @@ describe('the tab strip', () => {
 
     expect(tabs).toHaveAccessibleName('Admin modules')
     expect(screen.getByTestId('admin-tab-game')).toHaveTextContent('Game')
+    // F13 added the fourth: the catalogue sits beside Game, because both
+    // are things you set up.
+    expect(screen.getByTestId('admin-tab-rewards')).toHaveTextContent('Rewards')
     expect(screen.getByTestId('admin-tab-players')).toHaveTextContent('Players')
     expect(screen.getByTestId('admin-tab-spins')).toHaveTextContent('Spins')
   })
@@ -272,7 +307,7 @@ describe('a module loads only its own data', () => {
 
 /** F09 R7 — the frame is the same whichever module is open */
 describe('the admin frame', () => {
-  it.each(['/admin/game', '/admin/players', '/admin/spins'])(
+  it.each(['/admin/game', '/admin/rewards', '/admin/players', '/admin/spins'])(
     'offers sign out and names the user on %s',
     async (path) => {
       renderAdmin(path)
@@ -284,7 +319,7 @@ describe('the admin frame', () => {
   )
 
   /** F07 R22 still holds for every module */
-  it.each(['/admin/game', '/admin/players', '/admin/spins'])(
+  it.each(['/admin/game', '/admin/rewards', '/admin/players', '/admin/spins'])(
     'sends a signed-out visitor at %s to the login page',
     async (path) => {
       fetchSessionMock.mockResolvedValue(null)

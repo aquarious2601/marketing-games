@@ -168,8 +168,8 @@ final class LocaleTest extends DatabaseWebTestCase
 
         $this->put('/api/admin/wheel', [
             'prizes' => [
-                ['name' => 'Free sample', 'probability' => 50],
-                ['name' => 'Try again', 'probability' => 50],
+                ['name' => 'Free sample', 'probability' => 50, 'rewardId' => $this->aRewardId()],
+                ['name' => 'Try again', 'probability' => 50, 'rewardId' => $this->aRewardId()],
             ],
         ]);
         self::assertResponseIsSuccessful();
