@@ -7,6 +7,7 @@
 | **Interface** | Player |
 | **Depends on** | [F02](./F02-player-spin.md), [F03](./F03-spin-animation.md), [F08](./F08-player-identification.md) |
 | **Agreed on** | 2026-11-15 |
+| **Amended by** | [F20](./F20-one-spin-per-identification.md) R5, R7 |
 
 ## 1. Summary
 
@@ -86,9 +87,9 @@ recognised immediately (F08 R5), with no name and no birthday asked again.
 | R2 | It is labelled **Next player**. |
 | R3 | Pressing it clears the result, returns the wheel to rest, and shows the phone step. |
 | R4 | It forgets the player on the server too, not only on the page. Clearing one and not the other would leave a reload putting the next person back on the previous player's identity (F08 R12). |
-| R5 | The result stays on screen until the button is pressed. Nothing clears it on a timer, and nothing clears it because time passed. |
+| R5 | The result stays on screen until the button is pressed. Nothing clears it on a timer, and nothing clears it because time passed. **A reload used to clear it anyway**, which [F20](./F20-one-spin-per-identification.md) R5, R6 fixed by having the server report what this identification won. |
 | R6 | A number that has just played may come straight back: it is recognised (F08 R5) and goes to the wheel with no further questions. |
-| R7 | This is a hand-over, not a limit. The page offers one spin per identification; `POST /api/spin` still accepts repeat spins from one session (F08 R18), and the same person may identify again and play again. |
+| R7 | This is a hand-over, not a limit on a person: the same person may identify again and play again. **Amended 2026-11-17 by [F20](./F20-one-spin-per-identification.md) R1, R2:** "the page offers one spin per identification" was exactly the problem — it was page state, so a reload offered another, and `POST /api/spin` took it. The server now refuses a second spin from one identification, which is what this rule always meant to describe. |
 | R8 | While a result is on screen there is **no spin control on the page at all** — not disabled, absent. The only way to another spin is through the phone step. |
 | R9 | "Not you?" (F08 R14) is not shown while a result is on screen. Two controls doing the same thing invite the wrong one being pressed; before a spin it is still the way to correct a wrong number. |
 | R10 | A failed spin is unchanged (F02 R17): the error shows, the wheel returns to rest, no result appears, and the button is still **Spin**. A player who did not get a spin is not handed over. |

@@ -24,6 +24,7 @@ auth:
 player:
     details_invalid: 'Those details could not be used.'
     spin_requires_identity: 'Tell us who you are before you spin.'
+    spin_already_used: 'You have already had your spin. Press Next player to pass the phone on.'
     phone_required: 'Enter your phone number.'
     phone_invalid: 'That does not look like a phone number. It needs between %min% and %max% digits.'
     first_name_required: 'Enter your first name.'

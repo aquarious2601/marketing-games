@@ -180,17 +180,41 @@ final class PlayerControllerTest extends DatabaseWebTestCase
     public function testEverySpinAddsARow(): void
     {
         $this->identifyAsPlayer();
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
 
-        for ($i = 0; $i < 5; ++$i) {
-            $this->client->request('POST', self::SPIN_URI);
-            self::assertResponseIsSuccessful();
+        // Identified again before each of the rest, because one
+        // identification buys one spin now (F20 R1).
+        for ($i = 0; $i < 4; ++$i) {
+            $this->spinOnceMore();
         }
 
         self::assertSame(5, $this->countRows('spin'));
     }
 
-    /** F02 R16, F08 R18 — still unlimited once identified; see F08 section 13 */
-    public function testAPlayerMaySpinAgainImmediately(): void
+    /**
+     * F02 R16, F20 R11. Still unlimited for a *person* — they type their
+     * number in again, which is F10 R6 — and no longer unlimited for one
+     * identification, which is the test below.
+     */
+    public function testAPlayerMaySpinAgainByIdentifyingAgain(): void
+    {
+        $this->identifyAsPlayer();
+
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+
+        $this->spinOnceMore();
+
+        self::assertSame(2, $this->countRows('spin'));
+    }
+
+    /**
+     * F20 R2. The reported bug: a reload used to leave a working Spin
+     * button, and with F16 issuing a code on every win that made a reload a
+     * voucher printer.
+     */
+    public function testASecondSpinFromOneIdentificationIsRefused(): void
     {
         $this->identifyAsPlayer();
 
@@ -198,7 +222,26 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         self::assertResponseIsSuccessful();
 
         $this->client->request('POST', self::SPIN_URI);
-        self::assertResponseIsSuccessful();
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CONFLICT);
+        self::assertSame(1, $this->countRows('spin'), 'A refused spin was recorded anyway.');
+    }
+
+    /** F20 R2: and nothing was drawn, so no second code exists either. */
+    public function testARefusedSecondSpinMintsNoCode(): void
+    {
+        $this->identifyAsPlayer();
+
+        $this->client->request('POST', self::SPIN_URI);
+        $first = $this->decodeResponse()['reward']['code'];
+
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseStatusCodeSame(Response::HTTP_CONFLICT);
+
+        $codes = $this->entityManager->getConnection()
+            ->fetchFirstColumn('SELECT reward_code FROM spin WHERE reward_code IS NOT NULL');
+
+        self::assertSame(array_filter([$first]), array_values($codes));
     }
 
     /**

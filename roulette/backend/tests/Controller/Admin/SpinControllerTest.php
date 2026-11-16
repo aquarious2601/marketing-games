@@ -327,8 +327,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
         self::assertResponseIsSuccessful();
 
         for ($i = 0; $i < $spins; ++$i) {
-            $this->client->request('POST', '/api/spin');
-            self::assertResponseIsSuccessful();
+            $this->spinOnceMore($phone);
         }
 
         $this->post('/api/player/forget');

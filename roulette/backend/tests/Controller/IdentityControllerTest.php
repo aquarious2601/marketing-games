@@ -532,15 +532,19 @@ final class IdentityControllerTest extends DatabaseWebTestCase
         self::assertSame(self::PHONE, $spin->getPlayer()?->getPhone());
     }
 
-    /** F08 R18 — identification is not a limit */
-    public function testAnIdentifiedPlayerMaySpinRepeatedly(): void
+    /**
+     * F08 R18 as F20 R11 amended it: identification is not a limit on a
+     * *person*. They may play three times; they may not do it without
+     * identifying three times.
+     */
+    public function testAPlayerMaySpinAsOftenAsTheyIdentify(): void
     {
         $this->register();
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
 
-        for ($i = 0; $i < 3; ++$i) {
-            $this->client->request('POST', self::SPIN_URI);
-            self::assertResponseIsSuccessful();
-        }
+        $this->spinOnceMore(self::PHONE);
+        $this->spinOnceMore(self::PHONE);
 
         self::assertSame(3, $this->countRows('spin'));
 
@@ -548,6 +552,101 @@ final class IdentityControllerTest extends DatabaseWebTestCase
         foreach ($spins as $spin) {
             self::assertSame(self::PHONE, $spin->getPlayer()?->getPhone());
         }
+    }
+
+    // ------------------------------------------- F20: one spin per identity
+
+    /**
+     * F20 R5, R9. What a reload reads: before the spin there is nothing to
+     * report, and after it there is the prize, the reward and the code.
+     */
+    public function testItReportsWhatThisIdentificationWon(): void
+    {
+        $this->register();
+
+        $this->client->request('GET', self::ME_URI);
+        self::assertNull($this->decodeResponse()['spin'], 'Nothing has been spun yet.');
+
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+        $won = $this->decodeResponse();
+
+        $this->client->request('GET', self::ME_URI);
+        $reported = $this->decodeResponse();
+
+        self::assertSame('Anh', $reported['player']['firstName'], 'The player is still identified.');
+        self::assertNotNull($reported['spin']);
+        self::assertSame($won['prize']['name'], $reported['spin']['prizeName']);
+        self::assertSame($won['reward'], $reported['spin']['reward'], 'A reload must not change what was won.');
+        self::assertSame($won['spunAt'], $reported['spin']['spunAt']);
+    }
+
+    /**
+     * F20 R7. The spin's own snapshot, so a reload still names the prize
+     * after an admin has tidied the slice away (F02 R10).
+     */
+    public function testItStillNamesAPrizeWhoseSliceIsGone(): void
+    {
+        $this->register();
+
+        $this->client->request('POST', self::SPIN_URI);
+        $won = $this->decodeResponse()['prize']['name'];
+
+        $this->entityManager->getConnection()->executeStatement('DELETE FROM prize');
+        $this->entityManager->clear();
+
+        $this->client->request('GET', self::ME_URI);
+
+        self::assertSame($won, $this->decodeResponse()['spin']['prizeName']);
+    }
+
+    /** F20 R10: handing over clears the spin as well as the name. */
+    public function testHandingOverReturnsTheSpinAsWellAsTheIdentity(): void
+    {
+        $this->register();
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+
+        $this->post(self::FORGET_URI);
+
+        $this->client->request('GET', self::ME_URI);
+        self::assertNull($this->decodeResponse()['player']);
+        self::assertNull($this->decodeResponse()['spin']);
+
+        // And the next identification gets a spin of its own.
+        $this->post(self::IDENTIFY_URI, ['phone' => self::PHONE]);
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+        self::assertSame(2, $this->countRows('spin'));
+    }
+
+    /**
+     * F20 R14. An admin deleting a spin out from under a session must not
+     * leave a page that can never spin again and cannot say why.
+     */
+    public function testASessionNamingADeletedSpinIsTreatedAsNotHavingSpun(): void
+    {
+        $this->register();
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+
+        $this->entityManager->getConnection()->executeStatement('DELETE FROM spin');
+        $this->entityManager->clear();
+
+        $this->client->request('GET', self::ME_URI);
+        self::assertNull($this->decodeResponse()['spin']);
+
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+    }
+
+    /** F20 R9: an identification that has not spun is reported as it was. */
+    public function testNobodyIsReportedWithNoSpinEither(): void
+    {
+        $this->client->request('GET', self::ME_URI);
+
+        self::assertNull($this->decodeResponse()['player']);
+        self::assertNull($this->decodeResponse()['spin']);
     }
 
     /**

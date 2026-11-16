@@ -98,9 +98,15 @@ final class RewardIssueTest extends DatabaseWebTestCase
 
         $codes = [];
 
-        for ($i = 0; $i < 25; ++$i) {
-            $this->client->request('POST', self::SPIN_URI);
-            self::assertResponseIsSuccessful();
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+        $codes[] = $this->decodeResponse()['reward']['code'];
+
+        // One identification per spin from here (F20 R1). The index this
+        // test is really about does not care how many sessions the spins
+        // came from.
+        for ($i = 0; $i < 24; ++$i) {
+            $this->spinOnceMore();
 
             $codes[] = $this->decodeResponse()['reward']['code'];
         }

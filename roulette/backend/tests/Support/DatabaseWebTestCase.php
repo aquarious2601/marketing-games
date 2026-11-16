@@ -119,6 +119,24 @@ abstract class DatabaseWebTestCase extends WebTestCase
     }
 
     /**
+     * One more spin for a number that has already had one (F20 R1, R11).
+     *
+     * An identification buys a single spin now, so a fixture that wants
+     * several has to identify before each — which is exactly what the person
+     * at the stall does: types their number in again. Behind one helper so
+     * that "seven spins" in a fixture cannot be read as seven taps of a
+     * reload button, which is the thing F20 stops.
+     */
+    protected function spinOnceMore(string $phone = '0912345678'): void
+    {
+        $this->post('/api/player/identify', ['phone' => $phone]);
+        self::assertResponseIsSuccessful('The test could not identify the player again.');
+
+        $this->client->request('POST', '/api/spin');
+        self::assertResponseIsSuccessful('The test could not spin.');
+    }
+
+    /**
      * A reward id a wheel payload can point at (F13 R7).
      *
      * Every slice has to say what it gives away now, so a test that saves a

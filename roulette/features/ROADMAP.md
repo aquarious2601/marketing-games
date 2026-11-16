@@ -16,11 +16,12 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 [F13](./F13-reward-configuration.md) the reward catalogue and its codes,
 [F16](./F16-a-code-on-every-win.md) a code on every win,
 [F17](./F17-the-losing-panel.md) the losing panel,
-[F19](./F19-one-person-one-number.md) one person, one number._
+[F19](./F19-one-person-one-number.md) one person, one number,
+[F20](./F20-one-spin-per-identification.md) one spin per identification._
 
 | Candidate | Sketch |
 |---|---|
-| **Spin eligibility** | How often someone may play: once ever, once a day, once per code, once per purchase. **Now possible for the first time** — [F08](./F08-player-identification.md) made a player a thing the system knows, and deliberately left the limit out (F08 R18). The feature is mostly the screen the player who has already played sees. Note that [F10](./F10-hand-over-to-the-next-player.md) is *not* this: one spin per identification is how the page behaves at a stall, not a rule about people. |
+| **Spin eligibility** | How often someone may play: once ever, once a day, once per code, once per purchase. **Now possible for the first time** — [F08](./F08-player-identification.md) made a player a thing the system knows and left the limit out, and [F19](./F19-one-person-one-number.md) made one person one row, without which "once per person" could not be counted. The feature is mostly the screen the player who has already played sees. Note that neither [F10](./F10-hand-over-to-the-next-player.md) nor [F20](./F20-one-spin-per-identification.md) is this: one spin per *identification* is how a stall's device behaves, and anybody may identify again. This is the rule about people, and it is the one that needs a campaign's answer. |
 | **Verifying the number** | An SMS code, so the player list is contacts rather than what people typed. [F08 section 13](./F08-player-identification.md) explains why it was left out and what that costs. |
 | ~~**A country setting for phone numbers**~~ | The problem is solved; the setting was not the answer. [F19](./F19-one-person-one-number.md) makes two spellings of one number one player by comparing the numbers, so there is nothing to configure. [F18](./F18-the-campaigns-phone-country.md) was this entry taken literally — built, measured against real data, and thrown away. F19 section 2 is what it cost. |
 | **Deleting a player** | Served from the console today. Needs a decision about what it does to their spins — see [F08 section 14](./F08-player-identification.md). |

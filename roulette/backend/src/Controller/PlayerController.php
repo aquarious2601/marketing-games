@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Branding\BrandingPresenter;
 use App\Branding\BrandingProvider;
+use App\Player\PlayerPresenter;
 use App\Player\PlayerSession;
 use App\Wheel\PlayerWheelPresenter;
 use App\Wheel\SpinRecorder;
@@ -24,8 +25,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * the wheel itself stays open, because the page has to be able to draw before
  * it knows who is looking at it.
  *
- * How often an identified player may spin is still unlimited (F08 R18); see
- * F08 section 13 for why that is left to the eligibility feature.
+ * One identification buys one spin (F20 R1). How often a *person* may play
+ * is still unlimited — they may type their number in again — which is left to
+ * the eligibility feature for the reasons in F08 section 13.
  */
 final class PlayerController extends AbstractController
 {
@@ -36,6 +38,7 @@ final class PlayerController extends AbstractController
         private readonly BrandingProvider $branding,
         private readonly BrandingPresenter $brandingPresenter,
         private readonly PlayerSession $session,
+        private readonly PlayerPresenter $playerPresenter,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -78,12 +81,42 @@ final class PlayerController extends AbstractController
             );
         }
 
+        /*
+         * F20 R2. The server knows who this is and knows they have played,
+         * so this is a conflict rather than a refusal to identify them: a 403
+         * here would send the page back to the phone step and lose the result
+         * it should be showing. A 409 lets it re-ask /api/player/me and draw
+         * the prize it already won.
+         *
+         * Checked before the draw, so a refused request costs no prize and
+         * mints no code (F16 R1).
+         */
+        if (null !== $this->session->spentSpin()) {
+            return new JsonResponse(
+                [
+                    'error' => [
+                        'status' => Response::HTTP_CONFLICT,
+                        'message' => $this->translator->trans('player.spin_already_used'),
+                    ],
+                ],
+                Response::HTTP_CONFLICT,
+            );
+        }
+
         $spin = $this->recorder->spin($this->provider->getOrCreate(), $player);
         $prize = $spin->getPrize();
 
         // The prize cannot be null here: it was just drawn from the wheel and
         // persisted in the same transaction.
         \assert(null !== $prize);
+
+        /*
+         * F20 R1, R3. After the spin is recorded, never before: marking it
+         * first would cost a player their spin whenever the draw failed. The
+         * window between the two is the risk written down in F20 section 13,
+         * and it errs towards one extra spin rather than one lost prize.
+         */
+        $this->session->recordSpin($spin);
 
         return new JsonResponse([
             'prize' => $this->presenter->presentPrize($prize),
@@ -93,13 +126,10 @@ final class PlayerController extends AbstractController
              * the slice's label, which is the admin's words and may say
              * anything (F13 R8).
              *
-             * Still no probability anywhere in here (F02 R2).
+             * Built by the presenter so that this and the reload answer
+             * (F20 R5) cannot drift apart.
              */
-            'reward' => [
-                'type' => $spin->getRewardType()->value,
-                'value' => $spin->getRewardValue(),
-                'code' => $spin->getRewardCode(),
-            ],
+            'reward' => $this->playerPresenter->presentReward($spin),
             'spunAt' => $spin->getSpunAt()->format(\DateTimeInterface::ATOM),
         ]);
     }

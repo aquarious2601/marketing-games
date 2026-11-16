@@ -57,6 +57,44 @@ final class PlayerPresenter
     }
 
     /**
+     * What this identification won, for the page to draw after a reload
+     * (F20 R5, R7, R8).
+     *
+     * The prize *name* rather than the slice, because the slice may have been
+     * renamed or deleted since and the spin's snapshot is the honest record
+     * (F02 R10). No position and no colour: nothing here is animated — the
+     * wheel is already at rest when this is read.
+     *
+     * @return array{prizeName: string, reward: array{type: string, value: int|null, code: string|null}, spunAt: string}
+     */
+    public function presentSpinForPlayer(Spin $spin): array
+    {
+        return [
+            'prizeName' => $spin->getPrizeName(),
+            'reward' => $this->presentReward($spin),
+            'spunAt' => $spin->getSpunAt()->format(\DateTimeInterface::ATOM),
+        ];
+    }
+
+    /**
+     * F13 R20, F16 R1. One place, because the spin response and the reload
+     * response both send this and a player must not be shown two different
+     * accounts of what they won.
+     *
+     * Still no probability in it anywhere (F02 R2).
+     *
+     * @return array{type: string, value: int|null, code: string|null}
+     */
+    public function presentReward(Spin $spin): array
+    {
+        return [
+            'type' => $spin->getRewardType()->value,
+            'value' => $spin->getRewardValue(),
+            'code' => $spin->getRewardCode(),
+        ];
+    }
+
+    /**
      * F08 R22. The prize name comes from the spin's own snapshot (F02 R10),
      * so a history entry still says what was won after the prize was renamed
      * or deleted.
@@ -90,7 +128,9 @@ final class PlayerPresenter
             ...$this->presentSpin($spin),
             'player' => null === $player ? null : $this->presentBriefly($player),
             // F13 R25: the snapshot, so the log still says what was won
-            // after the catalogue has moved on.
+            // after the catalogue has moved on. Flat here rather than nested
+            // as the player's shape has it, because the admin table reads one
+            // row per spin and a nested object would be a column of objects.
             'rewardType' => $spin->getRewardType()->value,
             'rewardValue' => $spin->getRewardValue(),
             'code' => $spin->getRewardCode(),

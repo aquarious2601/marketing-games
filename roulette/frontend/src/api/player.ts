@@ -60,6 +60,29 @@ export interface PlayerIdentity {
   phone: string
 }
 
+/**
+ * What this identification has already won (F20 R5).
+ *
+ * The prize *name* rather than the slice, because this is the spin's own
+ * snapshot and the slice may have been renamed or deleted since (F02 R10).
+ * No position: nothing is animated when this arrives — the wheel is at rest
+ * and the result is simply on screen.
+ */
+export interface PendingSpin {
+  prizeName: string
+  reward: SpinReward
+  spunAt: string
+}
+
+/**
+ * Everything the server will say about this browser (F08 R12, F20 R5): who it
+ * is talking to, and whether that identification has had its spin.
+ */
+export interface PlayerState {
+  player: PlayerIdentity | null
+  spin: PendingSpin | null
+}
+
 export interface PhoneLookup {
   known: boolean
   /** The canonical form the server derived from what was typed (F08 R3). */
@@ -75,17 +98,20 @@ export interface Registration {
 }
 
 /**
- * Who the server thinks it is talking to, or nobody (F08 R12, R13).
+ * Who the server thinks it is talking to, or nobody (F08 R12, R13), and what
+ * that identification has already won (F20 R5).
  *
  * The page asks rather than remembering: identification lives in a cookie it
  * cannot read, which is what stops a browser claiming to be a player. A `200`
  * with a null player is the ordinary answer here, not an error — see F08
  * section 8 for why this is not a 401.
+ *
+ * The spin comes back here rather than being remembered by the page, for the
+ * same reason the identity does: a reload has no page state left, and this is
+ * the call that rebuilds the screen from what the server knows.
  */
-export async function fetchIdentity(options?: RequestOptions): Promise<PlayerIdentity | null> {
-  const { player } = await apiGet<{ player: PlayerIdentity | null }>('/player/me', options)
-
-  return player
+export async function fetchIdentity(options?: RequestOptions): Promise<PlayerState> {
+  return apiGet<PlayerState>('/player/me', options)
 }
 
 /** F08 R5. A known number is identified by this call; an unknown one is not. */

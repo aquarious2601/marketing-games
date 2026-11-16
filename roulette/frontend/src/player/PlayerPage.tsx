@@ -6,7 +6,6 @@ import {
   forgetPlayer,
   spin,
   type PlayerIdentity,
-  type PlayerPrize,
   type PlayerWheel,
   type SpinReward,
 } from '../api/player'
@@ -59,7 +58,15 @@ export function PlayerPage() {
   // value, so the wheel can never be mid-phase with a stale duration.
   const [animation, setAnimation] = useState<SpinAnimation>(() => atRest())
   const [awaitingSpin, setAwaitingSpin] = useState(false)
-  const [result, setResult] = useState<PlayerPrize | null>(null)
+  /*
+   * The name of the prize on screen, not the slice it came from (F20 R7).
+   *
+   * A name rather than a PlayerPrize because a result can now arrive two
+   * ways: from a spin this page animated, and from the server after a reload
+   * (F20 R5), where the slice may not exist any more. The only thing the
+   * panel ever needed was the name.
+   */
+  const [result, setResult] = useState<string | null>(null)
   // F13 R20: held beside the prize, because the panel shows both.
   const [reward, setReward] = useState<SpinReward | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +78,7 @@ export function PlayerPage() {
 
   // Held in a ref so the transition-end handler always sees the latest
   // result rather than the one captured when the spin started.
-  const pendingResult = useRef<PlayerPrize | null>(null)
+  const pendingResult = useRef<string | null>(null)
   const pendingReward = useRef<SpinReward | null>(null)
 
   /**
@@ -96,7 +103,7 @@ export function PlayerPage() {
       ),
       fetchIdentity({ signal }).then(
         (value) => value,
-        () => null,
+        () => ({ player: null, spin: null }),
       ),
     ])
 
@@ -104,7 +111,22 @@ export function PlayerPage() {
       return
     }
 
-    setPlayer(identity)
+    setPlayer(identity.player)
+
+    /*
+     * F20 R6. This identification has already spun, so the result goes
+     * straight on screen — at rest, with no spin control anywhere in the
+     * document — exactly as it was before the reload that lost it.
+     *
+     * Set here rather than animated: the spin happened in some earlier page
+     * that no longer exists, and replaying its animation would be a
+     * ten-second lie about something that already finished.
+     */
+    if (identity.spin !== null) {
+      setResult(identity.spin.prizeName)
+      setReward(identity.spin.reward)
+      setAnimation(atRest())
+    }
 
     if (!loaded.ok) {
       setLoad({ phase: 'failed' })
@@ -167,7 +189,7 @@ export function PlayerPage() {
       const current = await fetchPlayerWheel()
       setWheel(current)
 
-      pendingResult.current = outcome.prize
+      pendingResult.current = outcome.prize.name
       pendingReward.current = outcome.reward
 
       // F03 R12: every player gets the full spin, including those whose
@@ -191,6 +213,14 @@ export function PlayerPage() {
       if (caught instanceof ApiError && caught.status === 403) {
         setPlayer(null)
         setError(t('player.identityLost'))
+      } else if (caught instanceof ApiError && caught.status === 409) {
+        /*
+         * F20 R2: this identification has already spun, and this page did not
+         * know — a second tab, or one left open while the spin happened in
+         * another. The server holds the result, so the page re-asks for
+         * everything rather than guessing, and lands on the result panel.
+         */
+        await loadWheel()
       } else {
         setError(t('player.spinFailed'))
       }
@@ -254,6 +284,40 @@ export function PlayerPage() {
               {t('common.tryAgain')}
             </button>
           </div>
+        </Stage>
+      </Screen>
+    )
+  }
+
+  /**
+   * F20 R15: not yet asked is not the same as nobody.
+   *
+   * `player` is null before the server has answered as well as after it has
+   * answered "nobody", and the branch below cannot tell those apart — so
+   * until F20 every load painted the phone form for one frame and then
+   * replaced it. Harmless-looking, and wrong twice: a returning player was
+   * asked for a number they had already given, and since F20 somebody
+   * reloading to re-read their code was shown a form first.
+   *
+   * So neither screen is drawn while the question is open. The card and the
+   * branding stay, because they are true whoever this turns out to be (F04).
+   */
+  if (load.phase === 'loading') {
+    return (
+      <Screen theme={wheel.branding.theme}>
+        <Stage>
+          <PlayerHeader branding={wheel.branding} />
+
+          <p
+            role="status"
+            data-testid="player-loading"
+            className="text-sm"
+            style={{ color: 'var(--body)' }}
+          >
+            {t('common.loading')}
+          </p>
+
+          <LanguagePicker />
         </Stage>
       </Screen>
     )
@@ -338,28 +402,23 @@ export function PlayerPage() {
                 boxShadow: '0 18px 40px -18px rgba(0, 0, 0, 0.55)',
               }}
             >
-              {load.phase === 'loading' ? (
-                <div
-                  role="status"
-                  className="flex aspect-square w-full items-center justify-center rounded-full border-2 border-dashed text-sm"
-                  style={{ borderColor: 'var(--stage-border)', color: 'var(--body)' }}
-                >
-                  {t('common.loading')}
-                </div>
-              ) : (
-                <WheelPreview
-                  slices={slices}
-                  rotation={animation.rotation}
-                  spinDurationMs={animation.durationMs}
-                  spinEasing={animation.easing}
-                  onSpinEnd={onPhaseEnd}
-                  showPointer
-                />
-              )}
+              {/* No loading state inside the bezel any more: nothing below
+                  this point renders until the wheel has loaded, because the
+                  page no longer guesses at who is looking at it (F20 R15).
+                  The skeleton that used to live here was the other half of
+                  the same wrong assumption. */}
+              <WheelPreview
+                slices={slices}
+                rotation={animation.rotation}
+                spinDurationMs={animation.durationMs}
+                spinEasing={animation.easing}
+                onSpinEnd={onPhaseEnd}
+                showPointer
+              />
             </div>
           </div>
 
-          {result !== null && <ResultPanel name={result.name} reward={reward} />}
+          {result !== null && <ResultPanel name={result} reward={reward} />}
         </div>
 
         {/*
@@ -378,7 +437,7 @@ export function PlayerPage() {
           <button
             type="button"
             onClick={() => void onSpin()}
-            disabled={load.phase !== 'ready' || busy}
+            disabled={busy}
             data-testid="spin-button"
             className={buttonClass}
             style={buttonStyle}

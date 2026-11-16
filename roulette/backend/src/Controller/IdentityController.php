@@ -53,8 +53,19 @@ final class IdentityController extends AbstractController
     {
         $player = $this->session->current();
 
+        /*
+         * F20 R5. What this identification won, so a reload draws the result
+         * panel again instead of a working Spin button — and so the reward
+         * code, which is the only copy in front of the player, survives it.
+         *
+         * Null for an identification that has not spun (F20 R9), and the key
+         * is present either way so the page reads one shape.
+         */
+        $spin = null === $player ? null : $this->session->spentSpin();
+
         return new JsonResponse([
             'player' => null === $player ? null : $this->presenter->presentForPlayer($player),
+            'spin' => null === $spin ? null : $this->presenter->presentSpinForPlayer($spin),
         ]);
     }
 

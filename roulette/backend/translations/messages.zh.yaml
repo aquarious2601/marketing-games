@@ -13,6 +13,7 @@ auth:
 player:
     details_invalid: '这些信息无法使用。'
     spin_requires_identity: '请先告诉我们您是谁，然后再转动转盘。'
+    spin_already_used: '您已经转过一次了。请按“下一位玩家”把手机传给下一个人。'
     phone_required: '请输入您的手机号码。'
     phone_invalid: '这看起来不像手机号码。需要 %min% 到 %max% 位数字。'
     first_name_required: '请输入您的名字。'

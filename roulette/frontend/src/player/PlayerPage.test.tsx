@@ -9,6 +9,7 @@ import {
   identifyPhone,
   registerPlayer,
   spin,
+  type PlayerState,
   type PlayerWheel,
   type SpinReward,
 } from '../api/player'
@@ -40,6 +41,36 @@ const forgetPlayerMock = vi.mocked(forgetPlayer)
  * describe block at the bottom of this file.
  */
 const PLAYER = { firstName: 'Anh', phone: '0912345678' }
+
+/*
+ * What GET /api/player/me answers, which since F20 is two facts rather than
+ * one: who, and whether that identification has had its spin (F20 R5, R9).
+ */
+const NOBODY = { player: null, spin: null }
+const IDENTIFIED = { player: PLAYER, spin: null }
+
+/**
+ * An identification that has already had its spin (F20 R5).
+ *
+ * The prize *name* and no position, which is the whole shape of the reload
+ * case: nothing is animated, because the spin happened in a page that no
+ * longer exists.
+ */
+function alreadySpun(prizeName = 'Free sample', reward?: Partial<SpinReward>) {
+  return {
+    player: PLAYER,
+    spin: {
+      prizeName,
+      reward: {
+        type: 'free_product' as const,
+        value: null,
+        code: 'A7K3-M9PX',
+        ...reward,
+      },
+      spunAt: '2026-11-14T20:00:00+00:00',
+    },
+  }
+}
 
 const PRIZES = ['Try again', 'Free sample', 'Free gift', 'Grand prize']
 
@@ -101,7 +132,7 @@ beforeEach(() => {
   forgetPlayerMock.mockReset()
 
   fetchWheelMock.mockResolvedValue(wheel())
-  fetchIdentityMock.mockResolvedValue(PLAYER)
+  fetchIdentityMock.mockResolvedValue(IDENTIFIED)
   forgetPlayerMock.mockResolvedValue(undefined)
   stubMatchMedia(false)
 })
@@ -697,10 +728,139 @@ describe('the wheel at rest', () => {
  * it through what the server said, because that is the only thing the page is
  * allowed to believe (F08 R12).
  */
+/**
+ * F20: one spin per identification, and what a reload shows.
+ *
+ * The reported bug was that reloading after a spin left a working Spin
+ * button. The page cannot see a reload, so these tests are the thing a
+ * reload actually does: mount the page again and let it ask the server what
+ * it knows.
+ */
+describe('a reload after the spin', () => {
+  /**
+   * F20 R15. The question "who is this?" is open until the server answers,
+   * and an open question is not the answer "nobody".
+   */
+  it('shows neither the form nor the wheel while it is still asking', async () => {
+    let answer: (state: PlayerState) => void = () => {}
+    fetchIdentityMock.mockReturnValue(
+      new Promise<PlayerState>((resolve) => {
+        answer = resolve
+      }),
+    )
+
+    render(<PlayerPage />)
+
+    expect(await screen.findByTestId('player-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('identity-phone')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('spin-result')).not.toBeInTheDocument()
+
+    answer(NOBODY)
+
+    expect(await screen.findByTestId('identity-phone')).toBeInTheDocument()
+  })
+
+  /** F20 R15: and a reload after a spin lands on the result, never the form. */
+  it('never flashes the phone form in front of a result', async () => {
+    let answer: (state: PlayerState) => void = () => {}
+    fetchIdentityMock.mockReturnValue(
+      new Promise<PlayerState>((resolve) => {
+        answer = resolve
+      }),
+    )
+
+    render(<PlayerPage />)
+    await screen.findByTestId('player-loading')
+
+    answer(alreadySpun('Free gift'))
+
+    expect(await screen.findByTestId('spin-result')).toHaveTextContent('Free gift')
+    expect(screen.queryByTestId('identity-phone')).not.toBeInTheDocument()
+  })
+
+  /** F20 R6, R8 */
+  it('shows the prize and the code again rather than a spin button', async () => {
+    fetchIdentityMock.mockResolvedValue(alreadySpun('Free sample'))
+
+    render(<PlayerPage />)
+
+    const panel = await screen.findByTestId('spin-result')
+
+    expect(panel).toHaveTextContent('Free sample')
+    expect(screen.getByTestId('reward-code')).toHaveTextContent('A7K3-M9PX')
+
+    // F10 R8: not disabled, absent.
+    expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
+    expect(screen.getByTestId('next-player-button')).toBeInTheDocument()
+  })
+
+  /** F20 R6: and the wheel is at rest, not mid-spin. */
+  it('does not replay the animation for a spin that already finished', async () => {
+    fetchIdentityMock.mockResolvedValue(alreadySpun())
+
+    render(<PlayerPage />)
+
+    await screen.findByTestId('spin-result')
+
+    expect(screen.getByTestId('wheel-stage')).toHaveAttribute('data-phase', 'idle')
+    expect(spinMock).not.toHaveBeenCalled()
+  })
+
+  /** F20 R6 with F17: a losing spin reloads as the losing panel. */
+  it('shows the losing panel when that is what was won', async () => {
+    fetchIdentityMock.mockResolvedValue(
+      alreadySpun('Try again', { type: 'nothing', code: null }),
+    )
+
+    render(<PlayerPage />)
+
+    const panel = await screen.findByTestId('spin-result')
+
+    expect(panel).toHaveTextContent('Thanks for playing')
+    expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
+  })
+
+  /** F20 R10: handing over from a reloaded result still starts the next person. */
+  it('hands over to the next player from a reloaded result', async () => {
+    fetchIdentityMock.mockResolvedValue(alreadySpun())
+    const user = userEvent.setup()
+
+    render(<PlayerPage />)
+    await screen.findByTestId('spin-result')
+
+    await user.click(screen.getByTestId('next-player-button'))
+
+    expect(await screen.findByTestId('identity-phone')).toBeInTheDocument()
+    expect(screen.queryByTestId('spin-result')).not.toBeInTheDocument()
+    expect(forgetPlayerMock).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * F20 R2, and section 10's last row. A second tab still holds a Spin
+   * button; pressing it is answered with a 409, and the page recovers by
+   * asking the server what it knows rather than showing an error about it.
+   */
+  it('shows the result it already won when the server says the spin is used', async () => {
+    const user = await renderPlayer()
+
+    spinMock.mockRejectedValue(new ApiError('already spun', 409))
+    fetchIdentityMock.mockResolvedValue(alreadySpun('Free gift'))
+
+    await user.click(screen.getByTestId('spin-button'))
+
+    const panel = await screen.findByTestId('spin-result')
+
+    expect(panel).toHaveTextContent('Free gift')
+    expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
+  })
+})
+
 describe('identifying the player', () => {
   /** F08 R1 */
   it('asks for a phone number and offers no wheel at all', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
 
     render(<PlayerPage />)
 
@@ -711,7 +871,7 @@ describe('identifying the player', () => {
 
   /** F08 R1 — the branding is still the first thing read (F04) */
   it('keeps the campaign header on the identity step', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     fetchWheelMock.mockResolvedValue(wheel({ campaignName: 'Noel', companyName: 'AA Store' }))
 
     render(<PlayerPage />)
@@ -724,7 +884,7 @@ describe('identifying the player', () => {
 
   /** F08 R13 */
   it('goes straight to the wheel when the server already knows the visitor', async () => {
-    fetchIdentityMock.mockResolvedValue(PLAYER)
+    fetchIdentityMock.mockResolvedValue(IDENTIFIED)
 
     render(<PlayerPage />)
 
@@ -735,7 +895,7 @@ describe('identifying the player', () => {
 
   /** F08 R5 — a known number asks nothing further */
   it('shows the wheel for a number the server recognises', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockResolvedValue({ known: true, phone: '0912345678', player: PLAYER })
 
     const user = userEvent.setup()
@@ -753,7 +913,7 @@ describe('identifying the player', () => {
 
   /** F08 R6 */
   it('asks for a name and a birthday for a number it has not seen', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
 
     const user = userEvent.setup()
@@ -777,7 +937,7 @@ describe('identifying the player', () => {
    * than after it has become a player nobody can find again.
    */
   it('shows the number being registered on the details step', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
 
     const user = userEvent.setup()
@@ -792,7 +952,7 @@ describe('identifying the player', () => {
 
   /** F08 R6 — and then the wheel */
   it('registers the details and shows the wheel', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
     registerPlayerMock.mockResolvedValue(PLAYER)
 
@@ -822,7 +982,7 @@ describe('identifying the player', () => {
   })
 
   it('lets the player go back and change the number', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
 
     const user = userEvent.setup()
@@ -840,7 +1000,7 @@ describe('identifying the player', () => {
 
   /** F08 R4 — checked here first, so an unusable number costs no round trip */
   it('rejects a number that is too short without asking the server', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -854,7 +1014,7 @@ describe('identifying the player', () => {
   })
 
   it('asks for a number when the field is empty', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -868,7 +1028,7 @@ describe('identifying the player', () => {
 
   /** F08 R10 — every problem at once, not one per submission */
   it('reports all three missing details together', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
 
     const user = userEvent.setup()
@@ -888,7 +1048,7 @@ describe('identifying the player', () => {
   })
 
   it('keeps what was typed when the server rejects the details', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
     registerPlayerMock.mockRejectedValue(
       new ApiValidationError('nope', [{ field: 'firstName', message: 'Server says no.' }]),
@@ -913,7 +1073,7 @@ describe('identifying the player', () => {
   })
 
   it('reports a failed lookup and lets the player try again', async () => {
-    fetchIdentityMock.mockResolvedValue(null)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
     identifyPhoneMock.mockRejectedValueOnce(new ApiError('offline', 500))
 
     const user = userEvent.setup()
@@ -946,7 +1106,7 @@ describe('identifying the player', () => {
 
   /** Only the wheel failing means there is no game to show. */
   it('still reports a failed wheel even when the identity is known', async () => {
-    fetchIdentityMock.mockResolvedValue(PLAYER)
+    fetchIdentityMock.mockResolvedValue(IDENTIFIED)
     fetchWheelMock.mockRejectedValue(new ApiError('nope', 500))
 
     render(<PlayerPage />)

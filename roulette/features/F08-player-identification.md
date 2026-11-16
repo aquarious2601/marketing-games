@@ -126,7 +126,7 @@ cannot mean anything until a person is a thing the system knows.
 |---|---|
 | R16 | `POST /api/spin` requires an identified session. An unidentified request is refused with `403`, draws nothing and records nothing. |
 | R17 | Every spin row records which player spun it. |
-| R18 | An identified player may spin as often as they like. The server accepts repeat spins from one session, and nothing here is an eligibility rule. **Narrowed on the page by [F10](./F10-hand-over-to-the-next-player.md) R1, R7:** after a result the device is handed to the next player, so the page offers one spin per identification. The same person may identify again and play again. |
+| R18 | An identified *person* may spin as often as they like, and nothing here is an eligibility rule. **Amended 2026-11-17 by [F20](./F20-one-spin-per-identification.md) R1, R2:** one identification now buys one spin and the server refuses a second, because the page-level version of this rule ([F10](./F10-hand-over-to-the-next-player.md) R1, R7) was page state and a reload threw it away. The same person may still identify again and play again (F20 R11), so this is still not a limit on a person. |
 | R19 | Deleting a player must not delete or corrupt past spins. The row keeps its prize snapshot and loses only the player link. |
 
 ### Admin
@@ -442,7 +442,16 @@ tab is open — the right length for a shared device, where the next person in
 the queue must not inherit the last one's identity. "Not you?" (R14) is there
 for when they do.
 
-**Spinning stays unlimited (R18).** It is tempting to close it here, since
+**Spinning stays unlimited (R18).** Amended by
+[F20](./F20-one-spin-per-identification.md): one identification buys one
+spin. What is written below is still true of a *person* — they may type their
+number in again — and the reasoning is unchanged, because the screen for
+somebody who has already played is still unbuilt and still the whole of the
+eligibility feature. What F20 closed was narrower and not a campaign
+decision at all: a reload was drawing a fresh prize and, since
+[F16](./F16-a-code-on-every-win.md), minting a fresh code with it.
+
+It is tempting to close it here, since
 the only thing that ever stopped "one spin per person" was not knowing who a
 person was. It stays out because one spin per person, one per day and one per
 receipt are three different campaigns with three different screens for the
