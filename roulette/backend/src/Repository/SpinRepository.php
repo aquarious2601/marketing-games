@@ -6,6 +6,7 @@ namespace App\Repository;
 
 use App\Entity\Player;
 use App\Entity\Spin;
+use App\Reward\CodeGenerator;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -74,7 +75,7 @@ final class SpinRepository extends ServiceEntityRepository
      *
      * @return list<Spin>
      */
-    public function listRecent(?string $phoneFilter = null, int $limit = self::LOG_LIMIT): array
+    public function listRecent(?string $filter = null, int $limit = self::LOG_LIMIT): array
     {
         $builder = $this->createQueryBuilder('s')
             ->addSelect('p')
@@ -86,7 +87,7 @@ final class SpinRepository extends ServiceEntityRepository
             ->addOrderBy('s.id', 'DESC')
             ->setMaxResults($limit);
 
-        $this->applyPhoneFilter($builder, $phoneFilter);
+        $this->applyFilter($builder, $filter);
 
         /** @var list<Spin> $spins */
         $spins = $builder->getQuery()->getResult();
@@ -97,35 +98,54 @@ final class SpinRepository extends ServiceEntityRepository
     /**
      * How many spins match, which is not how many were returned (F09 R21).
      */
-    public function countMatching(?string $phoneFilter = null): int
+    public function countMatching(?string $filter = null): int
     {
         $builder = $this->createQueryBuilder('s')
             ->select('COUNT(s.id)')
             ->leftJoin('s.player', 'p');
 
-        $this->applyPhoneFilter($builder, $phoneFilter);
+        $this->applyFilter($builder, $filter);
 
         return (int) $builder->getQuery()->getSingleScalarResult();
     }
 
     /**
-     * F09 R18, matching F08 R21: any part of the stored number.
+     * One box, two kinds of answer (F16 R7, R11).
      *
-     * Filtering by a number necessarily excludes the anonymous spins — they
-     * have no number to match — which is the one case where R15's "always
-     * list them" does not apply, because the admin has asked a question those
-     * rows cannot answer.
+     * A phone number matches any part of the stored number (F09 R18,
+     * matching F08 R21), which necessarily excludes the anonymous spins —
+     * they have no number to match — and that is the one case where F09
+     * R15's "always list them" does not apply, because the admin has asked
+     * a question those rows cannot answer. Filtering by code excludes the
+     * losing spins for exactly the same reason (F16 R15).
+     *
+     * The two conditions are OR-ed rather than chosen between by guessing
+     * at what was typed. A guess would have to be wrong somewhere, and the
+     * cost of asking both is one extra row when a short numeric filter
+     * happens to start a code.
      */
-    private function applyPhoneFilter(QueryBuilder $builder, ?string $phoneFilter): void
+    private function applyFilter(QueryBuilder $builder, ?string $filter): void
     {
-        if (null === $phoneFilter || '' === $phoneFilter) {
+        if (null === $filter || '' === $filter) {
             return;
         }
 
         // Escaped so a stray `%` typed into the filter matches a literal
         // percent rather than every spin in the database.
-        $builder
-            ->andWhere('p.phone LIKE :phone')
-            ->setParameter('phone', '%'.addcslashes($phoneFilter, '%_\\').'%');
+        $conditions = ['p.phone LIKE :phone'];
+        $builder->setParameter('phone', '%'.addcslashes($filter, '%_\\').'%');
+
+        // F16 R12: null here means the input cannot be the start of a code,
+        // so the code column is not asked about at all. Nothing to escape —
+        // the normaliser returns characters from the alphabet and a hyphen,
+        // and neither `%` nor `_` is among them.
+        $code = CodeGenerator::normalise($filter);
+
+        if (null !== $code) {
+            $conditions[] = 's.rewardCode LIKE :code';
+            $builder->setParameter('code', $code.'%');
+        }
+
+        $builder->andWhere($builder->expr()->orX(...$conditions));
     }
 }

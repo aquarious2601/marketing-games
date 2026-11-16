@@ -74,9 +74,13 @@ class Spin
     private ?int $rewardValue = null;
 
     /**
-     * F13 R16–R19. Null for a free product and for a losing item; unique
-     * across every spin ever recorded, which the index — not the generator
-     * — is what actually guarantees.
+     * F13 R16–R18 with F16 R1. Unique across every spin ever recorded,
+     * which the index — not the generator — is what actually guarantees.
+     *
+     * Null for a losing spin, which has nothing to claim, and for the
+     * free-product spins recorded before F16, which are deliberately left
+     * as they are (F16 R5): a code invented after the fact matches nothing
+     * the player was ever shown.
      */
     #[ORM\Column(name: 'reward_code', length: 12, nullable: true, unique: true)]
     private ?string $rewardCode = null;

@@ -46,9 +46,11 @@ final class SpinRecorder
         return $this->entityManager->wrapInTransaction(function () use ($wheel, $player): Spin {
             $spin = new Spin($this->draw->draw($wheel), $player);
 
-            // F13 R16: issued inside the same transaction that records the
+            // F16 R1: issued inside the same transaction that records the
             // spin, so a code that exists is always a code somebody won.
-            if ($spin->getRewardType()->needsCode()) {
+            // Every win carries one now; R2 leaves the losing slice out,
+            // which is the same fact as "nothing to claim".
+            if ($spin->isClaimable()) {
                 $this->issueCode($spin);
             }
 

@@ -34,6 +34,9 @@ export const en = {
   'player.notYou': 'Not you?',
   'player.youWon': 'You won',
   'player.claim': 'Show this screen to a member of staff to claim it.',
+  // F16 R6a: what a player with a code is told instead, since the screen
+  // itself is cleared by whoever spins next (F10 R3).
+  'player.claimByCode': 'Give this code to a member of staff to claim it.',
   'player.loadFailed': 'The game could not be loaded.',
   'player.spinFailed': 'The spin could not be completed. Please try again.',
   'player.identityLost': 'The game needs to know who is playing. Please enter your number again.',
@@ -165,7 +168,12 @@ export const en = {
   'spins.loading': 'Loading the spins…',
   'spins.loadFailed': 'The spins could not be loaded.',
   'spins.none': 'No spins yet.',
-  'spins.noMatch': 'No spins from that number.',
+  'spins.noMatch': 'No spins match that number or code.',
+  // F16 R17. The Spins filter has its own wording now rather than borrowing
+  // the players one, because it takes a code as well as a number and a
+  // label that names only half of what a box accepts is worse than none.
+  'spins.filterLabel': 'Filter by phone number or code',
+  'spins.filterPlaceholder': 'A number, or a code like A7K3-M9PX',
   'spins.capped': 'Showing the most recent %shown% of %total% spins.',
   'spins.colPrize': 'Prize',
   'spins.colPlayer': 'Player',

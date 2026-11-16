@@ -44,15 +44,13 @@ enum RewardType: string
     }
 
     /**
-     * F13 R16, R19: only a discount is worth a code. A free product is
-     * claimed by showing the screen, and a losing item has nothing to claim.
+     * F13 R15, R24: a losing item is drawn and logged, but never claimed.
+     *
+     * This also answers "is it issued a code" (F16 R1, R2). F13 kept the two
+     * apart, because a discount was issued one and a free product was not;
+     * F16 made every win carry a code, so they are now the same question and
+     * a second method would only be a thing to keep in step.
      */
-    public function needsCode(): bool
-    {
-        return $this->needsValue();
-    }
-
-    /** F13 R15, R24: a losing item is drawn and logged, but never claimed. */
     public function isClaimable(): bool
     {
         return self::Nothing !== $this;

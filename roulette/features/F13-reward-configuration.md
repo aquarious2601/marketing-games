@@ -124,7 +124,7 @@ that can be redeemed twice.
 | R16 | A spin that wins a percent-off or amount-off reward is issued a code at the moment of the spin, in the same transaction that records it (F02 R12). |
 | R17 | The code is unique across every spin ever recorded. |
 | R18 | The code avoids characters that are misread on a screen or over a counter: no `O`/`0`, no `I`/`L`/`1`. |
-| R19 | A free product and a losing item are issued no code. A free product is claimed by showing the screen, as it always was. |
+| R19 | ~~A free product and a losing item are issued no code. A free product is claimed by showing the screen, as it always was.~~ **Replaced by [F16](./F16-a-code-on-every-win.md) R1, R2**: every win carries a code, and only a losing spin carries none. The screen this rule relied on is cleared by the next player ([F10](./F10-hand-over-to-the-next-player.md) R3). |
 | R20 | The player is shown their code on the result panel, where the prize name is. |
 
 ### Claiming

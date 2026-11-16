@@ -379,13 +379,68 @@ describe('the empty states', () => {
     await user.type(screen.getByTestId('spin-filter'), '0000')
 
     expect(await screen.findByTestId('spins-empty')).toHaveTextContent(
-      'No spins from that number.',
+      'No spins match that number or code.',
     )
   })
 })
 
-/** F09 R18 */
-describe('the phone filter', () => {
+/** F09 R18 with F16 R7 */
+describe('the filter', () => {
+  it('says it takes a code as well as a number', async () => {
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    // R17: a label naming only half of what the box accepts is worse than
+    // no label, because staff believe it.
+    expect(screen.getByLabelText('Filter by phone number or code')).toBe(
+      screen.getByTestId('spin-filter'),
+    )
+    expect(screen.getByTestId('spin-filter')).toHaveAttribute(
+      'placeholder',
+      expect.stringContaining('A7K3-M9PX'),
+    )
+  })
+
+  /**
+   * F16 R8 is the server's job, so what matters here is that the browser
+   * sends what was typed rather than tidying it up first — two normalisers
+   * that disagree is the bug this prevents.
+   */
+  it('sends a carelessly typed code as it was typed', async () => {
+    const user = userEvent.setup()
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    await user.type(screen.getByTestId('spin-filter'), 'a7k3m9px')
+
+    await waitFor(() =>
+      expect(fetchSpinLogMock).toHaveBeenCalledWith('a7k3m9px', expect.anything()),
+    )
+  })
+
+  /** F16 R13, R14: one row, and it can be claimed where it was found. */
+  it('claims the spin a code found', async () => {
+    const found = spin({ id: 42, code: 'A7K3-M9PX' })
+
+    fetchSpinLogMock.mockResolvedValue({ spins: [found], total: 1 })
+    setSpinClaimedMock.mockResolvedValue({ ...found, claimedAt: '2026-11-16T10:00:00+00:00' })
+
+    const user = userEvent.setup()
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    await user.type(screen.getByTestId('spin-filter'), 'A7K3-M9PX')
+    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('A7K3-M9PX', expect.anything()))
+
+    expect(screen.getAllByTestId('spin-row')).toHaveLength(1)
+    expect(screen.getByTestId('spin-code')).toHaveTextContent('A7K3-M9PX')
+
+    await user.click(screen.getByTestId('spin-claim'))
+
+    await waitFor(() => expect(setSpinClaimedMock).toHaveBeenCalledWith(42, true))
+    expect(await screen.findByTestId('spin-claim')).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('asks the server for the filtered log', async () => {
     const user = userEvent.setup()
     render(<SpinsModule />)

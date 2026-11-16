@@ -178,14 +178,21 @@ final class SpinControllerTest extends DatabaseWebTestCase
 
     // ------------------------------------------------------------- the filter
 
-    /** F09 R18 */
+    /**
+     * F09 R18.
+     *
+     * The fragment has a `1` in it on purpose. Since F16 R7 the same box
+     * also searches codes, and the code alphabet excludes `1` (F13 R18), so
+     * a filter containing one cannot match a generated code by luck and
+     * this test cannot flake once in a few hundred thousand runs.
+     */
     public function testItFiltersOnAnyPartOfTheNumber(): void
     {
         $this->givenSpins('0912345678', 2);
         $this->givenSpins('0987654321', 3);
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LOG_URI.'?phone=5678');
+        $this->client->request('GET', self::LOG_URI.'?search=12');
 
         self::assertResponseIsSuccessful();
 
@@ -204,7 +211,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
         $this->givenSpins('0912345678', 2);
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LOG_URI.'?phone=0000');
+        $this->client->request('GET', self::LOG_URI.'?search=0000');
 
         self::assertResponseIsSuccessful();
         self::assertSame([], $this->decodeResponse()['spins']);
@@ -217,7 +224,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
         $this->givenSpins('0987654321', 1);
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LOG_URI.'?phone=');
+        $this->client->request('GET', self::LOG_URI.'?search=');
 
         self::assertSame(2, $this->decodeResponse()['total']);
     }
@@ -245,7 +252,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
         self::assertSame(2, $this->decodeResponse()['total']);
 
         // Filtered, only the one with a number.
-        $this->client->request('GET', self::LOG_URI.'?phone=5678');
+        $this->client->request('GET', self::LOG_URI.'?search=12');
         self::assertSame(1, $this->decodeResponse()['total']);
     }
 
@@ -255,7 +262,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
         $this->givenSpins('0912345678', 2);
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LOG_URI.'?phone=%');
+        $this->client->request('GET', self::LOG_URI.'?search=%');
 
         self::assertResponseIsSuccessful();
         self::assertSame(0, $this->decodeResponse()['total']);

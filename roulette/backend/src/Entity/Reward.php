@@ -109,15 +109,9 @@ class Reward
         return $this->createdAt;
     }
 
-    /** F13 R15, R24. */
+    /** F13 R15, R24, and with F16 R1 also "is it issued a code". */
     public function isClaimable(): bool
     {
         return $this->getType()->isClaimable();
-    }
-
-    /** F13 R16, R19. */
-    public function needsCode(): bool
-    {
-        return $this->getType()->needsCode();
     }
 }

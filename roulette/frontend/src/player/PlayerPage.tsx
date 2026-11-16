@@ -505,10 +505,10 @@ function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null
       <p className="mt-1 text-xl font-bold" style={{ color: 'var(--panel-heading)' }}>
         {name}
       </p>
-      {/* F13 R20. In a monospace face and spaced out, because this is read
-          aloud across a counter and typed back in by somebody else. Only a
-          discount has one (F13 R19); a free product is still claimed by
-          showing the screen. */}
+      {/* F13 R20 with F16 R1, R6. In a monospace face and spaced out,
+          because this is read aloud across a counter and typed back in by
+          somebody else. Every win carries one now — the losing slice is
+          what is left with nothing to show (F16 R2). */}
       {reward?.code != null && (
         <p className="mt-3" data-testid="reward-code">
           <span className="player-kicker block" style={{ color: 'var(--panel-heading)' }}>
@@ -520,7 +520,12 @@ function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null
         </p>
       )}
 
-      <p className="mt-2 text-xs">{t('player.claim')}</p>
+      {/* F16 R6a. Where there is a code, the instruction is the code — this
+          whole feature exists because F10 made "show this screen" something
+          the next player's tap undoes. */}
+      <p className="mt-2 text-xs">
+        {reward?.code != null ? t('player.claimByCode') : t('player.claim')}
+      </p>
     </div>
   )
 }

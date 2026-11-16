@@ -129,14 +129,16 @@ export function SpinsModule() {
 
         <div className="mt-4">
           <label htmlFor="spin-filter" className={labelClass}>
-            {t('players.filterLabel')}
+            {t('spins.filterLabel')}
           </label>
+          {/* F16 R7: one box for both, and so no `inputMode="tel"` — a
+              numeric keypad cannot type a code. The server normalises the
+              case and the hyphen (R8), so nothing here has to. */}
           <input
             id="spin-filter"
             name="spin-filter"
             type="search"
-            inputMode="tel"
-            placeholder={t('players.filterPlaceholder')}
+            placeholder={t('spins.filterPlaceholder')}
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             data-testid="spin-filter"
@@ -198,7 +200,9 @@ export function SpinsModule() {
                   </>
                 )}
 
-                {/* F13 R19: a free product and a losing item carry none. */}
+                {/* F16 R2: a dash is a spin that won nothing — and, until
+                    the pre-F16 rows fall off the first page, a free product
+                    from before every win carried a code (R5). */}
                 <Cell mono testId="spin-code">
                   {spin.code ?? EMPTY}
                 </Cell>

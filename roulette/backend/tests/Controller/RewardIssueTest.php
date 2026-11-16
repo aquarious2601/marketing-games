@@ -10,7 +10,7 @@ use App\Tests\Support\DatabaseWebTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * F13 R16–R26: what happens when a reward is actually won.
+ * F13 R16–R26 with F16 R1–R6: what happens when a reward is actually won.
  *
  * Driven through real spins rather than by constructing entities, because
  * the thing under test is that the code is issued *inside* the transaction
@@ -37,8 +37,13 @@ final class RewardIssueTest extends DatabaseWebTestCase
         self::assertMatchesRegularExpression(CodeGenerator::pattern(), (string) $reward['code']);
     }
 
-    /** F13 R19 */
-    public function testAFreeProductIsIssuedNoCode(): void
+    /**
+     * F16 R1, replacing F13 R19.
+     *
+     * The free product is the case that changed: it used to be claimed by
+     * showing the screen, and F10 made the screen clear itself.
+     */
+    public function testAFreeProductIsIssuedACode(): void
     {
         $this->givenAWheelOfOne($this->aRewardId('Free coffee'));
         $this->identifyAsPlayer();
@@ -46,11 +51,14 @@ final class RewardIssueTest extends DatabaseWebTestCase
         $this->client->request('POST', self::SPIN_URI);
 
         self::assertResponseIsSuccessful();
-        self::assertSame('free_product', $this->decodeResponse()['reward']['type']);
-        self::assertNull($this->decodeResponse()['reward']['code']);
+
+        $reward = $this->decodeResponse()['reward'];
+
+        self::assertSame('free_product', $reward['type']);
+        self::assertMatchesRegularExpression(CodeGenerator::pattern(), (string) $reward['code']);
     }
 
-    /** F13 R15, R19 — a losing item is recorded, and carries nothing */
+    /** F13 R15 with F16 R2 — a losing item is recorded, and carries nothing */
     public function testALosingItemIsRecordedWithNoCode(): void
     {
         $reward = $this->givenAMostlyLosingWheel();
@@ -77,12 +85,15 @@ final class RewardIssueTest extends DatabaseWebTestCase
     }
 
     /**
-     * F13 R17 through the real unique index, which is the only thing that
-     * actually guarantees it.
+     * F13 R17 and F16 R3 through the real unique index, which is the only
+     * thing that actually guarantees it.
+     *
+     * Spun on a free product rather than a discount, because that is the
+     * path F16 added and the index it has to share is the same one.
      */
     public function testEveryIssuedCodeIsDifferent(): void
     {
-        $this->givenAWheelOfOne($this->aDiscountRewardId('Ten off', 10));
+        $this->givenAWheelOfOne($this->aRewardId('Free coffee'));
         $this->identifyAsPlayer();
 
         $codes = [];
@@ -194,8 +205,8 @@ final class RewardIssueTest extends DatabaseWebTestCase
         self::assertFalse($spin->isClaimed());
     }
 
-    /** F13 R19, R21 — a free product has no code but is still claimable */
-    public function testAFreeProductIsClaimableWithoutACode(): void
+    /** F13 R21 with F16 R1 — a free product is claimed, and by a code now */
+    public function testAFreeProductIsClaimedByItsCode(): void
     {
         $id = $this->givenASpin($this->aRewardId('Free coffee'));
 
@@ -203,8 +214,11 @@ final class RewardIssueTest extends DatabaseWebTestCase
         $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
 
         self::assertResponseIsSuccessful();
-        self::assertNull($this->decodeResponse()['spin']['code']);
-        self::assertNotNull($this->decodeResponse()['spin']['claimedAt']);
+
+        $spin = $this->decodeResponse()['spin'];
+
+        self::assertMatchesRegularExpression(CodeGenerator::pattern(), (string) $spin['code']);
+        self::assertNotNull($spin['claimedAt']);
     }
 
     /** F13 R26 */

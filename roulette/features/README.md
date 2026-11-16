@@ -61,6 +61,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F13](./F13-reward-configuration.md) | Reward configuration | Both | Done |
 | [F14](./F14-the-losing-slice-in-the-prize-list.md) | The losing slice in the prize list | Admin | Done |
 | [F15](./F15-choosing-the-currency.md) | Choosing the currency | Admin | Agreed |
+| [F16](./F16-a-code-on-every-win.md) | A code on every win | Both | Agreed |
 
 ## Running the tests
 

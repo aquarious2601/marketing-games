@@ -93,8 +93,12 @@ export async function setSpinClaimed(
 }
 
 /** F09 R13, R18. */
-export async function fetchSpinLog(phone: string, options?: RequestOptions): Promise<SpinLog> {
-  const query = phone.trim() === '' ? '' : `?phone=${encodeURIComponent(phone.trim())}`
+/**
+ * F16 R7. `search`, not `phone`: the one box takes a phone number or a
+ * reward code, and the server decides which of the two it was given.
+ */
+export async function fetchSpinLog(search: string, options?: RequestOptions): Promise<SpinLog> {
+  const query = search.trim() === '' ? '' : `?search=${encodeURIComponent(search.trim())}`
 
   return apiGet<SpinLog>(`/admin/spins${query}`, options)
 }

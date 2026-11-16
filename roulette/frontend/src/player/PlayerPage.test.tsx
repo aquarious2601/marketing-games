@@ -1010,7 +1010,7 @@ describe('being somebody else', () => {
   })
 })
 
-/** F13 R19, R20: the code the player shows at the counter. */
+/** F13 R20 with F16 R1, R2, R6: the code the player quotes at the counter. */
 describe('the code on the result', () => {
   async function spinTo(reward: Partial<SpinReward>) {
     spinMock.mockResolvedValue(result(2, reward))
@@ -1031,14 +1031,17 @@ describe('the code on the result', () => {
     expect(screen.getByTestId('reward-code')).toHaveTextContent('Your code')
   })
 
-  /** F13 R19: still claimed by showing the screen. */
-  it('shows no code for a free product', async () => {
-    await spinTo({ type: 'free_product', value: null, code: null })
+  /** F16 R1, R6a: a free product carries one now, and says to give it. */
+  it('shows the code for a free product', async () => {
+    await spinTo({ type: 'free_product', value: null, code: 'B4C5-D6F7' })
 
-    expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
-    expect(screen.getByTestId('spin-result')).toHaveTextContent(/show this screen/i)
+    expect(screen.getByTestId('reward-code')).toHaveTextContent('B4C5-D6F7')
+    expect(screen.getByTestId('spin-result')).toHaveTextContent(/give this code/i)
+    // The instruction F10 made untrue is gone wherever there is a code.
+    expect(screen.getByTestId('spin-result')).not.toHaveTextContent(/show this screen/i)
   })
 
+  /** F16 R2 */
   it('shows no code for a losing item', async () => {
     await spinTo({ type: 'nothing', value: null, code: null })
 

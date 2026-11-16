@@ -39,7 +39,10 @@ final class SpinController extends AbstractController
     #[Route('', name: 'index', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
-        $filter = trim((string) $request->query->get('phone', ''));
+        // `search` rather than `phone` (F16 R7): the box takes a code too,
+        // and a parameter named after one of the two things it accepts is a
+        // parameter that lies to the next person reading the log.
+        $filter = trim((string) $request->query->get('search', ''));
         $filter = '' === $filter ? null : $filter;
 
         $spins = $this->spins->listRecent($filter);

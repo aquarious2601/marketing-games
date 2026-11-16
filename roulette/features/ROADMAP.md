@@ -13,7 +13,8 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 [F08](./F08-player-identification.md) player identification,
 [F10](./F10-hand-over-to-the-next-player.md) handing over to the next player,
 [F12](./F12-multiple-languages.md) English, French, Chinese and Vietnamese,
-[F13](./F13-reward-configuration.md) the reward catalogue and its codes._
+[F13](./F13-reward-configuration.md) the reward catalogue and its codes,
+[F16](./F16-a-code-on-every-win.md) a code on every win._
 
 | Candidate | Sketch |
 |---|---|
@@ -22,7 +23,7 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 | **A country setting for phone numbers** | [F08](./F08-player-identification.md) canonicalises loosely, so one person who types their number two ways becomes two players. Worth doing the first time that shows up in the admin list. |
 | **Deleting a player** | Served from the console today. Needs a decision about what it does to their spins — see [F08 section 14](./F08-player-identification.md). |
 | **A birthday offer** | The reason [F08](./F08-player-identification.md) collects a birthday at all. If this is never built, that column should be dropped rather than kept in case. |
-| **Prize reveal and claim** | A claim code or QR instead of "show this screen to staff". Sharper since [F10](./F10-hand-over-to-the-next-player.md): the screen is now cleared by the next player, so a prize shown to nobody is looked up in the Spins module by phone number. Worth knowing whether that is good enough at a counter. |
+| **A QR code for the claim** | What is left of *prize reveal and claim* now that [F16](./F16-a-code-on-every-win.md) has given every win its own code and made the Spins filter find it. Eight characters work at a counter; a camera would be faster, and the code is already there to encode. |
 | **Landing page** | Branding, rules, terms and conditions consent before play. The notice stays short because [F08](./F08-player-identification.md) collects three facts and a number, and it needs translating in all four languages ([F12](./F12-multiple-languages.md)). |
 | **Native review of the translations** | [F12](./F12-multiple-languages.md) ships French, Chinese and Vietnamese written by a non-native speaker. A native reader should go over them before a real campaign. |
 | **Translating what the admin types** | Prize names, the campaign name and the tagline are shown as entered ([F12](./F12-multiple-languages.md) R10). Per-language content needs a translations table and four fields per prize — its own feature, and [F12 section 13](./F12-multiple-languages.md) is where it starts. |

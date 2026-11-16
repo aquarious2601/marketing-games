@@ -20,6 +20,7 @@ export const fr: Record<MessageKey, string> = {
   'player.notYou': 'Ce n’est pas vous ?',
   'player.youWon': 'Vous avez gagné',
   'player.claim': 'Montrez cet écran à un membre du personnel pour récupérer votre lot.',
+  'player.claimByCode': 'Donnez ce code à un membre du personnel pour récupérer votre lot.',
   'player.loadFailed': 'Le jeu n’a pas pu être chargé.',
   'player.spinFailed': 'Le tour n’a pas pu aboutir. Veuillez réessayer.',
   'player.identityLost':
@@ -148,7 +149,9 @@ export const fr: Record<MessageKey, string> = {
   'spins.loading': 'Chargement des tours…',
   'spins.loadFailed': 'Les tours n’ont pas pu être chargés.',
   'spins.none': 'Aucun tour pour l’instant.',
-  'spins.noMatch': 'Aucun tour pour ce numéro.',
+  'spins.noMatch': 'Aucun tour ne correspond à ce numéro ou à ce code.',
+  'spins.filterLabel': 'Filtrer par numéro de téléphone ou code',
+  'spins.filterPlaceholder': 'Une partie du numéro, ou un code comme A7K3-M9PX',
   'spins.capped': 'Affichage des %shown% tours les plus récents sur %total%.',
   'spins.colPrize': 'Lot',
   'spins.colPlayer': 'Joueur',

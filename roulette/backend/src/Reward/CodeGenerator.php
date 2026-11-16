@@ -48,6 +48,44 @@ final class CodeGenerator
         return implode('-', $groups);
     }
 
+    /**
+     * What somebody typed at a counter, as the start of a code — or null if
+     * it cannot be the start of one (F16 R8, R12).
+     *
+     * The code is read off a screen and typed back in by somebody in a
+     * hurry, so case, spaces and the hyphen are all noise. The hyphen in
+     * particular is put back where it *must* go rather than taken from
+     * where it was typed, which is why `a7k3m9px` and `A7K3-M9PX` end up
+     * the same string.
+     *
+     * Null rather than an empty string, because the caller's question is
+     * "should I compare this against codes at all" and a phone number
+     * answers no. That keeps a numeric filter from being asked of the code
+     * column as well.
+     */
+    public static function normalise(string $input): ?string
+    {
+        $letters = str_replace([' ', '-'], '', strtoupper(trim($input)));
+        $length = \strlen($letters);
+
+        if (0 === $length || $length > self::GROUP * self::GROUPS) {
+            return null;
+        }
+
+        // strspn counts the leading characters that are in the alphabet, so
+        // a short count is a character no code can contain — an O for a
+        // zero, or an accent from somebody's keyboard.
+        if ($length !== strspn($letters, self::ALPHABET)) {
+            return null;
+        }
+
+        if ($length <= self::GROUP) {
+            return $letters;
+        }
+
+        return substr($letters, 0, self::GROUP).'-'.substr($letters, self::GROUP);
+    }
+
     /** What a code looks like, for anything that has to recognise one. */
     public static function pattern(): string
     {
