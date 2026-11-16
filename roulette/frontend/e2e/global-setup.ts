@@ -3,21 +3,23 @@ import { E2E_ADMIN } from './auth'
 import { BACKEND_DIR, E2E_DATABASE_URL } from './env'
 
 /**
- * Prepares the end-to-end database before any test runs: creates it if it is
- * missing, brings the schema up to date, and empties it so every run starts
- * from the same place.
+ * Prepares the end-to-end database before any test runs: throws the last
+ * one away, builds the current schema, and seeds the admin.
+ *
+ * Dropped rather than truncated. Truncating empties the rows but keeps the
+ * *shape*, and `schema:update` cannot always turn one shape into another —
+ * F13 added `prize.reward_id NOT NULL` and this setup then failed on a
+ * foreign key, with nothing in the error to say that the fix was to delete
+ * a database nobody meant to keep. Dropping costs about a second and makes
+ * this setup immune to every schema change after it. The upgrade path for
+ * databases that *are* meant to be kept is P02.
  */
 export default function globalSetup(): void {
   console.log(`[e2e] preparing the ${E2E_DATABASE_URL.split('/').pop()?.split('?')[0]} database`)
 
-  console_(['doctrine:database:create', '--if-not-exists'])
+  console_(['doctrine:database:drop', '--if-exists', '--force'])
+  console_(['doctrine:database:create'])
   console_(['doctrine:schema:update', '--force', '--complete'])
-  console_([
-    'doctrine:query:sql',
-    // `player` is emptied too (F08): a run that inherited the last run's
-    // players would start with a spin history nobody in this run created.
-    'SET FOREIGN_KEY_CHECKS = 0; TRUNCATE TABLE spin; TRUNCATE TABLE player; TRUNCATE TABLE branding; TRUNCATE TABLE `user`; TRUNCATE TABLE prize; TRUNCATE TABLE wheel; SET FOREIGN_KEY_CHECKS = 1',
-  ])
 
   seedAdmin()
 }

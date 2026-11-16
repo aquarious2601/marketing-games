@@ -72,6 +72,26 @@ cd roulette\backend ; php bin/console doctrine:database:create --if-not-exists -
 | `roulette` | The app you run with `dev.ps1` |
 | `roulette_test` | The PHPUnit suite |
 | `roulette_e2e` | The Playwright suite, created automatically |
+| `roulette_upgrade_test` | `DatabaseUpgradeTest`, created and dropped by it |
+
+### Upgrading a database that already holds data
+
+`schema:update` above is for an **empty** database. Once there are prizes and
+spins in one, a new required column cannot simply be added — see
+[P02](./roulette/features/P02-database-upgrades.md). After pulling a version
+that changes the schema, run:
+
+```powershell
+cd rouletteackend ; php bin/console app:upgrade-database --dry-run
+```
+
+```powershell
+cd rouletteackend ; php bin/console app:upgrade-database
+```
+
+The first prints what it would do and writes nothing. Both are safe to run
+twice, and against an already-current database both do nothing. Afterwards
+`doctrine:schema:update --dump-sql` should report no difference.
 
 ## Testing
 

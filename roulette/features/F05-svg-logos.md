@@ -201,6 +201,20 @@ comparing the before and after text flagged a change every time. A notice
 that appears on every upload tells the admin nothing, so the comparison now
 ignores formatting.
 
+### Fixed afterwards
+
+- **The rejection message still said SVG was refused.** `logo.wrong_type`
+  read "The logo must be a PNG, JPEG or WebP image. SVG is not accepted." in
+  all four languages — F04 R14's wording, left behind when this feature
+  started accepting them. An admin uploading a GIF was told something untrue
+  about a format the application does take. Corrected to name all four
+  accepted formats on 2026-11-16.
+
+  Found by running the end-to-end suite, where `branding.spec.ts` was still
+  asserting F04 R14. That spec now asserts what this feature actually does:
+  the SVG is accepted, its `<script>` is stripped, the notice names what was
+  removed, and the file served contains no script.
+
 ## 13. Decisions and risks
 
 **A library, not a hand-rolled filter (R5).** The list of ways to get script

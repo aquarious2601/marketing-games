@@ -79,6 +79,7 @@ scenario worth automating, and it is the one a jsdom test cannot reproduce.
 | R9 | `npm run test:e2e` exits non-zero on failure. |
 | R10 | The repository runner leaves the suite out of a normal run and includes it with `-E2E`. Amended 2026-11-15: it was previously included by default, which made the routine check take minutes. |
 | R11 | Playwright's own specs are excluded from the Vitest run, and vice versa. |
+| R12 | Global setup **drops and recreates** the end-to-end database, rather than emptying it. Added 2026-11-16: truncating keeps the old *shape*, and `schema:update` cannot always turn one shape into another — see the second defect below. |
 
 ## 7. Data model
 
@@ -162,6 +163,51 @@ Checked on 2026-11-14:
 - `.\test-all.ps1` reported the end-to-end suite alongside the others;
   `-SkipE2E` omitted it. _(That switch became the opt-in `-E2E` on
   2026-11-15, so a normal run is about twenty seconds.)_
+
+### Defect found later: the suite could not start after F13
+
+Run on 2026-11-16 for the first time since
+[F13](./F13-reward-configuration.md), global setup failed outright:
+
+```
+Cannot add or update a child row: a foreign key constraint fails
+(`roulette_e2e`.`#sql-…`, CONSTRAINT `FK_51C88BC1E466ACA1`
+ FOREIGN KEY (`reward_id`) REFERENCES `reward` (`id`))
+```
+
+Setup truncated the tables and then ran `schema:update --force --complete`.
+Truncating empties the rows but keeps the shape, and F13's
+`prize.reward_id NOT NULL` cannot be added to a `prize` table that exists —
+the same wall the development database hit, and what
+[P02](./P02-database-upgrades.md) exists to get past. Nothing in the error
+said that the fix here was simply to delete a database nobody meant to keep.
+
+R12 is the fix: dropped and rebuilt every run. It costs about a second and
+makes this setup immune to every schema change after it, rather than to this
+one. P02's upgrade command is for databases that *are* meant to be kept; this
+one is not.
+
+### What the first green run found
+
+With setup fixed, 25 of 148 failed — every one a spec left behind by a
+feature, none a defect in the application except the last:
+
+| Left behind by | What was stale |
+|---|---|
+| [F05](./F05-svg-logos.md) | A spec asserting an SVG is refused, which F05 superseded by accepting and sanitising them. **And the rejection message itself, which still told admins SVG was not accepted.** |
+| [F08](./F08-player-identification.md) | The branding specs opened `/` without identifying, so the themed screen they measured was never reached. |
+| [F09](./F09-admin-modules.md) | Two buttons read "Save" on the Game module since branding joined it; an unscoped locator matched both. |
+| [F12](./F12-multiple-languages.md) | "Remove" became "Remove logo", and `/move .* down/i` never matched "Move down: …". |
+| [F13](./F13-reward-configuration.md) | The `saving` block's clean-up restored a wheel with no `rewardId` on its slices — refused with a 422, **silently**, so the wheel stayed mangled and four later tests failed for something they had not done. |
+
+The F13 one is the lesson worth keeping: a clean-up that can fail has to say
+so. `restoreDefaultWheel` now throws, so the failure lands on the test that
+caused it instead of the one after it.
+
+This is the cost of R10 — a suite that is opt-in drifts between runs. The
+drift was cheap to repair and the run found a real user-facing bug in F05's
+wording, which is the argument for running it at the end of a feature rather
+than never.
 
 ## 13. Open questions
 

@@ -213,6 +213,10 @@ export const en = {
     'Adds a slice that wins nothing. Rename it and set its odds like any other.',
   'game.reward': 'Gives away',
   'game.noRewards': 'Add a reward first — every slice has to give something away.',
+  // F14 R1, R3: what marks the losing row, and what stands where its
+  // reward selector would be.
+  'game.losingSlice': 'Losing item',
+  'game.losingGivesNothing': 'Nothing — this is the losing item.',
 
   // -- Player result (F13 R20) ----------------------------------------
   'player.yourCode': 'Your code',

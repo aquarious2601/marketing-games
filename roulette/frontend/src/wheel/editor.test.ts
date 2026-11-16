@@ -9,6 +9,7 @@ import {
   fromConfiguration,
   isDirty,
   movePrize,
+  pinLosingFirst,
   removePrize,
   toSubmission,
   updatePrize,
@@ -322,5 +323,49 @@ describe('isDirty', () => {
     const saved = validDrafts()
 
     expect(isDirty(movePrize(saved, 0, 1), saved)).toBe(true)
+  })
+})
+
+/** F14 R5 */
+describe('pinLosingFirst', () => {
+  function withReward(name: string, rewardId: number | null): DraftPrize {
+    return { ...createPrize(), name, probability: '10', rewardId }
+  }
+
+  it('moves the losing slice to the front, keeping the rest in order', () => {
+    const drafts = [
+      withReward('Free gift', 1),
+      withReward('Free sample', 2),
+      withReward('Try again', 9),
+    ]
+
+    expect(pinLosingFirst(drafts, 9).map((draft) => draft.name)).toEqual([
+      'Try again',
+      'Free gift',
+      'Free sample',
+    ])
+  })
+
+  it('leaves a list that already starts with it exactly as it was', () => {
+    const drafts = [withReward('Try again', 9), withReward('Free gift', 1)]
+
+    expect(pinLosingFirst(drafts, 9)).toBe(drafts)
+  })
+
+  it('leaves a list with no losing slice alone', () => {
+    const drafts = [withReward('Free gift', 1), withReward('Free sample', 2)]
+
+    expect(pinLosingFirst(drafts, 9)).toBe(drafts)
+  })
+
+  /**
+   * A slice with no reward yet has `rewardId: null`, and null must not be
+   * read as "this is the losing one" just because there is no losing reward
+   * in the catalogue either.
+   */
+  it('matches nothing when there is no losing reward', () => {
+    const drafts = [withReward('Free gift', 1), withReward('Not chosen yet', null)]
+
+    expect(pinLosingFirst(drafts, null)).toBe(drafts)
   })
 })

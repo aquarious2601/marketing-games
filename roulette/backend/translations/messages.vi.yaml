@@ -53,7 +53,7 @@ logo:
     required: 'Hãy chọn một hình ảnh để tải lên.'
     not_an_image: 'Tệp này không phải hình ảnh.'
     too_large: 'Logo phải nhỏ hơn hoặc bằng %max%MB.'
-    wrong_type: 'Logo phải là ảnh PNG, JPEG hoặc WebP. Không nhận SVG.'
+    wrong_type: 'Logo phải là ảnh PNG, JPEG, WebP hoặc SVG.'
     upload_failed: 'Tải lên chưa hoàn tất. Vui lòng thử lại.'
     svg_unreadable: 'Không đọc được tệp SVG này. Hãy xuất lại tệp.'
     svg_entities: 'Tệp SVG này khai báo thực thể XML, điều đó không được phép. Hãy xuất lại mà không có chúng.'

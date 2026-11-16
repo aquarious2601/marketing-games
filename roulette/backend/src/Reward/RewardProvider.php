@@ -46,6 +46,20 @@ final class RewardProvider
     }
 
     /**
+     * The same six, for code that cannot go through the entity manager
+     * (P02 R7). The upgrade command seeds the catalogue with raw SQL,
+     * because it runs while the schema is half-changed and the ORM's idea
+     * of the tables is not yet the database's — but it must seed *these*
+     * six, so the list has one home.
+     *
+     * @return list<array{key: string, type: RewardType, value: int|null}>
+     */
+    public static function defaultSpecifications(): array
+    {
+        return self::DEFAULTS;
+    }
+
+    /**
      * The six defaults, created once and returned in order.
      *
      * Persisted but not flushed: the caller is building a wheel in the same

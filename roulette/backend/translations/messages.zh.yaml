@@ -53,7 +53,7 @@ logo:
     required: '请选择要上传的图片。'
     not_an_image: '该文件不是图片。'
     too_large: '标志大小不得超过 %max%MB。'
-    wrong_type: '标志必须是 PNG、JPEG 或 WebP 图片，不接受 SVG。'
+    wrong_type: '标志必须是 PNG、JPEG、WebP 或 SVG 图片。'
     upload_failed: '上传未完成，请重试。'
     svg_unreadable: '无法读取该 SVG 文件，请重新导出。'
     svg_entities: '该 SVG 声明了 XML 实体，这是不允许的。请在导出时去掉它们后重试。'

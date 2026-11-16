@@ -50,7 +50,6 @@ three; if this reaches six, the navigation is its own decision again.
 | **CSV export of the spin log** | The clear next step for the Spins module, and the honest answer when a shop wants more than the 200 rows the page shows. |
 | **Prize stock** | Limited quantities, behaviour when a prize is exhausted. **The natural next feature** — [F13](./F13-reward-configuration.md) made a reward a thing with its own row, so a stock count is a column rather than a migration. |
 | **Code expiry** | A voucher with no end date is a liability the shop carries indefinitely. [F13](./F13-reward-configuration.md) issues codes and gives them no lifetime. |
-| **A migration path for the reward catalogue** | `prize.reward_id` is `NOT NULL` and this project has no migrations. A database with existing prizes cannot take [F13](./F13-reward-configuration.md) without one. |
 | **Campaign scheduling** | Start and end dates, active/paused, multiple campaigns — including switching theme by date. |
 | **Theme editor** | Adding or editing themes. The five in [F04](./F04-branding-and-themes.md) are fixed in code and contrast-checked; an editor would need to keep that guarantee. |
 | **Claim verification** | ~~Staff marking a prize as handed over.~~ **Done in [F13](./F13-reward-configuration.md)** R21–R24: a claim control on each Spins row, reversible, and absent on a losing row. What is still missing is *who* claimed it, which is an audit trail and its own feature. |

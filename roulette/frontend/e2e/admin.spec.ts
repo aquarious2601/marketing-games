@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { signIn } from './auth'
+import { DEFAULT_PRIZES, restoreDefaultWheel, rewardId, rewardIdsByName } from './wheel'
 
 /**
  * F01 in a real browser, against the real API and a real database.
@@ -9,21 +10,23 @@ import { signIn } from './auth'
  * writer would make them flap.
  */
 
-const DEFAULT_PRIZES = [
-  ['Try again', '40'],
-  ['5% off your next order', '25'],
-  ['10% off your next order', '15'],
-  ['Free sample', '10'],
-  ['Free gift', '7'],
-  ['Grand prize', '3'],
-] as const
-
 function nameField(page: Page, index: number) {
   return page.getByTestId('prize-row').nth(index).getByLabel(/name$/i)
 }
 
 function probabilityField(page: Page, index: number) {
   return page.getByTestId('prize-row').nth(index).getByLabel(/percentage$/i)
+}
+
+/**
+ * The prize list's own Save, not the branding section's.
+ *
+ * Both live on the Game module since F09 put them on one page, and both are
+ * labelled "Save" — an unscoped locator matches two and fails on strict
+ * mode, which reads as the page being broken rather than the locator.
+ */
+function saveButton(page: Page) {
+  return page.getByRole('region', { name: 'Prize list' }).getByRole('button', { name: 'Save' })
 }
 
 /**
@@ -52,9 +55,9 @@ test.describe('the admin wheel page', () => {
   test('creates and shows the default wheel', async ({ page }) => {
     await expect(page.getByTestId('prize-row')).toHaveCount(DEFAULT_PRIZES.length)
 
-    for (const [index, [name, probability]] of DEFAULT_PRIZES.entries()) {
+    for (const [index, { name, probability }] of DEFAULT_PRIZES.entries()) {
       await expect(nameField(page, index)).toHaveValue(name)
-      await expect(probabilityField(page, index)).toHaveValue(probability)
+      await expect(probabilityField(page, index)).toHaveValue(String(probability))
     }
 
     await expect(page.getByTestId('probability-total')).toHaveAttribute('data-valid', 'true')
@@ -107,7 +110,7 @@ test.describe('the admin wheel page', () => {
     const total = page.getByTestId('probability-total')
     await expect(total).toHaveAttribute('data-valid', 'false')
     await expect(total).toContainText('97')
-    await expect(page.getByRole('button', { name: /^save$/i })).toBeDisabled()
+    await expect(saveButton(page)).toBeDisabled()
   })
 
   /** F01 R4 */
@@ -115,7 +118,7 @@ test.describe('the admin wheel page', () => {
     await nameField(page, 0).fill('')
 
     await expect(page.getByText('A prize needs a name.')).toBeVisible()
-    await expect(page.getByRole('button', { name: /^save$/i })).toBeDisabled()
+    await expect(saveButton(page)).toBeDisabled()
   })
 
   /** F01 R20 */
@@ -182,21 +185,17 @@ test.describe('saving', () => {
 
   test.afterEach(async ({ request }) => {
     // Put the wheel back so the read-only tests always find the default.
-    await request.put('/api/admin/wheel', {
-      data: {
-        prizes: DEFAULT_PRIZES.map(([name, probability]) => ({
-          name,
-          probability: Number(probability),
-        })),
-      },
-    })
+    // This throws if the restore is refused: a clean-up that fails quietly
+    // is worse than no clean-up, because the failure lands on whichever
+    // test runs next and looks like that test's fault.
+    await restoreDefaultWheel(request)
   })
 
   test('persists a renamed prize across a reload', async ({ page }) => {
     await page.goto('/admin')
     await nameField(page, 0).fill('Better luck next time')
 
-    await page.getByRole('button', { name: /^save$/i }).click()
+    await saveButton(page).click()
     await expect(page.getByText('Saved')).toBeVisible()
 
     await page.reload()
@@ -207,26 +206,38 @@ test.describe('saving', () => {
   test('persists a reorder', async ({ page }) => {
     await page.goto('/admin')
 
-    const firstName = await nameField(page, 0).inputValue()
+    // Rows 1 and 2, not 0 and 1: the losing slice holds position one and
+    // cannot be moved off it (F14 R5), so its ↓ is deliberately disabled.
     const secondName = await nameField(page, 1).inputValue()
+    const thirdName = await nameField(page, 2).inputValue()
 
-    await page.getByRole('button', { name: /move .* down/i }).first().click()
-    await page.getByRole('button', { name: /^save$/i }).click()
+    await page
+      .getByTestId('prize-row')
+      .nth(1)
+      .getByRole('button', { name: /^move down/i })
+      .click()
+    await saveButton(page).click()
     await expect(page.getByText('Saved')).toBeVisible()
 
     await page.reload()
-    await expect(nameField(page, 0)).toHaveValue(secondName)
-    await expect(nameField(page, 1)).toHaveValue(firstName)
+    await expect(nameField(page, 1)).toHaveValue(thirdName)
+    await expect(nameField(page, 2)).toHaveValue(secondName)
   })
 
   test('persists a removed prize', async ({ page }) => {
     await page.goto('/admin')
 
-    await page.getByRole('button', { name: /^remove/i }).first().click()
+    // The second row: removing the first would take the losing slice and
+    // the toggle with it (F14 R6), which is a different test.
+    await page
+      .getByTestId('prize-row')
+      .nth(1)
+      .getByRole('button', { name: /^remove/i })
+      .click()
     // Put the freed percentage back so the total is 100 again.
     await probabilityField(page, 0).fill('65')
 
-    await page.getByRole('button', { name: /^save$/i }).click()
+    await saveButton(page).click()
     await expect(page.getByText('Saved')).toBeVisible()
 
     await page.reload()
@@ -237,11 +248,17 @@ test.describe('saving', () => {
 /** The API contract from F01 section 8. */
 test.describe('the wheel API', () => {
   test('rejects a total that is not 100 with a field-level 422', async ({ request }) => {
+    // Every slice names a reward (F13 R7), so that the only thing wrong
+    // with this payload is the total. Without one the first violation is
+    // about the missing reward and this stops being a test about the total.
+    const catalogue = await rewardIdsByName(request)
+    const free = rewardId(catalogue, 'Free gift')
+
     const response = await request.put('/api/admin/wheel', {
       data: {
         prizes: [
-          { name: 'A', probability: 60 },
-          { name: 'B', probability: 37 },
+          { name: 'A', probability: 60, rewardId: free },
+          { name: 'B', probability: 37, rewardId: free },
         ],
       },
     })

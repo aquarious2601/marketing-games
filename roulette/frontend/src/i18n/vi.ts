@@ -191,6 +191,8 @@ export const vi: Record<MessageKey, string> = {
     'Thêm một ô không trúng gì. Bạn có thể đổi tên và đặt tỷ lệ cho nó như mọi ô khác.',
   'game.reward': 'Tặng',
   'game.noRewards': 'Hãy thêm phần thưởng trước — mỗi ô đều phải tặng một thứ gì đó.',
+  'game.losingSlice': 'Ô không trúng',
+  'game.losingGivesNothing': 'Không có gì — đây là ô không trúng.',
 
   'player.yourCode': 'Mã của bạn',
 

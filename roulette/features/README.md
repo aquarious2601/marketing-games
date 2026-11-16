@@ -45,6 +45,7 @@ Two series, so infrastructure never pushes the game features along:
 |---|---|---|---|
 | [P00](./P00-walking-skeleton.md) | Walking skeleton and regression safety net | Platform | Done |
 | [P01](./P01-end-to-end-tests.md) | End-to-end browser tests | Platform | Done |
+| [P02](./P02-database-upgrades.md) | Database upgrades | Platform | Done |
 | [F01](./F01-wheel-prize-configuration.md) | Wheel prize configuration | Admin | Done |
 | [F02](./F02-player-spin.md) | The player's spin | Player | Done |
 | [F03](./F03-spin-animation.md) | A wheel that spins like a wheel | Player | Done |
@@ -58,6 +59,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F11](./F11-admin-tables.md) | Admin tables | Admin | Done |
 | [F12](./F12-multiple-languages.md) | Multiple languages | Both | Done |
 | [F13](./F13-reward-configuration.md) | Reward configuration | Both | Done |
+| [F14](./F14-the-losing-slice-in-the-prize-list.md) | The losing slice in the prize list | Admin | Done |
 
 ## Running the tests
 

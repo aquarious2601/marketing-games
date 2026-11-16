@@ -195,6 +195,8 @@ export const fr: Record<MessageKey, string> = {
     'Ajoute une part qui ne fait rien gagner. Renommez-la et réglez ses chances comme les autres.',
   'game.reward': 'Offre',
   'game.noRewards': 'Ajoutez d’abord une récompense — chaque part doit offrir quelque chose.',
+  'game.losingSlice': 'Part perdante',
+  'game.losingGivesNothing': 'Rien — c’est la part perdante.',
 
   'player.yourCode': 'Votre code',
 

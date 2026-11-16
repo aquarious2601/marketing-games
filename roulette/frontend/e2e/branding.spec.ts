@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { signIn } from './auth'
+import { identifyPlayer } from './player'
 
 /**
  * F04 in a real browser.
@@ -124,6 +125,10 @@ test.describe('the themes on the player page', () => {
         data: { companyName: '', campaignName: '', theme },
       })
 
+      // F08 R16: nothing past the phone-number step exists until the
+      // server knows who is playing, and the themed screen is past it.
+      await identifyPlayer(page.request)
+
       await page.goto('/')
       await expect(page.getByTestId('wheel-preview')).toBeVisible()
 
@@ -138,6 +143,9 @@ test.describe('the themes on the player page', () => {
   /** F04 R10 — the wheel never changes */
   test('leaves the slice colours identical across themes', async ({ page, request }) => {
     const colours: Record<string, (string | undefined)[]> = {}
+
+    // F08 R16, as above.
+    await identifyPlayer(page.request)
 
     for (const theme of ['plain', 'halloween']) {
       await request.put('/api/admin/branding', {
@@ -158,6 +166,9 @@ test.describe('the themes on the player page', () => {
 
 test.describe('the logo', () => {
   test('uploads, shows on the player page, then removes', async ({ page }) => {
+    // F08 R16: the player page shows the branding only once it knows who
+    // is playing.
+    await identifyPlayer(page.request)
     await openAdmin(page)
 
     await page.getByLabel('Logo', { exact: true }).setInputFiles(pngUpload())
@@ -178,7 +189,7 @@ test.describe('the logo', () => {
     // Scoped: every prize row has a "Remove <prize>" button too.
     await page
       .getByTestId('branding-section')
-      .getByRole('button', { name: 'Remove', exact: true })
+      .getByRole('button', { name: 'Remove logo', exact: true })
       .click()
     await expect(page.getByTestId('current-logo')).toHaveCount(0)
 
@@ -186,17 +197,39 @@ test.describe('the logo', () => {
     await expect(page.getByTestId('player-logo')).toHaveCount(0)
   })
 
-  /** F04 R14 */
-  test('refuses an SVG and says why', async ({ page }) => {
+  /**
+   * F05 R6. This spec used to assert F04 R14 — that an SVG was refused —
+   * which F05 superseded: an SVG is now accepted, sanitised on the way in,
+   * and what lands on disk is the sanitiser's output. The script below is
+   * the whole point of the rule, so it is what gets uploaded.
+   */
+  test('accepts an SVG, strips the script in it, and says what it removed', async ({ page }) => {
     await openAdmin(page)
 
     await page.getByLabel('Logo', { exact: true }).setInputFiles({
       name: 'logo.svg',
       mimeType: 'image/svg+xml',
-      buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+      buffer: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">' +
+          '<script>alert(1)</script><rect width="8" height="8" fill="#000"/></svg>',
+      ),
     })
 
-    await expect(page.getByRole('alert')).toContainText(/SVG is not accepted/i)
+    await expect(page.getByTestId('current-logo')).toBeVisible()
+    await expect(page.getByTestId('logo-notice')).toContainText(/removed/i)
+
+    // What is served is the cleaned file, not what was uploaded.
+    const src = await page.getByTestId('current-logo').getAttribute('src')
+    const served = await page.request.get(src ?? '')
+
+    expect(served.status()).toBe(200)
+    expect(served.headers()['content-type']).toContain('image/svg+xml')
+    expect(await served.text()).not.toContain('<script')
+
+    await page
+      .getByTestId('branding-section')
+      .getByRole('button', { name: 'Remove logo', exact: true })
+      .click()
     await expect(page.getByTestId('current-logo')).toHaveCount(0)
   })
 

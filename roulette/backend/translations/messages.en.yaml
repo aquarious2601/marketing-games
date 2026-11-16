@@ -64,7 +64,7 @@ logo:
     required: 'Choose an image to upload.'
     not_an_image: 'That file is not an image.'
     too_large: 'The logo must be %max%MB or smaller.'
-    wrong_type: 'The logo must be a PNG, JPEG or WebP image. SVG is not accepted.'
+    wrong_type: 'The logo must be a PNG, JPEG, WebP or SVG image.'
     upload_failed: 'The upload did not complete. Please try again.'
     svg_unreadable: 'That SVG could not be read. Please export it again.'
     svg_entities: 'That SVG declares XML entities, which are not allowed. Export it without them and try again.'

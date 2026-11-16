@@ -184,6 +184,8 @@ export const zh: Record<MessageKey, string> = {
   'game.losingToggleHint': '添加一个什么都不送的扇区。您可以像其他扇区一样重命名并设置概率。',
   'game.reward': '送出',
   'game.noRewards': '请先添加奖励——每个扇区都必须送出一样东西。',
+  'game.losingSlice': '未中奖扇区',
+  'game.losingGivesNothing': '无奖励——这是未中奖的扇区。',
 
   'player.yourCode': '您的兑换码',
 

@@ -439,3 +439,172 @@ describe('saving', () => {
     expect(saveButton()).toBeEnabled()
   })
 })
+
+/** F14 R1, R2, R3, R6, R7, R9 */
+describe('the losing slice in the prize list', () => {
+  /**
+   * A wheel whose second slice points at the catalogue's `nothing` reward.
+   *
+   * Three slices rather than two, because a wheel at MIN_PRIZES refuses to
+   * give up a row and the removal test would prove nothing.
+   */
+  function withALosingSlice(): WheelConfiguration {
+    const wheel = configuration([
+      ['Try again', 50],
+      ['Free gift', 30],
+      ['Free sample', 20],
+    ])
+
+    wheel.includesLosingSlice = true
+    wheel.prizes[0].rewardId = 3
+
+    return wheel
+  }
+
+  function rows(): HTMLElement[] {
+    return screen.getAllByTestId('prize-row')
+  }
+
+  it('marks the losing row and leaves the others alone', async () => {
+    fetchWheelMock.mockResolvedValue(withALosingSlice())
+    await renderAdmin()
+
+    expect(rows()[0]).toHaveAttribute('data-losing', 'true')
+    expect(rows()[1]).not.toHaveAttribute('data-losing')
+
+    expect(screen.getAllByTestId('prize-losing-mark')).toHaveLength(1)
+    expect(within(rows()[0]).getByTestId('prize-losing-mark')).toHaveTextContent(/losing item/i)
+  })
+
+  /**
+   * R2. The reward is settled by the toggle above, so a dropdown here could
+   * only ever be used to contradict it.
+   */
+  it('offers no reward to choose on the losing row', async () => {
+    fetchWheelMock.mockResolvedValue(withALosingSlice())
+    await renderAdmin()
+
+    expect(within(rows()[0]).queryByTestId('prize-reward')).not.toBeInTheDocument()
+    expect(within(rows()[1]).getByTestId('prize-reward')).toBeInTheDocument()
+  })
+
+  /** R3: a sentence, not a blank — a missing control reads as a bug. */
+  it('says that the losing row gives nothing away', async () => {
+    fetchWheelMock.mockResolvedValue(withALosingSlice())
+    await renderAdmin()
+
+    expect(within(rows()[0]).getByTestId('prize-gives-nothing')).toHaveTextContent(
+      /this is the losing item/i,
+    )
+  })
+
+  /** R4: the label and the odds are still the admin's to set. */
+  it('keeps the name and percentage fields on the losing row', async () => {
+    fetchWheelMock.mockResolvedValue(withALosingSlice())
+    const user = await renderAdmin()
+
+    await user.clear(nameField(0))
+    await user.type(nameField(0), 'Better luck')
+
+    expect(nameField(0)).toHaveValue('Better luck')
+    expect(probabilityField(0)).toHaveValue('50')
+  })
+
+  /**
+   * R6. The toggle and the list are two views of one fact, so removing the
+   * row has to take the toggle with it — otherwise the toggle goes on
+   * claiming a slice that is not there, and the next save puts it back.
+   */
+  it('turns the toggle off when the losing row is removed', async () => {
+    fetchWheelMock.mockResolvedValue(withALosingSlice())
+    const user = await renderAdmin()
+
+    expect(screen.getByTestId('losing-toggle')).toBeChecked()
+
+    await user.click(within(rows()[0]).getByRole('button', { name: /remove/i }))
+
+    expect(screen.getAllByTestId('prize-row')).toHaveLength(2)
+    expect(screen.getByTestId('losing-toggle')).not.toBeChecked()
+    expect(screen.queryByTestId('prize-losing-mark')).not.toBeInTheDocument()
+  })
+
+  /** F14 R5: the toggle puts it at the top, not at the bottom. */
+  it('adds the losing slice as the first row', async () => {
+    const user = await renderAdmin()
+
+    await user.click(screen.getByTestId('losing-toggle'))
+
+    expect(rows()).toHaveLength(3)
+    expect(rows()[0]).toHaveAttribute('data-losing', 'true')
+  })
+
+  /**
+   * F14 R5, R5b. A wheel saved with its losing slice elsewhere opens in the
+   * right order — and must not open looking unsaved over a reordering the
+   * admin did not ask for.
+   */
+  it('moves a loaded losing slice to the front without making the page dirty', async () => {
+    const wheel = configuration([
+      ['Free gift', 50],
+      ['Free sample', 20],
+      ['Try again', 30],
+    ])
+
+    wheel.includesLosingSlice = true
+    wheel.prizes[2].rewardId = 3
+    fetchWheelMock.mockResolvedValue(wheel)
+
+    await renderAdmin()
+
+    expect(rows()[0]).toHaveAttribute('data-losing', 'true')
+    expect(nameField(0)).toHaveValue('Try again')
+    expect(nameField(1)).toHaveValue('Free gift')
+    expect(saveButton()).toBeDisabled()
+  })
+
+  /** F14 R5: the third way a slice becomes the losing one. */
+  it('moves a slice to the front when it is pointed at the losing reward', async () => {
+    const user = await renderAdmin()
+
+    await user.selectOptions(
+      within(rows()[1]).getByTestId('prize-reward'),
+      '3',
+    )
+
+    expect(rows()[0]).toHaveAttribute('data-losing', 'true')
+    expect(nameField(0)).toHaveValue('Free gift')
+  })
+
+  /** F14 R5a */
+  it('offers no arrow that would unpin the losing slice', async () => {
+    fetchWheelMock.mockResolvedValue(withALosingSlice())
+    await renderAdmin()
+
+    expect(within(rows()[0]).getByRole('button', { name: /move down/i })).toBeDisabled()
+    expect(within(rows()[1]).getByRole('button', { name: /move up/i })).toBeDisabled()
+
+    // The rows below it still move among themselves.
+    expect(within(rows()[1]).getByRole('button', { name: /move down/i })).toBeEnabled()
+    expect(within(rows()[2]).getByRole('button', { name: /move up/i })).toBeEnabled()
+  })
+
+  /** R9: nothing changes for a wheel that has no losing slice. */
+  it('marks nothing on a wheel without one', async () => {
+    await renderAdmin()
+
+    expect(screen.queryByTestId('prize-losing-mark')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('prize-gives-nothing')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('prize-reward')).toHaveLength(2)
+  })
+
+  /** R7: every field is labelled, which is what makes the three line up. */
+  it('gives every field on a row a visible label', async () => {
+    await renderAdmin()
+
+    const row = within(rows()[0])
+
+    expect(row.getByText('Prize name')).toBeInTheDocument()
+    expect(row.getByText('Percentage')).toBeInTheDocument()
+    expect(row.getByText('Gives away')).toBeInTheDocument()
+  })
+})

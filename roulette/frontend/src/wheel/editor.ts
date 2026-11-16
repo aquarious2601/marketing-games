@@ -100,6 +100,32 @@ export function removePrize(drafts: DraftPrize[], index: number): DraftPrize[] {
   return drafts.filter((_, i) => i !== index)
 }
 
+/**
+ * Puts the losing slice at the top of the list (F14 R5).
+ *
+ * Applied to every change rather than only to the toggle, because a slice
+ * can become the losing one three ways — the toggle adds it, a load brings
+ * one back from the server, or an admin points an ordinary slice at the
+ * losing reward from its dropdown — and the rule has to hold after all
+ * three. A single place that re-asserts it cannot miss one.
+ *
+ * The order of the rest is preserved. `rewardId` of `null` never matches,
+ * so a list with no losing slice comes back untouched and identical.
+ */
+export function pinLosingFirst(drafts: DraftPrize[], losingRewardId: number | null): DraftPrize[] {
+  if (losingRewardId === null) {
+    return drafts
+  }
+
+  const at = drafts.findIndex((draft) => draft.rewardId === losingRewardId)
+
+  if (at <= 0) {
+    return drafts
+  }
+
+  return movePrize(drafts, at, -at)
+}
+
 export function movePrize(drafts: DraftPrize[], index: number, offset: number): DraftPrize[] {
   const target = index + offset
 

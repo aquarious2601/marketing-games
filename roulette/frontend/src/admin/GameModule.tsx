@@ -8,6 +8,7 @@ import {
   canAddPrize,
   createPrize,
   canRemovePrize,
+  pinLosingFirst,
   fromConfiguration,
   isDirty,
   movePrize,
@@ -89,7 +90,12 @@ export function GameModule() {
         return
       }
 
-      const initial = fromConfiguration(configuration)
+      // F14 R5. Normalised before it becomes the baseline as well as the
+      // draft, so a wheel saved with its losing slice elsewhere opens in
+      // the right order without opening dirty.
+      const losingRewardId =
+        catalogue.rewards.find((reward) => reward.type === 'nothing')?.id ?? null
+      const initial = pinLosingFirst(fromConfiguration(configuration), losingRewardId)
 
       setDrafts(initial)
       setSaved(initial)
@@ -140,7 +146,10 @@ export function GameModule() {
    * makes every interaction count.
    */
   const mutate = (transform: (current: DraftPrize[]) => DraftPrize[]) => {
-    setDrafts(transform)
+    // F14 R5: re-asserted after every change rather than only where a
+    // losing slice is added, so pointing an ordinary slice at the losing
+    // reward from its dropdown moves it up too.
+    setDrafts((current) => pinLosingFirst(transform(current), losingReward?.id ?? null))
     setJustSaved(false)
     setServerViolations([])
   }
@@ -255,7 +264,8 @@ export function GameModule() {
 
                 setDrafts((current) =>
                   wanted
-                    ? [...current, losingSlice(losingReward.id, t('rewardType.nothing'))]
+                    ? // F14 R5: at the top, not appended.
+                      [losingSlice(losingReward.id, t('rewardType.nothing')), ...current]
                     : current.filter((draft) => draft.rewardId !== losingReward.id),
                 )
               }}
@@ -280,10 +290,32 @@ export function GameModule() {
                 total={drafts.length}
                 errors={errorsFor[index] ?? {}}
                 canRemove={canRemovePrize(drafts)}
+                losingFirst={
+                  losingReward !== null && drafts[0]?.rewardId === losingReward.id
+                }
                 rewards={rewards}
                 onChange={(change) => mutate((current) => updatePrize(current, index, change))}
                 onMove={(offset) => mutate((current) => movePrize(current, index, offset))}
-                onRemove={() => mutate((current) => removePrize(current, index))}
+                onRemove={() => {
+                  // F14 R6: the toggle and the list are two views of one
+                  // fact. Taking the losing row away with its × is the same
+                  // intention as switching the toggle off, so it does both
+                  // rather than leaving the toggle claiming a row that is
+                  // no longer there.
+                  //
+                  // Guarded by canRemovePrize for the same reason: a wheel
+                  // at its minimum refuses the removal, and the toggle must
+                  // not go off over a row that is still on the screen.
+                  if (
+                    canRemovePrize(drafts) &&
+                    losingReward !== null &&
+                    prize.rewardId === losingReward.id
+                  ) {
+                    setLosing(false)
+                  }
+
+                  mutate((current) => removePrize(current, index))
+                }}
               />
             ))}
           </ul>

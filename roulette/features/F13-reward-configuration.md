@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **ID** | F13 |
-| **Status** | Agreed |
+| **Status** | Done |
 | **Interface** | Both |
 | **Depends on** | [F01](./F01-wheel-prize-configuration.md), [F02](./F02-player-spin.md), [F04](./F04-branding-and-themes.md), [F09](./F09-admin-modules.md), [F12](./F12-multiple-languages.md) |
 | **Agreed on** | 2026-11-15 |
@@ -310,16 +310,25 @@ unaffected: the admin tables render through `toLocaleString` in the browser
 
 ### Not verified
 
-- **No migration path for existing data.** `prize.reward_id` is `NOT NULL`,
-  and this project applies its schema with `doctrine:schema:update` against
-  an empty `migrations/`. A database that already holds prizes cannot take
-  this change without a data migration that invents a reward for each one.
-  There is no production data, so nothing is broken — but it is a real gap
-  and the first thing to solve before there is.
-- **Not looked at in a browser.** The admin's Rewards module, the reward
-  selector, the losing toggle, the claim control and the code on the result
-  panel are covered by unit tests only. The 375px fit of the widened spin
-  log in particular is unchecked — it now has six columns.
+- ~~**No migration path for existing data.**~~ Closed by
+  [P02](./P02-database-upgrades.md). The gap was real and it bit the
+  development database the day after this feature shipped: both admin
+  modules returned 500, one because `reward` did not exist and the other
+  because `prize.reward_id` did not. `php bin/console app:upgrade-database`
+  now applies this feature's schema to a database that already holds rows,
+  and the development database — six prizes, 27 spins, two players — went
+  through it with everything intact.
+- **The player's side is checked; the admin's is not.** Two real spins were
+  played at 375px against the development database after
+  [P02](./P02-database-upgrades.md). A free product showed no code, a 5%
+  slice showed `NBXS-FB26`, and the result panel with the code on it fits in
+  812px with nothing to scroll (`scrollHeight === innerHeight`).
+
+  The admin's Rewards module, the reward selector, the losing toggle and the
+  claim control are still covered by unit tests only, because looking at
+  them needs an admin account and creating one here was not permitted. The
+  375px fit of the widened spin log — six columns now — is the one to check
+  first.
 
 ## 13. Decisions and risks
 
