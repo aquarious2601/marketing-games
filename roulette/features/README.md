@@ -52,9 +52,17 @@ git switch -c feature/F21-spin-eligibility
 
 ### Finishing one
 
-CI must be green and your manual pass must be done — in that order, because
-there is no sense testing by hand what the suites already reject. Then, on
-your word:
+Push the branch and open a pull request into the sprint branch. Without the
+[GitHub CLI](https://cli.github.com/) installed, the push prints a link that
+opens the form; with it:
+
+```bash
+gh pr create --base next-1.1 --fill
+```
+
+CI must then be green and your manual pass must be done — in that order,
+because there is no sense testing by hand what the suites already reject.
+Then, on your word, the merge button on the pull request, or:
 
 ```bash
 gh pr merge --no-ff --delete-branch
