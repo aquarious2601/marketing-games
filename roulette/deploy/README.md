@@ -73,13 +73,20 @@ harder to debug than a step that stopped.
 is enough to stop it. Git Bash comes with Git, so it is already here.
 
 Git Bash has one trap of its own, worth knowing before it bites: it
-rewrites any argument that *looks* like a POSIX path into a Windows path
-before the command sees it. An AWS parameter name beginning with `/aws/`
-arrives mangled, and the error says `ParameterNotFound` — which reads as
-a wrong name rather than a wrong shell, and sends you looking up AMI
-paths that were right all along. Any command below that passes an
-argument starting with `/` is prefixed with `MSYS_NO_PATHCONV=1`, which
-turns the rewriting off and is an unused variable on Linux and macOS.
+rewrites anything that *looks* like a POSIX path into a Windows path
+before the command sees it. Not only arguments that begin with a slash —
+it reaches inside them too, so `DeviceName=/dev/sda1` arrives as
+`DeviceName=C:/Program Files/Git/dev/sda1`.
+
+What makes it expensive is that the errors blame the value. A mangled
+`/aws/service/...` comes back as `ParameterNotFound`, which reads as a
+wrong parameter name; a mangled `/dev/sda1` comes back as
+`InvalidBlockDeviceMapping`, which reads as a wrong device. Both are the
+shell.
+
+So `MSYS_NO_PATHCONV=1` is exported once below, for the whole session,
+rather than guessed at per command. It is an unused variable on Linux
+and macOS.
 
 Work from a directory of its own, because the steps below write small
 policy files and you do not want them in the repository:
@@ -92,6 +99,11 @@ Set these once in the shell you are working in. Only two lines need
 editing:
 
 ```bash
+# Git Bash only. See the note above: without this, any argument that
+# looks like a POSIX path is rewritten before the command sees it, and
+# the errors blame the value rather than the shell. Harmless elsewhere.
+export MSYS_NO_PATHCONV=1
+
 export AWS_REGION=eu-west-3
 export REPO=aquarious2601/marketing-games
 
@@ -213,12 +225,7 @@ Ubuntu 24.04, `t3.small`. Not `t3.micro` — MariaDB, PHP-FPM and nginx
 together on 1 GB will survive a demo and fall over at a stall.
 
 ```bash
-# MSYS_NO_PATHCONV=1 matters on Windows and is ignored everywhere else.
-# Git Bash rewrites any argument that looks like a POSIX path into a
-# Windows one before the program sees it, so without this the parameter
-# name arrives mangled and AWS answers ParameterNotFound - which reads
-# as a wrong name and is not.
-export AMI=$(MSYS_NO_PATHCONV=1 aws ssm get-parameter \
+export AMI=$(aws ssm get-parameter \
   --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id \
   --query 'Parameter.Value' --output text)
 
