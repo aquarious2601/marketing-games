@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\Entity\Player;
 use App\Entity\Spin;
 use App\Tests\Support\DatabaseWebTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -21,6 +22,9 @@ final class IdentityControllerTest extends DatabaseWebTestCase
     private const SPIN_URI = '/api/spin';
 
     private const PHONE = '0912345678';
+
+    /** The number from F19's report, as its owner dials it. */
+    private const FRENCH_PHONE = '0614856240';
 
     // ------------------------------------------------------ GET /api/player/me
 
@@ -154,6 +158,116 @@ final class IdentityControllerTest extends DatabaseWebTestCase
         self::assertResponseIsSuccessful();
         self::assertTrue($this->decodeResponse()['known']);
         self::assertSame(1, $this->countRows('player'));
+    }
+
+    /**
+     * F19 R6, R7, R9. The report this feature answers: on a French campaign
+     * every way of writing one number finds the one player.
+     *
+     * Through the kernel rather than only against PhoneMatch, because the
+     * thing that was broken was a lookup, not a comparison.
+     */
+    #[DataProvider('otherSpellingsOfTheFrenchNumber')]
+    public function testAFrenchNumberIsOnePlayerHoweverItIsWritten(string $typed): void
+    {
+        $this->register(['phone' => self::FRENCH_PHONE]);
+        $this->post(self::FORGET_URI);
+
+        $this->post(self::IDENTIFY_URI, ['phone' => $typed]);
+
+        self::assertResponseIsSuccessful();
+        self::assertTrue($this->decodeResponse()['known'], $typed.' was not recognised.');
+        self::assertSame(1, $this->countRows('player'));
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function otherSpellingsOfTheFrenchNumber(): iterable
+    {
+        yield 'international' => ['+33614856240'];
+        yield 'international the long way' => ['0033614856240'];
+        yield 'without the trunk zero' => ['614856240'];
+        yield 'pasted, code but no plus' => ['33614856240'];
+        yield 'spaced the way it is written' => ['+33 6 14 85 62 40'];
+    }
+
+    /**
+     * F19 R11. The page is shown the number on the row, not the one just
+     * typed, so "Not you?" names the identity the system is actually
+     * holding.
+     */
+    public function testThePageIsShownTheStoredSpellingNotTheTypedOne(): void
+    {
+        $this->register(['phone' => self::FRENCH_PHONE]);
+        $this->post(self::FORGET_URI);
+
+        $this->post(self::IDENTIFY_URI, ['phone' => '+33614856240']);
+
+        self::assertSame(self::FRENCH_PHONE, $this->decodeResponse()['player']['phone']);
+    }
+
+    /**
+     * F19 R10, which is F08 R7 unchanged: retyping a number in another
+     * spelling reaches the player who holds it, and does not rename them.
+     */
+    public function testRegisteringAnotherSpellingAddsNoRowAndRenamesNobody(): void
+    {
+        $this->register(['phone' => self::FRENCH_PHONE]);
+
+        $this->post(self::REGISTER_URI, [
+            'phone' => '+33614856240',
+            'firstName' => 'Somebody',
+            'lastName' => 'Else',
+            'birthday' => '1980-01-01',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $this->countRows('player'));
+        self::assertSame('Anh', $this->decodeResponse()['player']['firstName']);
+    }
+
+    /**
+     * F19 R8, and the half of this feature that is easy to get wrong. `06`
+     * and `07` are both French mobile prefixes, so these are two people who
+     * share the last nine digits of their number.
+     */
+    public function testTwoFrenchMobilePrefixesAreTwoPlayers(): void
+    {
+        $this->register(['phone' => self::FRENCH_PHONE]);
+        $this->post(self::FORGET_URI);
+
+        $this->post(self::IDENTIFY_URI, ['phone' => '0714856240']);
+
+        self::assertFalse($this->decodeResponse()['known'], 'Somebody else was identified.');
+
+        $this->register(['phone' => '0714856240', 'firstName' => 'Claire']);
+
+        self::assertSame(2, $this->countRows('player'));
+    }
+
+    /**
+     * F19 R9. The reason any of this matters: a returning player's history
+     * stays in one place however they typed their number that day.
+     */
+    public function testSpinsFromBothSpellingsLandOnOnePlayer(): void
+    {
+        $this->register(['phone' => self::FRENCH_PHONE]);
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+
+        $this->post(self::FORGET_URI);
+        $this->post(self::IDENTIFY_URI, ['phone' => '+33614856240']);
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+
+        self::assertSame(1, $this->countRows('player'));
+        self::assertSame(2, $this->countRows('spin'));
+
+        $spins = $this->entityManager->getRepository(Spin::class)->findBy([]);
+        foreach ($spins as $spin) {
+            self::assertSame(self::FRENCH_PHONE, $spin->getPlayer()?->getPhone());
+        }
     }
 
     /** F08 R4 */
@@ -300,7 +414,7 @@ final class IdentityControllerTest extends DatabaseWebTestCase
      *
      * @param string|int $birthday
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('unusableBirthdays')]
+    #[DataProvider('unusableBirthdays')]
     public function testItRejectsABirthdayThatIsNotOne(mixed $birthday): void
     {
         $this->register(['birthday' => $birthday]);

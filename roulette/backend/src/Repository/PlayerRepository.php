@@ -6,6 +6,7 @@ namespace App\Repository;
 
 use App\Entity\Player;
 use App\Entity\Spin;
+use App\Player\PhoneMatch;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -27,10 +28,29 @@ final class PlayerRepository extends ServiceEntityRepository
         parent::__construct($registry, Player::class);
     }
 
-    /** Looks up by the canonical form only (F08 R3, R5). */
-    public function findByPhone(string $phone): ?Player
+    /**
+     * The player who owns this number, however either of them spelled it
+     * (F19 R9).
+     *
+     * Two steps, because one SQL comparison cannot answer it: the indexed
+     * tail narrows the table to the rows that could match, and PhoneMatch
+     * decides which of them does. The row holds `0614856240` and this finds
+     * it from `+33614856240`.
+     *
+     * Named for the question rather than for the column, so a caller cannot
+     * read it as an exact match on what was typed.
+     */
+    public function findForNumber(string $phone): ?Player
     {
-        return $this->findOneBy(['phone' => $phone]);
+        $candidates = $this->findBy(['phoneTail' => PhoneMatch::tail($phone)]);
+
+        foreach ($candidates as $candidate) {
+            if (PhoneMatch::same($phone, $candidate->getPhone())) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

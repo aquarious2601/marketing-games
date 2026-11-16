@@ -104,6 +104,10 @@ can be run twice without harm.
 | R19 | `branding.currency` is added **nullable and left null**. Amended 2026-11-16 by [F15](./F15-choosing-the-currency.md) R4, which made null mean *nobody has chosen*: a campaign that predates the column has indeed never chosen one, and seeding it would be the upgrade deciding what a shop trades in. |
 | R20 | The command refuses to run if the database holds no `wheel` table at all. That is an uninitialised database, which `schema:update --force --complete` should create instead. |
 | R21 | A `branding.currency` of `VND` is set back to null, unless some reward is counted in money. Added 2026-11-16: R19's first version wrote that value itself, before [F15](./F15-choosing-the-currency.md) R4 made null mean *nobody has chosen*, so every database upgraded in between claims a choice this command made. Only `VND` is taken back, because it is the only value that step ever wrote. |
+| R22 | `player.phone_tail` is added nullable, then filled, then made `NOT NULL` and indexed — the same three moves as `prize.reward_id` (R8), for the same reason. Added 2026-11-17 by [F19](./F19-one-person-one-number.md) R12. |
+| R23 | Every stored number gets its tail. The step needs **nothing configured**: there is no setting to read and nothing to guess, so it cannot be skipped on the database that needs it. See section 13. |
+| R24 | Where two rows hold one person's number in different spellings ([F19](./F19-one-person-one-number.md) R2), they are merged: the earliest registration survives with its own number, the later rows' spins are moved onto it, and those rows are deleted. The step says how many tails it filled and how many players it merged. |
+| R25 | The index on `player.phone_tail` is deliberately **not** unique: two different people can share a tail, and [F19](./F19-one-person-one-number.md) R4 is what tells them apart. |
 
 ## 7. Data model
 
@@ -119,6 +123,7 @@ already specifies, and fills in:
 | `spin` | `claimed_at` | null — nothing already recorded has been claimed |
 | `wheel` | `includes_losing_slice` | R14 |
 | `branding` | `currency` | null — unchosen (R19), and set back to null where an earlier run chose for you (R21) |
+| `player` | `phone_tail` | R23, from the number already in the row (never the other way round) |
 
 ## 8. API surface
 
@@ -146,6 +151,8 @@ start working again, which is the point.
 | A data step fails | It is rolled back, the failure is printed, later steps do not run, and the command says that what ran before it stands; exit 1 (R5) |
 | A prize name matches no default | A free-product reward is invented and counted in the summary (R11, R12) |
 | Some reward is counted in money | R21 leaves the stored currency alone and says why |
+| Two player rows hold one number | They are merged and counted in the summary (R24) |
+| Two player rows hold numbers that merely look alike | Left as two players (R25) |
 | `--dry-run` | Nothing is written; the plan is printed |
 
 ## 11. Acceptance criteria
@@ -167,6 +174,14 @@ start working again, which is the point.
       then its unchosen `VND` is taken back and its language decides again.
 - [x] Given the same database with an amount-off reward in it, then the
       currency is left exactly as it was.
+- [x] Given a database holding `0614856240` with two spins and
+      `+33614856240` with one, when the command runs, then one player
+      remains, stored as `0614856240`, holding all three spins, and the
+      summary says one merge.
+- [x] Given a database holding `0614856240` and `0714856240`, when the
+      command runs, then they are still two players.
+- [x] Given a database with no branding row and nothing configured, when the
+      command runs, then every player still gets their tail.
 - [x] Given an already-upgraded database, when the command runs again, then
       nothing changes and it exits 0.
 - [x] Given an upgraded database, when `doctrine:schema:update --dump-sql`
@@ -190,8 +205,31 @@ test the upgrade against the schema it produces.
 Checked by hand against the development database — six prizes, 27 spins, two
 players — and both admin modules opened afterwards.
 
+The phone steps (R22–R25) are covered against the same throwaway database:
+the column added and indexed, every number given its tail, two spellings of
+one number merged with the earliest registration surviving and its spins
+moved, two lookalike numbers left as two people, a run with nothing
+configured anywhere, a second run finding nothing, and a dry run merging
+nobody.
+
 ## 13. Decisions and risks
 
+- **A step that needs configuration is a step that does not run (R23).**
+  Learned the hard way. [F18](./F18-the-campaigns-phone-country.md) added a
+  phone step that first had to be told which country the campaign was in, and
+  refused to run until somebody chose one — which nobody had. New
+  registrations were rewritten while the stored rows were not, and the
+  returning player with nineteen spins stopped being recognised: the feature's
+  default state was worse than its absence. It was abandoned and replaced by
+  [F19](./F19-one-person-one-number.md), whose step has nothing to be told.
+  Any future step here that wants an answer from an admin before it can act
+  should be read against that.
+- **R24 is the only step that deletes a row.** It is narrow by construction:
+  it fires only on rows that are the same person by
+  [F19](./F19-one-person-one-number.md) R2, it keeps the earliest
+  registration rather than choosing arbitrarily, and it moves the spins
+  before the row goes, so nothing a shop gave away loses the player it was
+  given to. A dry run is the way to see what it would do.
 - **A command rather than Doctrine Migrations.** The bundle is already
   installed, and a `Version…php` file is the idiomatic home for this. It was
   rejected for now because the version table has no baseline: every table in

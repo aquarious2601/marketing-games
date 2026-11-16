@@ -407,14 +407,19 @@ travel between shops without a configuration step, and a strict validator
 that rejects a legitimate foreign number at a stall is worse than a loose one
 that accepts a typo.
 
-The cost is real and accepted: `0912345678` and `+84912345678` are the same
-human and two players. A player who gives their number one way on Monday and
-the other way on Friday will be asked their name twice and will appear twice
-in the admin list. If that starts mattering — and it will the moment the
-business counts unique players rather than spins — the fix is a country
-setting and a one-off re-canonicalisation of the table, which is why the
-canonical form is computed in exactly one place
-(`App\Player\PhoneNumber::canonicalise`) and never spread across callers.
+The cost was real and accepted: `0912345678` and `+84912345678` are the same
+human and two players. A player who gave their number one way on Monday and
+the other way on Friday was asked their name twice and appeared twice in the
+admin list.
+
+**Resolved by [F19](./F19-one-person-one-number.md)** on 2026-11-17, the
+first time that cost showed up. Not by the country setting predicted here —
+[F18](./F18-the-campaigns-phone-country.md) built that, and it was the wrong
+shape for the reasons in F19 section 2 — but by leaving this canonicalisation
+exactly as it is and comparing numbers instead of strings
+(`App\Player\PhoneMatch`). Everything this section says about storing a
+number loosely still holds: the row keeps what was typed, and nothing
+rewrites it.
 
 **The number is not verified.** Nobody is sent a code. A player can type
 anyone's number, or a number that does not exist, and the game will believe
@@ -480,8 +485,10 @@ rather than quietly resolved.
 
 - **A minimum age.** Should the page refuse a birthday under some age, and if
   so, what does it say? Needs the campaign's answer, not a guess.
-- **Country canonicalisation.** Worth adding a country setting the first time
-  the duplicate-player cost actually shows up in the admin list. Deliberately
-  not pre-empted.
+- ~~**Country canonicalisation.**~~ Answered by
+  [F19](./F19-one-person-one-number.md): two spellings of one number are one
+  player, and it needed no country setting after all. See F19 section 2 for
+  why the setting this question expected was built, measured and thrown
+  away.
 - **Deleting a player.** Served from the console today. Does the admin need a
   button, and should it anonymise the spins or remove them?

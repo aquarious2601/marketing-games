@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Player\PhoneMatch;
 use App\Repository\PlayerRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -14,6 +15,10 @@ use Doctrine\ORM\Mapping as ORM;
  * player ever gives, so the canonical number carries the unique constraint
  * (F08 R9) and everything else on the row is what we asked for once.
  *
+ * Which number that is, is decided by comparing numbers rather than
+ * strings (F19 R1, R2): the row keeps what was typed, and
+ * App\\Player\\PhoneMatch decides whether another spelling is the same one.
+ *
  * Three facts and a number is the whole of it (F08 R8, R24). Anything added
  * here needs a stated purpose, because this is the only table in the project
  * holding personal data.
@@ -21,6 +26,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: PlayerRepository::class)]
 #[ORM\Table(name: 'player')]
 #[ORM\UniqueConstraint(name: 'uniq_player_phone', columns: ['phone'])]
+#[ORM\Index(name: 'idx_player_phone_tail', columns: ['phone_tail'])]
 class Player
 {
     /**
@@ -48,6 +54,19 @@ class Player
     #[ORM\Column(length: self::PHONE_MAX_LENGTH, unique: true)]
     private string $phone;
 
+    /**
+     * The last few digits, so a lookup by number does not read the table
+     * (F19 R4). Not unique and not an answer: it narrows a lookup to a
+     * handful of rows, and PhoneMatch::same() decides between them.
+     *
+     * Derived in the constructor and nowhere else, so it cannot drift out of
+     * step with the column it summarises and no request can set it. There is
+     * deliberately no setter: a number does not change, and if one ever did,
+     * its tail would change with it (F19 R5).
+     */
+    #[ORM\Column(name: 'phone_tail', length: PhoneMatch::TAIL_LENGTH)]
+    private string $phoneTail;
+
     #[ORM\Column(name: 'first_name', length: self::NAME_MAX_LENGTH)]
     private string $firstName;
 
@@ -72,6 +91,7 @@ class Player
         \DateTimeImmutable $birthday,
     ) {
         $this->phone = $phone;
+        $this->phoneTail = PhoneMatch::tail($phone);
         $this->firstName = $firstName;
         $this->lastName = $lastName;
         $this->birthday = $birthday;
@@ -86,6 +106,11 @@ class Player
     public function getPhone(): string
     {
         return $this->phone;
+    }
+
+    public function getPhoneTail(): string
+    {
+        return $this->phoneTail;
     }
 
     public function getFirstName(): string

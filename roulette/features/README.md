@@ -63,6 +63,8 @@ Two series, so infrastructure never pushes the game features along:
 | [F15](./F15-choosing-the-currency.md) | Choosing the currency | Admin | Agreed |
 | [F16](./F16-a-code-on-every-win.md) | A code on every win | Both | Agreed |
 | [F17](./F17-the-losing-panel.md) | The losing panel | Player | Agreed |
+| [F18](./F18-the-campaigns-phone-country.md) | The campaign's phone country | Both | Withdrawn |
+| [F19](./F19-one-person-one-number.md) | One person, one number | Both | Agreed |
 
 ## Running the tests
 

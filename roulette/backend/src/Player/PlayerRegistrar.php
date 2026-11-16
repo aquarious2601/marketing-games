@@ -23,7 +23,15 @@ use Doctrine\ORM\EntityManagerInterface;
  *
  * The existing row is never updated from the new submission. Somebody
  * retyping their number should not be able to rename the player who already
- * holds it (F08 R7).
+ * holds it (F08 R7) — and since F19 that includes retyping it in another
+ * spelling, which is now the same row rather than a new one (F19 R10).
+ *
+ * One hole is left open, and F19 section 13 says why it is tolerable: the
+ * unique constraint is on `phone`, so the race above is settled only when
+ * both devices sent the same spelling. Two *different* spellings of one
+ * number, submitted in the same instant, both insert — and P02's merge step
+ * is what repairs that, rather than a lock held across every registration at
+ * the stall.
  */
 final class PlayerRegistrar
 {
@@ -35,7 +43,7 @@ final class PlayerRegistrar
 
     public function register(PlayerDraft $draft): Player
     {
-        $existing = $this->players->findByPhone($draft->phone);
+        $existing = $this->players->findForNumber($draft->phone);
 
         if (null !== $existing) {
             return $existing;
@@ -52,7 +60,7 @@ final class PlayerRegistrar
             // to be re-read on a fresh one rather than through $this->players.
             $this->entityManager->getConnection()->close();
 
-            $won = $this->players->findByPhone($draft->phone);
+            $won = $this->players->findForNumber($draft->phone);
 
             // Only a unique violation on this exact number can land here, so
             // the row must exist. If it somehow does not, something other

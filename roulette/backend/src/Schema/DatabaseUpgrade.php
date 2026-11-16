@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Schema;
 
 use App\Entity\Reward;
+use App\Player\PhoneMatch;
 use App\Reward\RewardProvider;
 use App\Reward\RewardType;
 use Doctrine\DBAL\Connection;
@@ -37,6 +38,13 @@ final class DatabaseUpgrade
     private const PRIZE_REWARD_FK = 'FK_51C88BC1E466ACA1';
     private const PRIZE_REWARD_INDEX = 'IDX_51C88BC1E466ACA1';
     private const SPIN_CODE_INDEX = 'UNIQ_120A248F7604A003';
+
+    /**
+     * Named in the mapping rather than generated, like `uniq_player_phone`
+     * beside it, so this is the name the entity asks for and not a hash
+     * anybody has to decode.
+     */
+    private const PLAYER_TAIL_INDEX = 'idx_player_phone_tail';
 
     /**
      * @param list<string> $enabledLocales
@@ -79,6 +87,9 @@ final class DatabaseUpgrade
             $this->fillSpinRewards($dryRun),
             $this->constrainSpinReward($dryRun),
             $this->addWheelLosingToggle($dryRun),
+            $this->addPlayerPhoneTail($dryRun),
+            $this->fillPlayerPhoneTails($dryRun),
+            $this->constrainPlayerPhoneTail($dryRun),
         ];
     }
 
@@ -621,6 +632,207 @@ final class DatabaseUpgrade
      * @param array<string, array{id: int, type: string}> $catalogue
      * @param array<string, string>                       $keysByName
      */
+    /** P02 R22: nullable first, so there is somewhere to put the answer. */
+    private function addPlayerPhoneTail(bool $dryRun): UpgradeStep
+    {
+        $name = 'player.phone_tail';
+
+        if ($this->columnExists('player', 'phone_tail')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(sprintf(
+                'ALTER TABLE player ADD phone_tail VARCHAR(%d) DEFAULT NULL',
+                PhoneMatch::TAIL_LENGTH,
+            ));
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
+    }
+
+    /**
+     * Fills the tail of every stored number, and merges the rows that turn
+     * out to be one person (P02 R23, R24).
+     *
+     * This step needs nothing configured, which is the point of F19 and the
+     * lesson of F18: a step that first has to be told which country the
+     * campaign is in does not run on the database that needs it most.
+     *
+     * Rows are read oldest first so the earliest registration is the one
+     * that survives a merge (F19 R14) — the row whose number staff may
+     * already have called, and whose history is the longer of the two.
+     */
+    private function fillPlayerPhoneTails(bool $dryRun): UpgradeStep
+    {
+        $name = 'how each stored number is found';
+
+        if (!$this->columnExists('player', 'phone_tail')) {
+            return UpgradeStep::done($name, 'would do every player (the column does not exist yet)');
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT id, phone, phone_tail FROM player ORDER BY created_at, id',
+        );
+
+        /** @var array<string, list<array{id: int, phone: string}>> $survivors by tail, so the comparison below is between the few rows that could match */
+        $survivors = [];
+        /** @var array<int, string> $rewrites */
+        $rewrites = [];
+        /** @var array<int, int> $merges the row to delete, and the row that survives */
+        $merges = [];
+
+        foreach ($rows as $row) {
+            $id = (int) $row['id'];
+            $phone = (string) $row['phone'];
+            $tail = PhoneMatch::tail($phone);
+
+            $held = null;
+
+            foreach ($survivors[$tail] ?? [] as $candidate) {
+                if (PhoneMatch::same($phone, $candidate['phone'])) {
+                    $held = $candidate['id'];
+
+                    break;
+                }
+            }
+
+            if (null !== $held) {
+                $merges[$id] = $held;
+
+                continue;
+            }
+
+            $survivors[$tail][] = ['id' => $id, 'phone' => $phone];
+
+            // Recomputed for every row rather than only for the empty ones,
+            // so a run that stopped half way can be resumed and a finished
+            // one has nothing to write (P02 R3).
+            if ($tail !== $row['phone_tail']) {
+                $rewrites[$id] = $tail;
+            }
+        }
+
+        if ([] === $rewrites && [] === $merges) {
+            return UpgradeStep::skipped($name, 'every player can already be found');
+        }
+
+        if ($dryRun) {
+            return UpgradeStep::done($name, $this->phoneTailReport(true, \count($rewrites), \count($merges)));
+        }
+
+        $this->connection->beginTransaction();
+
+        try {
+            // The merges first, and each row's spins before the row itself:
+            // a prize this shop has already given away must not lose the
+            // player it was given to.
+            foreach ($merges as $duplicate => $survivor) {
+                $this->connection->executeStatement(
+                    'UPDATE spin SET player_id = :survivor WHERE player_id = :duplicate',
+                    ['survivor' => $survivor, 'duplicate' => $duplicate],
+                );
+
+                $this->connection->executeStatement(
+                    'DELETE FROM player WHERE id = :duplicate',
+                    ['duplicate' => $duplicate],
+                );
+            }
+
+            foreach ($rewrites as $id => $tail) {
+                $this->connection->executeStatement(
+                    'UPDATE player SET phone_tail = :tail WHERE id = :id',
+                    ['tail' => $tail, 'id' => $id],
+                );
+            }
+
+            $this->connection->commit();
+        } catch (\Throwable $failure) {
+            $this->connection->rollBack();
+
+            throw $failure;
+        }
+
+        return UpgradeStep::done($name, $this->phoneTailReport(false, \count($rewrites), \count($merges)));
+    }
+
+    /** P02 R25 */
+    private function constrainPlayerPhoneTail(bool $dryRun): UpgradeStep
+    {
+        $name = 'player.phone_tail is required and indexed';
+
+        if (!$this->columnExists('player', 'phone_tail')) {
+            return UpgradeStep::done($name, 'would constrain it (the column does not exist yet)');
+        }
+
+        $empty = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM player WHERE phone_tail IS NULL',
+        );
+
+        if ($empty > 0) {
+            if ($dryRun) {
+                return UpgradeStep::done($name, 'would constrain it, once the players are done');
+            }
+
+            throw new \RuntimeException(sprintf(
+                '%d players still have no phone tail. The step before this one should have filled them.',
+                $empty,
+            ));
+        }
+
+        $alreadyRequired = !$this->columnIsNullable('player', 'phone_tail');
+        $hasIndex = $this->indexExists('player', self::PLAYER_TAIL_INDEX);
+
+        if ($alreadyRequired && $hasIndex) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            if (!$alreadyRequired) {
+                $this->connection->executeStatement(sprintf(
+                    'ALTER TABLE player MODIFY phone_tail VARCHAR(%d) NOT NULL',
+                    PhoneMatch::TAIL_LENGTH,
+                ));
+            }
+
+            if (!$hasIndex) {
+                // Not unique, deliberately: two different people can share a
+                // tail, and it is PhoneMatch that tells them apart (F19 R4).
+                $this->connection->executeStatement(sprintf(
+                    'CREATE INDEX %s ON player (phone_tail)',
+                    self::PLAYER_TAIL_INDEX,
+                ));
+            }
+        }
+
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            'make it NOT NULL, and index it',
+            'made NOT NULL, and indexed',
+        ));
+    }
+
+    /**
+     * P02 R24. Not built from tense(), which prefixes a whole sentence: this
+     * detail has a second clause that has to read in the same tense as its
+     * first.
+     */
+    private function phoneTailReport(bool $dryRun, int $filled, int $merged): string
+    {
+        $detail = sprintf($dryRun ? 'would do %d' : 'did %d', $filled);
+
+        if ($merged > 0) {
+            $detail .= sprintf(
+                $dryRun
+                    ? ', and merge %d holding a number an older row already held'
+                    : ', merged %d holding a number an older row already held',
+                $merged,
+            );
+        }
+
+        return $detail;
+    }
+
     private function existingRewardFor(string $prizeName, array $catalogue, array $keysByName): ?int
     {
         $normalised = $this->normalise($prizeName);

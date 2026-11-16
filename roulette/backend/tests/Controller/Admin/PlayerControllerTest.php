@@ -133,6 +133,25 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         self::assertSame('0912345678', $this->decodeResponse()['players'][0]['phone']);
     }
 
+    /**
+     * F19 section 5: the filter is deliberately untouched by F19, and this
+     * is what that buys. The row holds the number as its owner typed it, so
+     * staff type what is on the receipt in front of them and find it — which
+     * a design that rewrote every number into `+33…` would have broken.
+     */
+    public function testItStillFindsAFrenchNumberByItsLocalForm(): void
+    {
+        $this->givenAPlayer('0614856240', 'Anh');
+
+        $this->signInAsAdmin();
+
+        $this->client->request('GET', self::LIST_URI.'?phone=0614');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $this->decodeResponse()['total']);
+        self::assertSame('0614856240', $this->decodeResponse()['players'][0]['phone']);
+    }
+
     public function testItFiltersOnTheMiddleOfTheNumber(): void
     {
         $this->givenAPlayer('0912345678');

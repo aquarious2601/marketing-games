@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Schema;
 
+use App\Player\PhoneMatch;
 use App\Reward\RewardType;
 use App\Schema\DatabaseUpgrade;
 use App\Schema\UpgradeStep;
@@ -478,6 +479,156 @@ final class DatabaseUpgradeTest extends KernelTestCase
         self::assertSame('EUR', $this->connection->fetchOne('SELECT currency FROM branding'));
     }
 
+    // --------------------------------------------- P02 R22-R25: the phone tail
+
+    /** P02 R22, R25 */
+    public function testItAddsTheTailColumnAndIndexesIt(): void
+    {
+        $this->givenTheDefaultWheel();
+
+        $this->upgrade()->run();
+
+        $column = $this->columnOf('player', 'phone_tail');
+
+        self::assertNotNull($column, 'The column was not added.');
+        self::assertTrue($column->getNotnull(), 'It was left nullable.');
+        self::assertSame(PhoneMatch::TAIL_LENGTH, $column->getLength());
+        self::assertTrue(
+            $this->hasIndex('player', 'idx_player_phone_tail'),
+            'A lookup by number would read the whole table.',
+        );
+    }
+
+    /** P02 R23 */
+    public function testItFillsTheTailOfEveryStoredNumber(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPlayer('0614856240', '2026-11-15 00:13:11');
+        $this->givenAPlayer('+84912345678', '2026-11-15 00:41:29');
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame(
+            ['+84912345678' => '345678', '0614856240' => '856240'],
+            $this->tailsByNumber(),
+        );
+        self::assertSame('did 2', $this->detailOf($steps, 'how each stored number is found'));
+    }
+
+    /**
+     * P02 R24, and F19's reason for existing. Two rows, one person, and the
+     * nineteen spins that are the real cost of the duplicate.
+     */
+    public function testItMergesTwoRowsHoldingOneNumber(): void
+    {
+        $this->givenTheDefaultWheel();
+        $prizes = $this->connection->fetchAllAssociative('SELECT id FROM prize ORDER BY position');
+
+        $first = $this->givenAPlayer('0614856240', '2026-11-15 00:13:11', 'Anh');
+        $second = $this->givenAPlayer('+33614856240', '2026-11-16 20:21:57', 'Somebody');
+
+        $this->givenASpin($prizes[0]['id'], 'Try again', 40, $first);
+        $this->givenASpin($prizes[0]['id'], 'Try again', 40, $first);
+        $this->givenASpin($prizes[1]['id'], '5% off your next order', 25, $second);
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame(1, $this->countRows('player'), 'One person is still two rows.');
+
+        $survivor = $this->connection->fetchAssociative('SELECT * FROM player');
+        self::assertIsArray($survivor);
+
+        // F19 R14: the earliest registration survives, keeping its own
+        // number — the one staff may already have called.
+        self::assertSame($first, (int) $survivor['id']);
+        self::assertSame('0614856240', $survivor['phone']);
+        self::assertSame('Anh', $survivor['first_name']);
+
+        self::assertSame(
+            3,
+            $this->countWhere('spin', 'player_id = '.$first),
+            'A prize that left the shop lost the player it was given to.',
+        );
+        self::assertStringContainsString(
+            'merged 1',
+            $this->detailOf($steps, 'how each stored number is found'),
+        );
+    }
+
+    /**
+     * P02 R24. `06` and `07` are both French mobile prefixes, so these two
+     * share the last nine digits of their number and are two people. A merge
+     * here would show one customer the other's history.
+     */
+    public function testItLeavesTwoDifferentNumbersAsTwoPlayers(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPlayer('0614856240', '2026-11-15 00:13:11');
+        $this->givenAPlayer('0714856240', '2026-11-15 00:41:29');
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame(2, $this->countRows('player'));
+        self::assertStringNotContainsString(
+            'merged',
+            $this->detailOf($steps, 'how each stored number is found'),
+        );
+    }
+
+    /**
+     * P02 R23, and the whole lesson of F18: this step runs on a database
+     * where nobody has configured anything, because that is the database
+     * that needs it. Not one row of branding exists here.
+     */
+    public function testItNeedsNothingConfiguredToRun(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPlayer('0614856240', '2026-11-15 00:13:11');
+
+        self::assertSame(0, $this->countRows('branding'), 'The test set something up after all.');
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame(['0614856240' => '856240'], $this->tailsByNumber());
+        self::assertSame('did 1', $this->detailOf($steps, 'how each stored number is found'));
+    }
+
+    /** P02 R3, R25: and the second run merges nobody. */
+    public function testASecondRunLeavesThePlayersAlone(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPlayer('0614856240', '2026-11-15 00:13:11');
+        $this->givenAPlayer('+33614856240', '2026-11-16 20:21:57');
+
+        $this->upgrade()->run();
+        $before = $this->connection->fetchAllAssociative('SELECT * FROM player ORDER BY id');
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame($before, $this->connection->fetchAllAssociative('SELECT * FROM player ORDER BY id'));
+        self::assertSame(
+            'every player can already be found',
+            $this->detailOf($steps, 'how each stored number is found'),
+        );
+    }
+
+    /** P02 R2: a dry run merges nobody and deletes nothing. */
+    public function testADryRunMergesNobody(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPlayer('0614856240', '2026-11-15 00:13:11');
+        $this->givenAPlayer('+33614856240', '2026-11-16 20:21:57');
+
+        $steps = $this->upgrade()->run(true);
+
+        self::assertSame(2, $this->countRows('player'));
+        self::assertNull($this->columnOf('player', 'phone_tail'));
+        self::assertSame(
+            'would do every player (the column does not exist yet)',
+            $this->detailOf($steps, 'how each stored number is found'),
+        );
+    }
+
     /** P02 R3 */
     public function testASecondRunChangesNothing(): void
     {
@@ -634,6 +785,45 @@ final class DatabaseUpgradeTest extends KernelTestCase
             'UPDATE branding SET currency = :currency',
             ['currency' => $currency],
         );
+    }
+
+    /**
+     * A player as a database that predates F19 holds one: a number in
+     * whatever shape its owner typed, and no tail beside it.
+     */
+    private function givenAPlayer(string $phone, string $createdAt, string $firstName = 'Anh'): int
+    {
+        $this->connection->insert('player', [
+            'phone' => $phone,
+            'first_name' => $firstName,
+            'last_name' => 'Le',
+            'birthday' => '1987-01-26',
+            'created_at' => $createdAt,
+        ]);
+
+        return (int) $this->connection->lastInsertId();
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private function tailsByNumber(): array
+    {
+        /** @var array<string, string|null> $tails */
+        $tails = $this->connection->fetchAllKeyValue('SELECT phone, phone_tail FROM player ORDER BY phone');
+
+        return $tails;
+    }
+
+    private function hasIndex(string $table, string $index): bool
+    {
+        foreach ($this->connection->createSchemaManager()->listTableIndexes($table) as $existing) {
+            if (strtolower($index) === strtolower($existing->getName())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function givenASpin(?int $prizeId, string $prizeName, int $probability, ?int $playerId = null): void

@@ -78,7 +78,7 @@ final class IdentityController extends AbstractController
             return $this->invalid($violations);
         }
 
-        $player = $this->players->findByPhone($phone);
+        $player = $this->players->findForNumber($phone);
 
         if (null === $player) {
             // `player` is null rather than absent so the page reads one shape
