@@ -108,6 +108,7 @@ can be run twice without harm.
 | R23 | Every stored number gets its tail. The step needs **nothing configured**: there is no setting to read and nothing to guess, so it cannot be skipped on the database that needs it. See section 13. |
 | R24 | Where two rows hold one person's number in different spellings ([F19](./F19-one-person-one-number.md) R2), they are merged: the earliest registration survives with its own number, the later rows' spins are moved onto it, and those rows are deleted. The step says how many tails it filled and how many players it merged. |
 | R25 | The index on `player.phone_tail` is deliberately **not** unique: two different people can share a tail, and [F19](./F19-one-person-one-number.md) R4 is what tells them apart. |
+| R26 | `reward.value` and `spin.reward_value` are widened from `SMALLINT` to `INT` where they are still narrow. No value is changed. Added 2026-11-17 by [F21](./F21-amounts-that-fit-the-currency.md) R6: a smallint stops at 32,767, which is not a price in đồng. |
 
 ## 7. Data model
 
@@ -124,6 +125,8 @@ already specifies, and fills in:
 | `wheel` | `includes_losing_slice` | R14 |
 | `branding` | `currency` | null — unchosen (R19), and set back to null where an earlier run chose for you (R21) |
 | `player` | `phone_tail` | R23, from the number already in the row (never the other way round) |
+| `reward` | `value` | Widened, not rewritten (R26) |
+| `spin` | `reward_value` | Widened, not rewritten (R26) |
 
 ## 8. API surface
 
@@ -153,6 +156,7 @@ start working again, which is the point.
 | Some reward is counted in money | R21 leaves the stored currency alone and says why |
 | Two player rows hold one number | They are merged and counted in the summary (R24) |
 | Two player rows hold numbers that merely look alike | Left as two players (R25) |
+| An amount column is still `SMALLINT` | Widened to `INT`, values untouched (R26) |
 | `--dry-run` | Nothing is written; the plan is printed |
 
 ## 11. Acceptance criteria

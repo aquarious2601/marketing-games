@@ -91,6 +91,7 @@ reward:
     value_required: 'Loại phần thưởng này cần một giá trị.'
     percent_out_of_range: 'Phần trăm phải từ %min% đến %max%.'
     amount_too_small: 'Số tiền phải ít nhất là %min%.'
+    amount_too_large: 'Số tiền không được vượt quá %max%.'
     value_not_allowed: 'Loại phần thưởng này không nhận giá trị.'
     in_use: 'Phần thưởng này đang nằm trên vòng quay, được dùng bởi: %slices%. Hãy sửa các ô đó trước.'
     not_found: 'Phần thưởng đó không tồn tại.'

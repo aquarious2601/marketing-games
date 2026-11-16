@@ -91,6 +91,7 @@ reward:
     value_required: '这种奖励需要填写数值。'
     percent_out_of_range: '百分比必须在 %min% 到 %max% 之间。'
     amount_too_small: '金额至少为 %min%。'
+    amount_too_large: '金额不能超过 %max%。'
     value_not_allowed: '这种奖励不需要数值。'
     in_use: '该奖励正在转盘上使用：%slices%。请先修改这些扇区。'
     not_found: '该奖励不存在。'

@@ -77,6 +77,7 @@ final class DatabaseUpgrade
 
         return [
             $this->createRewardTable($dryRun),
+            $this->widenRewardValue($dryRun),
             $this->seedCatalogue($dryRun),
             $this->addBrandingCurrency($dryRun),
             $this->unchooseACurrencyNobodyPicked($dryRun),
@@ -110,7 +111,9 @@ final class DatabaseUpgrade
                 .'id INT AUTO_INCREMENT NOT NULL, '
                 .'name VARCHAR('.Reward::NAME_MAX_LENGTH.') NOT NULL, '
                 .'type VARCHAR(20) NOT NULL, '
-                .'value SMALLINT DEFAULT NULL, '
+                // F21 R1: INT, not SMALLINT. A smallint stops at 32,767,
+                // which is not a price in dong.
+                .'value INT DEFAULT NULL, '
                 .'created_at DATETIME NOT NULL, '
                 .'UNIQUE INDEX uniq_reward_name (name), '
                 .'PRIMARY KEY (id)'
@@ -119,6 +122,57 @@ final class DatabaseUpgrade
         }
 
         return UpgradeStep::done($name, $this->tense($dryRun, 'create it', 'created'));
+    }
+
+    /**
+     * P02 R26. Widens the amount columns from SMALLINT to INT (F21 R6).
+     *
+     * Before the catalogue is seeded and before anything writes an amount,
+     * so no step after this one can be the one that overflows.
+     *
+     * No value is touched. A row holding exactly 32,767 may be a truncated
+     * 50,000 or an admin who meant 32,767, and nothing stored can tell the
+     * two apart — so this widens the column and leaves the contents alone
+     * (F21 R7).
+     */
+    private function widenRewardValue(bool $dryRun): UpgradeStep
+    {
+        $name = 'amounts hold a real price';
+
+        // Both columns, because a catalogue that can hold 50,000 and a spin
+        // log that cannot would move the 500 from the admin screen to the
+        // player's (F21 R1). The spin columns may not exist yet on a
+        // pre-F13 database; the step that adds them makes them INT.
+        $widened = [];
+
+        foreach ([['reward', 'value'], ['spin', 'reward_value']] as [$table, $column]) {
+            if ('smallint' !== $this->columnTypeOf($table, $column)) {
+                continue;
+            }
+
+            if (!$dryRun) {
+                $this->connection->executeStatement(sprintf(
+                    'ALTER TABLE %s MODIFY %s INT DEFAULT NULL',
+                    $table,
+                    $column,
+                ));
+            }
+
+            $widened[] = $table.'.'.$column;
+        }
+
+        if ([] === $widened) {
+            if (!$this->tableExists('reward')) {
+                return UpgradeStep::done($name, 'would widen them (the tables do not exist yet)');
+            }
+
+            return UpgradeStep::skipped($name);
+        }
+
+        return UpgradeStep::done($name, sprintf(
+            $this->tense($dryRun, 'would widen %s to INT', 'widened %s to INT'),
+            implode(' and ', $widened),
+        ));
     }
 
     /** P02 R7 */
@@ -412,7 +466,10 @@ final class DatabaseUpgrade
         }
 
         if (!$this->columnExists('spin', 'reward_value')) {
-            $additions[] = 'ADD reward_value SMALLINT DEFAULT NULL';
+            // F21 R1: INT here as well as on the catalogue. This column is
+            // written during a spin, so an overflow is a 500 in front of a
+            // player rather than on an admin screen.
+            $additions[] = 'ADD reward_value INT DEFAULT NULL';
         }
 
         if (!$this->columnExists('spin', 'reward_code')) {
@@ -1007,6 +1064,25 @@ final class DatabaseUpgrade
         }
 
         return false;
+    }
+
+    /**
+     * The database's own word for a column's type — `smallint`, `int` — as
+     * INFORMATION_SCHEMA spells it.
+     *
+     * Read from there rather than from Doctrine's type mapping, because the
+     * question this answers is what the table actually is, not what the
+     * entity says it should be.
+     */
+    private function columnTypeOf(string $table, string $column): ?string
+    {
+        $type = $this->connection->fetchOne(
+            'SELECT DATA_TYPE FROM information_schema.COLUMNS '
+            .'WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+            ['table' => $table, 'column' => $column],
+        );
+
+        return \is_string($type) ? strtolower($type) : null;
     }
 
     private function columnIsNullable(string $table, string $column): bool

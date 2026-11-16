@@ -45,8 +45,13 @@ class Reward
      * Null for a free product and for nothing (F13 R3). Nullable rather than
      * zero, so "this type has no value" and "this discount is zero" stay
      * different facts.
+     *
+     * An integer rather than a smallint since F21: a smallint stops at
+     * 32,767, which is not a price in dong. On a database without strict
+     * mode it stored 32,767 and said nothing, which is how this survived
+     * eight features.
      */
-    #[ORM\Column(type: 'smallint', nullable: true)]
+    #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $value = null;
 
     #[ORM\Column(name: 'created_at')]

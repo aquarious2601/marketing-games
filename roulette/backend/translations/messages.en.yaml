@@ -108,6 +108,7 @@ reward:
     value_required: 'This type of reward needs a value.'
     percent_out_of_range: 'A percentage must be between %min% and %max%.'
     amount_too_small: 'An amount must be at least %min%.'
+    amount_too_large: 'An amount cannot be more than %max%.'
     value_not_allowed: 'This type of reward does not take a value.'
     in_use: 'This reward is on the wheel, used by: %slices%. Change those slices first.'
     not_found: 'That reward does not exist.'

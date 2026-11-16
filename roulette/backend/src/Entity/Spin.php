@@ -70,7 +70,14 @@ class Spin
     #[ORM\Column(name: 'reward_type', length: 20)]
     private string $rewardType;
 
-    #[ORM\Column(name: 'reward_value', type: 'smallint', nullable: true)]
+    /**
+     * Integer, not smallint, and for a sharper reason than the catalogue's
+     * own column (F21 R1): this one is written while a player is standing
+     * at the wheel. A value the column could not hold would be a 500 in
+     * the middle of a spin, on a strict database, for a prize the admin was
+     * allowed to configure.
+     */
+    #[ORM\Column(name: 'reward_value', type: 'integer', nullable: true)]
     private ?int $rewardValue = null;
 
     /**

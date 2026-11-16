@@ -158,13 +158,13 @@ that can be redeemed twice.
 | `reward` | `id` | `INT` PK auto | |
 | | `name` | `VARCHAR(60)` not null, **unique** | R4 |
 | | `type` | `VARCHAR(20)` not null | R2 |
-| | `value` | `SMALLINT` **nullable** | R3; null for free product and nothing |
+| | `value` | `INT` **nullable** | R3; null for free product and nothing. **Widened from `SMALLINT` 2026-11-17 by [F21](./F21-amounts-that-fit-the-currency.md)** — 32,767 is not a price in đồng |
 | | `created_at` | `DATETIME` not null | UTC |
 | `prize` | `reward_id` | `INT` FK → `reward.id`, **not null** | R7, `ON DELETE RESTRICT` |
 | `wheel` | `includes_losing_slice` | `BOOLEAN` not null, default false | R11 |
 | `spin` | `reward_code` | `VARCHAR(12)` nullable, **unique** | R16–R19 |
 | | `reward_type` | `VARCHAR(20)` not null | R25 snapshot |
-| | `reward_value` | `SMALLINT` nullable | R25 snapshot |
+| | `reward_value` | `INT` nullable | R25 snapshot. Widened by [F21](./F21-amounts-that-fit-the-currency.md), which matters more here: this column is written during a spin |
 | | `claimed_at` | `DATETIME` nullable | R21 |
 | `branding` | `currency` | `VARCHAR(3)` not null, default `VND` | R27 |
 

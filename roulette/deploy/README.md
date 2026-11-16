@@ -20,69 +20,247 @@ first pass on an instance and a database that hold nothing.
 
 Nothing here is scripted on purpose (P03 section 5): it is a handful of
 one-off AWS objects, and Terraform for one box is more to maintain than the
-box.
+box. Run them one at a time and read each result — a half-applied script is
+harder to debug than a step that stopped.
+
+Set these once in the shell you are working in:
+
+```bash
+export AWS_REGION=eu-west-3                  # wherever your customers are
+export BUCKET=marketing-games-roulette       # must be globally unique
+export DOMAIN=roulette.example.com
+export EMAIL=you@example.com
+export REPO=aquarious2601/marketing-games
+export ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+echo "account $ACCOUNT, region $AWS_REGION"
+```
 
 ### 1. The S3 bucket
 
-Releases and database dumps. Block all public access — everything reaches it
-through IAM.
+Releases, the `provision.sh` bootstrap, and the database dumps.
 
 ```bash
-aws s3 mb s3://YOUR-BUCKET --region YOUR-REGION
-aws s3api put-public-access-block --bucket YOUR-BUCKET \
+aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" \
+  --create-bucket-configuration LocationConstraint="$AWS_REGION"
+
+aws s3api put-public-access-block --bucket "$BUCKET" \
   --public-access-block-configuration \
   BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+aws s3api put-bucket-versioning --bucket "$BUCKET" \
+  --versioning-configuration Status=Enabled
 ```
 
-Add a lifecycle rule: expire `releases/` after 30 days, keep `backups/`
-as long as you would want to restore from one.
+Versioning is on because `backups/` lives here: a dump overwritten by a
+later one is a dump you no longer have.
 
-### 2. The instance
+Releases are disposable; dumps are not. Expire only the former:
 
-- Ubuntu 24.04 LTS, `t3.small` or larger (`t3.micro` will build nothing but
-  does have to run MariaDB and PHP-FPM together).
-- **Security group: inbound 80 and 443 only.** No port 22. SSM gives you a
-  shell without it — `aws ssm start-session --target i-...`.
-- An **instance profile** whose role allows:
-  - `AmazonSSMManagedInstanceCore` (the managed policy), and
-  - `s3:GetObject` on `arn:aws:s3:::YOUR-BUCKET/releases/*`
-  - `s3:PutObject` on `arn:aws:s3:::YOUR-BUCKET/backups/*`
-
-### 3. The DNS record
-
-An A record for your domain pointing at the instance's public IP — ideally
-an Elastic IP, so the address survives a stop/start. Do this **before**
-running `provision.sh`: certbot needs to resolve the name to issue the
-certificate.
-
-### 4. The GitHub OIDC role
-
-So Actions can reach AWS without a stored key.
-
-1. In IAM, add an identity provider: OpenID Connect,
-   `https://token.actions.githubusercontent.com`, audience
-   `sts.amazonaws.com`.
-2. Create a role trusting it, restricted to this repository — the
-   `StringLike` on `sub` is what stops any other repository assuming it:
-
-```json
-{
-  "Effect": "Allow",
-  "Principal": { "Federated": "arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com" },
-  "Action": "sts:AssumeRoleWithWebIdentity",
-  "Condition": {
-    "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-    "StringLike": { "token.actions.githubusercontent.com:sub": "repo:aquarious2601/marketing-games:ref:refs/heads/main" }
-  }
-}
+```bash
+cat > /tmp/lifecycle.json <<'JSON'
+{"Rules":[{"ID":"expire-releases","Status":"Enabled",
+  "Filter":{"Prefix":"releases/"},"Expiration":{"Days":30}}]}
+JSON
+aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" \
+  --lifecycle-configuration file:///tmp/lifecycle.json
 ```
 
-3. Give the role: `s3:PutObject` on `YOUR-BUCKET/releases/*`,
-   `ssm:SendCommand` on the instance and on
-   `arn:aws:ssm:*:*:document/AWS-RunShellScript`, and
-   `ssm:GetCommandInvocation`.
+### 2. The instance's role
 
-### 5. The GitHub settings
+What the box itself is allowed to do: be managed by SSM, read its own
+releases, write its own backups. Nothing else.
+
+```bash
+cat > /tmp/ec2-trust.json <<'JSON'
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow",
+  "Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}
+JSON
+
+aws iam create-role --role-name roulette-instance \
+  --assume-role-policy-document file:///tmp/ec2-trust.json
+
+aws iam attach-role-policy --role-name roulette-instance \
+  --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+cat > /tmp/instance-policy.json <<JSON
+{"Version":"2012-10-17","Statement":[
+ {"Effect":"Allow","Action":"s3:GetObject",
+  "Resource":["arn:aws:s3:::$BUCKET/releases/*","arn:aws:s3:::$BUCKET/bootstrap/*"]},
+ {"Effect":"Allow","Action":"s3:PutObject",
+  "Resource":"arn:aws:s3:::$BUCKET/backups/*"}]}
+JSON
+
+aws iam put-role-policy --role-name roulette-instance \
+  --policy-name roulette-s3 --policy-document file:///tmp/instance-policy.json
+
+aws iam create-instance-profile --instance-profile-name roulette-instance
+aws iam add-role-to-instance-profile \
+  --instance-profile-name roulette-instance --role-name roulette-instance
+```
+
+`bootstrap/*` is readable because that is how `provision.sh` reaches the
+instance — see section 6. The box can read releases and write backups and
+can do nothing else in your account.
+
+### 3. The security group
+
+Two ports. No 22: SSM gives you a shell without one, which is the whole
+reason this deploys over SSM.
+
+```bash
+export VPC=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true \
+  --query 'Vpcs[0].VpcId' --output text)
+
+export SG=$(aws ec2 create-security-group --group-name roulette-web \
+  --description "roulette: http and https only" --vpc-id "$VPC" \
+  --query GroupId --output text)
+
+aws ec2 authorize-security-group-ingress --group-id "$SG" \
+  --ip-permissions \
+  'IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges=[{CidrIp=0.0.0.0/0}]' \
+  'IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges=[{CidrIp=0.0.0.0/0}]'
+
+echo "security group $SG"
+```
+
+Outbound is left wide open, and has to be: the agent talks to SSM and the
+instance pulls from S3, both over 443.
+
+### 4. The instance
+
+Ubuntu 24.04, `t3.small`. Not `t3.micro` — MariaDB, PHP-FPM and nginx
+together on 1 GB will survive a demo and fall over at a stall.
+
+```bash
+export AMI=$(aws ssm get-parameter \
+  --name /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id \
+  --query 'Parameter.Value' --output text)
+
+export INSTANCE=$(aws ec2 run-instances \
+  --image-id "$AMI" --instance-type t3.small \
+  --security-group-ids "$SG" \
+  --iam-instance-profile Name=roulette-instance \
+  --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=20,VolumeType=gp3,Encrypted=true}' \
+  --metadata-options 'HttpTokens=required' \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=roulette}]' \
+  --query 'Instances[0].InstanceId' --output text)
+
+echo "instance $INSTANCE"
+aws ec2 wait instance-status-ok --instance-ids "$INSTANCE"
+```
+
+`HttpTokens=required` forces IMDSv2, which is what stops a server-side
+request forgery in the application from reading the instance's credentials.
+This application takes a URL from nobody, but the setting costs nothing and
+the next feature might.
+
+A key pair is deliberately not created. There is no SSH.
+
+### 5. A fixed address, and DNS
+
+The address must outlive a stop/start, or the certificate and the DNS record
+point at somebody else's instance.
+
+```bash
+export ALLOC=$(aws ec2 allocate-address --domain vpc --query AllocationId --output text)
+aws ec2 associate-address --instance-id "$INSTANCE" --allocation-id "$ALLOC"
+
+aws ec2 describe-addresses --allocation-ids "$ALLOC" \
+  --query 'Addresses[0].PublicIp' --output text
+```
+
+Create an **A record** for `$DOMAIN` pointing at that address, then wait for
+it to resolve:
+
+```bash
+dig +short "$DOMAIN"        # must print the address above before you provision
+```
+
+Certbot verifies by HTTP, so provisioning before this resolves gets you an
+instance without a certificate. Not fatal — the script says how to re-run
+certbot — but it is the step people skip.
+
+### 6. Provisioning the instance
+
+**The instance has no git and no GitHub credentials** (P03 R1), so the
+script reaches it the same way releases do: through the bucket.
+
+```bash
+aws s3 cp roulette/deploy/provision.sh "s3://$BUCKET/bootstrap/provision.sh"
+
+aws ssm send-command --instance-ids "$INSTANCE" \
+  --document-name AWS-RunShellScript \
+  --timeout-seconds 900 \
+  --parameters commands="[
+    \"aws s3 cp s3://$BUCKET/bootstrap/provision.sh /tmp/provision.sh\",
+    \"DOMAIN=$DOMAIN ADMIN_EMAIL=$EMAIL RELEASE_BUCKET=$BUCKET bash /tmp/provision.sh\"
+  ]" --query 'Command.CommandId' --output text
+```
+
+Take the command id it prints and read what happened — this is the one step
+worth watching line by line the first time:
+
+```bash
+aws ssm get-command-invocation --command-id COMMAND-ID --instance-id "$INSTANCE" \
+  --query '{status:Status,out:StandardOutputContent,err:StandardErrorContent}' \
+  --output text
+```
+
+If the agent is not ready yet, `send-command` fails with
+`InvalidInstanceId`. Wait a minute after `instance-status-ok` and try again;
+the agent registers a little after the instance boots.
+
+### 7. The GitHub OIDC role
+
+So Actions can reach AWS with no stored key.
+
+```bash
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com
+```
+
+If that says the provider already exists, good — one per account is enough.
+
+```bash
+cat > /tmp/gh-trust.json <<JSON
+{"Version":"2012-10-17","Statement":[{
+ "Effect":"Allow",
+ "Principal":{"Federated":"arn:aws:iam::$ACCOUNT:oidc-provider/token.actions.githubusercontent.com"},
+ "Action":"sts:AssumeRoleWithWebIdentity",
+ "Condition":{
+  "StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com"},
+  "StringLike":{"token.actions.githubusercontent.com:sub":"repo:$REPO:ref:refs/heads/main"}}}]}
+JSON
+
+aws iam create-role --role-name roulette-deploy \
+  --assume-role-policy-document file:///tmp/gh-trust.json \
+  --query 'Role.Arn' --output text
+```
+
+The `StringLike` on `sub` is the part that matters: without it, **any**
+GitHub repository in the world can assume this role. Restricted to
+`refs/heads/main`, a pull request from a fork cannot deploy.
+
+```bash
+cat > /tmp/deploy-policy.json <<JSON
+{"Version":"2012-10-17","Statement":[
+ {"Effect":"Allow","Action":"s3:PutObject","Resource":"arn:aws:s3:::$BUCKET/releases/*"},
+ {"Effect":"Allow","Action":"ssm:SendCommand",
+  "Resource":["arn:aws:ec2:$AWS_REGION:$ACCOUNT:instance/$INSTANCE",
+              "arn:aws:ssm:$AWS_REGION::document/AWS-RunShellScript"]},
+ {"Effect":"Allow","Action":["ssm:GetCommandInvocation","ssm:ListCommandInvocations"],
+  "Resource":"*"}]}
+JSON
+
+aws iam put-role-policy --role-name roulette-deploy \
+  --policy-name roulette-deploy --policy-document file:///tmp/deploy-policy.json
+```
+
+`SendCommand` is scoped to this one instance and this one document, so a
+leaked token runs this deploy and nothing else.
+
+### 8. The GitHub settings
 
 Repository → Settings → Secrets and variables → Actions.
 
@@ -90,28 +268,49 @@ Repository → Settings → Secrets and variables → Actions.
 
 | Name | Value |
 |---|---|
-| `AWS_DEPLOY_ROLE_ARN` | The role from step 4 |
+| `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::ACCOUNT:role/roulette-deploy` |
 
 **Variables** (not secret):
 
 | Name | Value |
 |---|---|
-| `AWS_REGION` | e.g. `eu-west-3` |
-| `RELEASE_BUCKET` | The bucket from step 1 |
-| `INSTANCE_ID` | `i-...` |
-| `DOMAIN` | The hostname from step 3 |
+| `AWS_REGION` | `$AWS_REGION` |
+| `RELEASE_BUCKET` | `$BUCKET` |
+| `INSTANCE_ID` | `$INSTANCE` |
+| `DOMAIN` | `$DOMAIN` |
 
-## Provisioning
+`INSTANCE_ID` is also the switch: the deploy job is skipped while it is
+unset, so CI stays green until everything above exists.
 
-Over SSM, as root:
+Or from the command line:
 
 ```bash
-sudo DOMAIN=roulette.example.com ADMIN_EMAIL=you@example.com RELEASE_BUCKET=YOUR-BUCKET bash provision.sh
+gh secret set AWS_DEPLOY_ROLE_ARN --body "arn:aws:iam::$ACCOUNT:role/roulette-deploy"
+gh variable set AWS_REGION --body "$AWS_REGION"
+gh variable set RELEASE_BUCKET --body "$BUCKET"
+gh variable set INSTANCE_ID --body "$INSTANCE"
+gh variable set DOMAIN --body "$DOMAIN"
 ```
 
-It installs everything, creates `/srv/roulette`, generates `APP_SECRET` and
-a database password into `shared/.env.local` (printing neither), and asks
-certbot for a certificate.
+### Getting a shell, when you need one
+
+```bash
+aws ssm start-session --target "$INSTANCE"
+```
+
+Needs the Session Manager plugin installed locally. There is no other way
+in, which is the point.
+
+## What provisioning did
+
+`provision.sh` installed nginx, PHP-FPM, MariaDB and the SSM agent, created
+`/srv/roulette` with the layout in P03 section 7, generated `APP_SECRET` and
+a database password into `shared/.env.local` — printing neither, because a
+secret that was shown is a secret that was copied — and asked certbot for a
+certificate.
+
+It is idempotent: run it again after an Ubuntu upgrade, or to repair a box
+somebody has edited by hand, and it changes only what is missing.
 
 ## The first deploy
 
@@ -144,7 +343,7 @@ started.
 **It does not undo the database.** P03 R15: `app:upgrade-database` can delete
 rows — F19's merge step does — and putting the old code back does not bring
 them back. The dump taken immediately before that deploy is in
-`/srv/roulette/backups/` and in `s3://YOUR-BUCKET/backups/`.
+`/srv/roulette/backups/` and in `s3://$BUCKET/backups/`.
 
 ## Checking on it
 

@@ -91,6 +91,7 @@ reward:
     value_required: 'Ce type de récompense demande une valeur.'
     percent_out_of_range: 'Un pourcentage doit être compris entre %min% et %max%.'
     amount_too_small: 'Un montant doit valoir au moins %min%.'
+    amount_too_large: 'Un montant ne peut pas dépasser %max%.'
     value_not_allowed: 'Ce type de récompense ne prend pas de valeur.'
     in_use: 'Cette récompense est sur la roue, utilisée par : %slices%. Modifiez ces parts d’abord.'
     not_found: "Cette récompense n'existe pas."
