@@ -72,6 +72,13 @@ harder to debug than a step that stopped.
 `$(...)` and heredocs, which PowerShell parses differently — `export` alone
 is enough to stop it. Git Bash comes with Git, so it is already here.
 
+Work from a directory of its own, because the steps below write small
+policy files and you do not want them in the repository:
+
+```bash
+mkdir -p ~/roulette-setup && cd ~/roulette-setup
+```
+
 Set these once in the shell you are working in. Only two lines need
 editing:
 
@@ -93,6 +100,12 @@ echo "account $ACCOUNT, region $AWS_REGION, bucket $BUCKET"
 If `$ACCOUNT` comes out empty, `aws configure` has not been run or the
 credentials are wrong; nothing below will work until that line prints a
 twelve-digit number.
+
+The policy files below are written and referenced **relatively**, on
+purpose. On Windows the AWS CLI is a native binary and Git Bash's `/tmp` is
+not a path it can see, so `file:///tmp/thing.json` fails with "No such file
+or directory" while `file://thing.json` works everywhere. (The `/tmp` paths
+in step 6 are different — those run on the instance, which is Linux.)
 
 ### 1. The S3 bucket
 
@@ -116,12 +129,12 @@ later one is a dump you no longer have.
 Releases are disposable; dumps are not. Expire only the former:
 
 ```bash
-cat > /tmp/lifecycle.json <<'JSON'
+cat > lifecycle.json <<'JSON'
 {"Rules":[{"ID":"expire-releases","Status":"Enabled",
   "Filter":{"Prefix":"releases/"},"Expiration":{"Days":30}}]}
 JSON
 aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" \
-  --lifecycle-configuration file:///tmp/lifecycle.json
+  --lifecycle-configuration file://lifecycle.json
 ```
 
 ### 2. The instance's role
@@ -130,18 +143,18 @@ What the box itself is allowed to do: be managed by SSM, read its own
 releases, write its own backups. Nothing else.
 
 ```bash
-cat > /tmp/ec2-trust.json <<'JSON'
+cat > ec2-trust.json <<'JSON'
 {"Version":"2012-10-17","Statement":[{"Effect":"Allow",
   "Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}
 JSON
 
 aws iam create-role --role-name roulette-instance \
-  --assume-role-policy-document file:///tmp/ec2-trust.json
+  --assume-role-policy-document file://ec2-trust.json
 
 aws iam attach-role-policy --role-name roulette-instance \
   --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 
-cat > /tmp/instance-policy.json <<JSON
+cat > instance-policy.json <<JSON
 {"Version":"2012-10-17","Statement":[
  {"Effect":"Allow","Action":"s3:GetObject",
   "Resource":["arn:aws:s3:::$BUCKET/releases/*","arn:aws:s3:::$BUCKET/bootstrap/*"]},
@@ -150,7 +163,7 @@ cat > /tmp/instance-policy.json <<JSON
 JSON
 
 aws iam put-role-policy --role-name roulette-instance \
-  --policy-name roulette-s3 --policy-document file:///tmp/instance-policy.json
+  --policy-name roulette-s3 --policy-document file://instance-policy.json
 
 aws iam create-instance-profile --instance-profile-name roulette-instance
 aws iam add-role-to-instance-profile \
@@ -282,7 +295,7 @@ aws iam create-open-id-connect-provider \
 If that says the provider already exists, good — one per account is enough.
 
 ```bash
-cat > /tmp/gh-trust.json <<JSON
+cat > gh-trust.json <<JSON
 {"Version":"2012-10-17","Statement":[{
  "Effect":"Allow",
  "Principal":{"Federated":"arn:aws:iam::$ACCOUNT:oidc-provider/token.actions.githubusercontent.com"},
@@ -293,7 +306,7 @@ cat > /tmp/gh-trust.json <<JSON
 JSON
 
 aws iam create-role --role-name roulette-deploy \
-  --assume-role-policy-document file:///tmp/gh-trust.json \
+  --assume-role-policy-document file://gh-trust.json \
   --query 'Role.Arn' --output text
 ```
 
@@ -302,7 +315,7 @@ GitHub repository in the world can assume this role. Restricted to
 `refs/heads/main`, a pull request from a fork cannot deploy.
 
 ```bash
-cat > /tmp/deploy-policy.json <<JSON
+cat > deploy-policy.json <<JSON
 {"Version":"2012-10-17","Statement":[
  {"Effect":"Allow","Action":"s3:PutObject","Resource":"arn:aws:s3:::$BUCKET/releases/*"},
  {"Effect":"Allow","Action":"ssm:SendCommand",
@@ -313,7 +326,7 @@ cat > /tmp/deploy-policy.json <<JSON
 JSON
 
 aws iam put-role-policy --role-name roulette-deploy \
-  --policy-name roulette-deploy --policy-document file:///tmp/deploy-policy.json
+  --policy-name roulette-deploy --policy-document file://deploy-policy.json
 ```
 
 `SendCommand` is scoped to this one instance and this one document, so a
