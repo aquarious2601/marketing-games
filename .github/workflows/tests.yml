@@ -40,6 +40,14 @@ jobs:
           php-version: ${{ env.PHP_VERSION }}
           extensions: ctype, iconv, intl, mbstring, pdo_mysql, xml, zip
           coverage: none
+          # The same values provision.sh sets on the instance. PHP's default
+          # upload_max_filesize is 2M, which is exactly LogoStore::MAX_BYTES,
+          # so PHP rejects an oversized logo before the application can say
+          # why and the admin gets "the upload did not complete" instead of
+          # "larger than 2MB". Production must be above the app's own limit
+          # for that message to be reachable, and CI has to agree or it tests
+          # a configuration nobody runs.
+          ini-values: upload_max_filesize=4M, post_max_size=8M
 
       - name: Install Node
         uses: actions/setup-node@v4
