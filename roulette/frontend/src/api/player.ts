@@ -26,7 +26,7 @@ export interface PlayerWheel {
 export interface SpinReward {
   type: 'free_product' | 'percent_off' | 'amount_off' | 'nothing'
   value: number | null
-  /** F13 R19: null for a free product and for a losing item. */
+  /** F16 R1, R2: every win carries one; only a losing spin has none. */
   code: string | null
 }
 

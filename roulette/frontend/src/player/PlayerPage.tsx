@@ -473,6 +473,9 @@ export function PlayerPage() {
 function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null }) {
   const t = useT()
 
+  // F17 R1, R7.
+  const lost = reward?.type === 'nothing'
+
   return (
     <div
       role="status"
@@ -499,8 +502,12 @@ function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null
         className="pointer-events-none absolute inset-x-0 top-0 h-1"
         style={{ backgroundColor: 'var(--panel-heading)' }}
       />
+      {/* F17 R2. "You won" is read by the one player who did not, so the
+          panel asks what the wheel actually gave before it congratulates
+          anybody. R7: only `nothing` is a loss — a result carrying no
+          reward at all is an old row, and it was a win. */}
       <p className="player-kicker" style={{ color: 'var(--panel-heading)' }}>
-        {t('player.youWon')}
+        {lost ? t('player.thanksForPlaying') : t('player.youWon')}
       </p>
       <p className="mt-1 text-xl font-bold" style={{ color: 'var(--panel-heading)' }}>
         {name}
@@ -520,11 +527,18 @@ function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null
         </p>
       )}
 
-      {/* F16 R6a. Where there is a code, the instruction is the code — this
-          whole feature exists because F10 made "show this screen" something
-          the next player's tap undoes. */}
+      {/* F17 R3, then F16 R6a. A losing player is never given a claim
+          instruction: there is nothing to claim (F13 R24), and staff are
+          not offered the control either, so the old wording sent somebody
+          to a counter that would turn them away. Where there is a code the
+          instruction is the code, because F10 made "show this screen"
+          something the next player's tap undoes. */}
       <p className="mt-2 text-xs">
-        {reward?.code != null ? t('player.claimByCode') : t('player.claim')}
+        {lost
+          ? t('player.betterLuck')
+          : reward?.code != null
+            ? t('player.claimByCode')
+            : t('player.claim')}
       </p>
     </div>
   )

@@ -21,6 +21,8 @@ export const fr: Record<MessageKey, string> = {
   'player.youWon': 'Vous avez gagné',
   'player.claim': 'Montrez cet écran à un membre du personnel pour récupérer votre lot.',
   'player.claimByCode': 'Donnez ce code à un membre du personnel pour récupérer votre lot.',
+  'player.thanksForPlaying': 'Merci d’avoir joué',
+  'player.betterLuck': 'Bonne chance la prochaine fois !',
   'player.loadFailed': 'Le jeu n’a pas pu être chargé.',
   'player.spinFailed': 'Le tour n’a pas pu aboutir. Veuillez réessayer.',
   'player.identityLost':

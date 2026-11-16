@@ -21,6 +21,8 @@ export const vi: Record<MessageKey, string> = {
   'player.youWon': 'Bạn đã trúng',
   'player.claim': 'Hãy đưa màn hình này cho nhân viên để nhận thưởng.',
   'player.claimByCode': 'Hãy đọc mã này cho nhân viên để nhận thưởng.',
+  'player.thanksForPlaying': 'Cảm ơn bạn đã tham gia',
+  'player.betterLuck': 'Chúc bạn may mắn lần sau!',
   'player.loadFailed': 'Không tải được trò chơi.',
   'player.spinFailed': 'Lượt quay chưa hoàn tất. Vui lòng thử lại.',
   'player.identityLost': 'Trò chơi cần biết ai đang chơi. Vui lòng nhập lại số của bạn.',

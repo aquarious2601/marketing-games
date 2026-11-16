@@ -37,6 +37,11 @@ export const en = {
   // F16 R6a: what a player with a code is told instead, since the screen
   // itself is cleared by whoever spins next (F10 R3).
   'player.claimByCode': 'Give this code to a member of staff to claim it.',
+  // F17 R2, R3: the panel a player reads when the wheel gave nothing. Fixed
+  // wording rather than a campaign setting, because by F12 R10 whatever an
+  // admin typed would be shown as typed to readers of all four languages.
+  'player.thanksForPlaying': 'Thanks for playing',
+  'player.betterLuck': 'Good luck next time!',
   'player.loadFailed': 'The game could not be loaded.',
   'player.spinFailed': 'The spin could not be completed. Please try again.',
   'player.identityLost': 'The game needs to know who is playing. Please enter your number again.',

@@ -14,7 +14,8 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 [F10](./F10-hand-over-to-the-next-player.md) handing over to the next player,
 [F12](./F12-multiple-languages.md) English, French, Chinese and Vietnamese,
 [F13](./F13-reward-configuration.md) the reward catalogue and its codes,
-[F16](./F16-a-code-on-every-win.md) a code on every win._
+[F16](./F16-a-code-on-every-win.md) a code on every win,
+[F17](./F17-the-losing-panel.md) the losing panel._
 
 | Candidate | Sketch |
 |---|---|

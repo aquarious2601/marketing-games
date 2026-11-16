@@ -1048,6 +1048,47 @@ describe('the code on the result', () => {
     expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
   })
 
+  /** F17: the panel a player reads when the wheel gave nothing. */
+  describe('losing', () => {
+    it('neither congratulates them nor sends them to a counter', async () => {
+      await spinTo({ type: 'nothing', value: null, code: null })
+
+      const panel = screen.getByTestId('spin-result')
+
+      // F17 R2, R3. Every one of these was on the losing panel before this
+      // feature, and F13 R24 means the last one sent people to a counter
+      // that is not even offered the control to serve them.
+      expect(panel).not.toHaveTextContent(/you won/i)
+      expect(panel).not.toHaveTextContent(/show this screen/i)
+      expect(panel).not.toHaveTextContent(/give this code/i)
+    })
+
+    it('thanks them, says where the wheel stopped, and wishes them luck', async () => {
+      await spinTo({ type: 'nothing', value: null, code: null })
+
+      const panel = screen.getByTestId('spin-result')
+
+      expect(panel).toHaveTextContent('Thanks for playing')
+      // F17 R4: the slice's own name, as the admin typed it (F12 R10). The
+      // fixture's label has nothing to do with the reward behind it, which
+      // is exactly the point — the panel shows what the admin wrote, not a
+      // phrase derived from the reward type.
+      expect(panel).toHaveTextContent(wheel().prizes[2].name)
+      expect(panel).toHaveTextContent('Good luck next time!')
+    })
+
+    it('leaves a win word for word as it was', async () => {
+      await spinTo({ type: 'free_product', value: null, code: 'B4C5-D6F7' })
+
+      const panel = screen.getByTestId('spin-result')
+
+      expect(panel).toHaveTextContent('You won')
+      expect(panel).toHaveTextContent(/give this code/i)
+      expect(panel).not.toHaveTextContent('Thanks for playing')
+      expect(panel).not.toHaveTextContent('Good luck next time!')
+    })
+  })
+
   /** F10 R3: the hand-over clears the code with the prize. */
   it('clears the code when the device is handed on', async () => {
     const user = await spinTo({ type: 'percent_off', value: 10, code: 'A7K3-M9PX' })

@@ -21,6 +21,8 @@ export const zh: Record<MessageKey, string> = {
   'player.youWon': '您赢得了',
   'player.claim': '请将此屏幕出示给工作人员领取奖品。',
   'player.claimByCode': '请向工作人员提供此兑换码领取奖品。',
+  'player.thanksForPlaying': '感谢参与',
+  'player.betterLuck': '祝您下次好运！',
   'player.loadFailed': '无法加载游戏。',
   'player.spinFailed': '本次转动未能完成，请重试。',
   'player.identityLost': '游戏需要知道是谁在玩。请重新输入您的号码。',

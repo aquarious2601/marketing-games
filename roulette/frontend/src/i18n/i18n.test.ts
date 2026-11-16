@@ -44,6 +44,20 @@ describe('the dictionaries', () => {
     expect(LOCALE_NAMES.fr).toBe('Français')
   })
 
+  /**
+   * F17 R5. The losing panel's two phrases are the application's own words
+   * rather than a campaign setting, so they have to be real translations in
+   * all four dictionaries — an English sentence copied into `fr.ts` would
+   * satisfy the parity checks above and still be wrong on a stall in Paris.
+   */
+  it.each(['fr', 'vi', 'zh'] as const)('says the losing phrases in %s', (locale) => {
+    for (const key of ['player.thanksForPlaying', 'player.betterLuck'] as const) {
+      expect(DICTIONARIES[locale][key], `${key} is still English in ${locale}`).not.toBe(
+        en[key],
+      )
+    }
+  })
+
   it.each(LOCALES)('has no key translated to nothing in %s', (locale) => {
     for (const [key, value] of Object.entries(DICTIONARIES[locale])) {
       expect(value.trim(), `${key} is empty in ${locale}`).not.toBe('')

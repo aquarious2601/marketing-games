@@ -62,6 +62,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F14](./F14-the-losing-slice-in-the-prize-list.md) | The losing slice in the prize list | Admin | Done |
 | [F15](./F15-choosing-the-currency.md) | Choosing the currency | Admin | Agreed |
 | [F16](./F16-a-code-on-every-win.md) | A code on every win | Both | Agreed |
+| [F17](./F17-the-losing-panel.md) | The losing panel | Player | Agreed |
 
 ## Running the tests
 
