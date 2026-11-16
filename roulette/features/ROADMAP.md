@@ -63,11 +63,12 @@ three; if this reaches six, the navigation is its own decision again.
 ## Platform
 
 _Done: [P00](./P00-walking-skeleton.md) walking skeleton and test harness,
-[P01](./P01-end-to-end-tests.md) end-to-end browser tests._
+[P01](./P01-end-to-end-tests.md) end-to-end browser tests,
+[P02](./P02-database-upgrades.md) database upgrades._
 
 | Candidate | Sketch |
 |---|---|
-| **Continuous integration** | Run `test-all.ps1` automatically on every push. |
+| ~~**Continuous integration**~~ | Done as part of [P03](./P03-deployment.md): the four fast suites gate every push to `main`, and a red one deploys nothing. The Playwright suite is still excluded by the repository's `CLAUDE.md` and still yours to run. |
 | **Cross-browser end-to-end** | Add Firefox and WebKit to the Playwright projects, once the game has visual behaviour worth the extra minutes. |
 | **Anti-abuse** | Rate limiting, duplicate detection, bot protection. Narrowed by [F08](./F08-player-identification.md) but not closed: a script now has to post a phone number before it can spin, which costs it one request and leaves a traceable row — and it can still spin forever. |
-| **Deployment** | Where this runs in production, and how it gets there. |
+| ~~**Deployment**~~ | Specified in [P03](./P03-deployment.md): one EC2 instance, nginx, PHP-FPM and MariaDB, releases shipped through S3 and installed over SSM. **Written but never run** — see P03 section 12. What is still open is a second environment to deploy to first, and anything that watches the instance once a release is live. |

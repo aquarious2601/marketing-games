@@ -1,0 +1,256 @@
+# P03. Test, build, ship, verify.
+#
+# The tests are the gate (R18): a red suite builds nothing and uploads
+# nothing, so a broken commit cannot reach the instance. The Playwright
+# end-to-end suite is deliberately absent — the repository's CLAUDE.md makes
+# it the user's to run by hand and says it must not gate a change.
+#
+# Nothing here holds a long-lived credential. GitHub assumes an AWS role
+# through OIDC (R3) and the instance pulls the release with its own role, so
+# neither side holds a key to the other.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# P03 section 10: two pushes in quick succession deploy one after the other
+# rather than racing for the symlink.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # for the OIDC token used to assume the AWS role
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '22'
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ctype, iconv, intl, mbstring, pdo_mysql, xml, zip
+          coverage: none
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: roulette/frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: roulette/backend
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Install frontend dependencies
+        working-directory: roulette/frontend
+        run: npm ci
+
+      # The suite needs the databases its tests create and drop. The names
+      # match what phpunit.dist.xml and DatabaseUpgradeTest expect.
+      # config/packages/doctrine.yaml appends `_test` to the database name in
+      # the test environment, so DATABASE_URL below names `roulette` and the
+      # suite connects to `roulette_test`. DatabaseUpgradeTest creates and
+      # drops `roulette_upgrade_test` itself, which is why only one database
+      # is made here and why this user needs CREATE DATABASE.
+      - name: Create the test database
+        env:
+          MYSQL_PWD: root
+        run: |
+          mysql -h 127.0.0.1 -u root \
+            -e "CREATE DATABASE IF NOT EXISTS roulette_test DEFAULT CHARACTER SET utf8mb4;"
+
+      - name: Build the test schema
+        working-directory: roulette/backend
+        env:
+          APP_ENV: test
+          DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
+        run: php bin/console doctrine:schema:update --force --complete --env=test
+
+      - name: PHPUnit
+        working-directory: roulette/backend
+        env:
+          DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
+        run: php vendor/bin/phpunit
+
+      - name: TypeScript
+        working-directory: roulette/frontend
+        run: npm run typecheck
+
+      - name: Vitest
+        working-directory: roulette/frontend
+        run: npm test
+
+      - name: Lint
+        working-directory: roulette/frontend
+        run: npm run lint
+
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+
+    # Skipped until the AWS side of P03's runbook exists, so pushing this
+    # workflow before the instance does gives a green CI run rather than a
+    # red deploy failing on an empty role ARN. It starts working by itself
+    # the moment INSTANCE_ID is set in the repository's variables.
+    if: vars.INSTANCE_ID != ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ctype, iconv, intl, mbstring, pdo_mysql, xml, zip
+          coverage: none
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: roulette/frontend/package-lock.json
+
+      # R2: production dependencies only, and an authoritative classmap, so
+      # the instance never resolves a class at runtime.
+      - name: Build the backend
+        working-directory: roulette/backend
+        env:
+          APP_ENV: prod
+        run: |
+          composer install --no-dev --prefer-dist --no-progress \
+            --no-interaction --optimize-autoloader --classmap-authoritative
+
+      - name: Build the frontend
+        working-directory: roulette/frontend
+        run: |
+          npm ci
+          npm run build
+
+      # R2: one tarball per commit, holding only what the instance runs.
+      - name: Pack the release
+        run: |
+          sha="${GITHUB_SHA}"
+          staging="$(mktemp -d)"
+
+          mkdir -p "$staging/backend" "$staging/deploy"
+
+          # Everything the application needs, and nothing it does not: no
+          # tests, no .env of the developer's, no node_modules.
+          tar -C roulette/backend \
+              --exclude=./var \
+              --exclude=./tests \
+              --exclude=./.env.local \
+              --exclude=./.env.test \
+              -cf - . | tar -C "$staging/backend" -xf -
+
+          cp -r roulette/frontend/dist "$staging/frontend-dist"
+          cp roulette/deploy/deploy.sh roulette/deploy/rollback.sh "$staging/deploy/"
+          chmod +x "$staging/deploy/"*.sh
+
+          tar -C "$staging" -czf "release-${sha}.tar.gz" .
+          ls -lh "release-${sha}.tar.gz"
+
+      - name: Assume the deployment role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload the release
+        run: |
+          aws s3 cp "release-${GITHUB_SHA}.tar.gz" \
+            "s3://${{ vars.RELEASE_BUCKET }}/releases/release-${GITHUB_SHA}.tar.gz"
+
+      # R4: the instance is told to deploy; nothing connects to it.
+      - name: Install it on the instance
+        run: |
+          set -Eeuo pipefail
+          sha="${GITHUB_SHA}"
+
+          command_id="$(aws ssm send-command \
+            --instance-ids "${{ vars.INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${sha:0:7}" \
+            --timeout-seconds 600 \
+            --parameters commands="[
+              \"set -Eeuo pipefail\",
+              \"release=/srv/roulette/releases/${sha}\",
+              \"rm -rf \\\"\$release\\\" && mkdir -p \\\"\$release\\\"\",
+              \"aws s3 cp s3://${{ vars.RELEASE_BUCKET }}/releases/release-${sha}.tar.gz /tmp/release-${sha}.tar.gz\",
+              \"tar -C \\\"\$release\\\" -xzf /tmp/release-${sha}.tar.gz\",
+              \"rm -f /tmp/release-${sha}.tar.gz\",
+              \"bash \\\"\$release/deploy/deploy.sh\\\" ${sha}\"
+            ]" \
+            --query 'Command.CommandId' --output text)"
+
+          echo "SSM command: $command_id"
+
+          # send-command returns immediately; this is what waits for it and
+          # decides whether the job passed.
+          if ! aws ssm wait command-executed \
+                --command-id "$command_id" \
+                --instance-id "${{ vars.INSTANCE_ID }}"; then
+            echo "::error::The deploy failed on the instance."
+          fi
+
+          status="$(aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "${{ vars.INSTANCE_ID }}" \
+            --query 'Status' --output text)"
+
+          echo "--- instance output ---"
+          aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "${{ vars.INSTANCE_ID }}" \
+            --query 'StandardOutputContent' --output text
+
+          if [[ "$status" != "Success" ]]; then
+            echo "--- instance errors ---"
+            aws ssm get-command-invocation \
+              --command-id "$command_id" \
+              --instance-id "${{ vars.INSTANCE_ID }}" \
+              --query 'StandardErrorContent' --output text
+            echo "::error::Deploy finished as ${status}. The instance has rolled itself back (P03 R17)."
+            exit 1
+          fi
+
+      # R17 proved from outside the instance as well as inside it: the check
+      # in deploy.sh runs on localhost and would not notice nginx, TLS or the
+      # security group being wrong.
+      - name: Check it from the internet
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 10 -o /dev/null "https://${{ vars.DOMAIN }}/api/health"; then
+              echo "https://${{ vars.DOMAIN }}/api/health is answering."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::The site does not answer publicly, although the instance says it deployed."
+          exit 1
