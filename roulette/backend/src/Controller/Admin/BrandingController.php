@@ -68,6 +68,13 @@ final class BrandingController extends AbstractController
             // F13 R27: the codes and their symbols, so the selector needs
             // no table of its own.
             'currencies' => Currency::all(),
+            // F15 R6. Same split as the tagline above and for the same
+            // reason: the admin edits their own value, and a default shown
+            // as if it were theirs is a default they can never get back to.
+            'ownCurrency' => $branding->getOwnCurrency()?->value,
+            // F15 R2: what this admin's language suggests. Only ever used
+            // while nothing has been chosen.
+            'defaultCurrency' => $this->presenter->defaultCurrency()->value,
         ]);
     }
 

@@ -37,6 +37,14 @@ export interface RewardDraft {
   type: RewardType
   /** Omitted for the types that take none; sending one is rejected (F13 R3). */
   value?: number
+  /**
+   * F15 R9: the campaign's currency, saved with the amount it counts.
+   *
+   * Sent only for `amount_off` — the server ignores it on any other type,
+   * and sending one the admin was never shown would be this page choosing
+   * for them.
+   */
+  currency?: string
 }
 
 /** F13 R5. */
@@ -68,6 +76,11 @@ export async function deleteReward(id: number, options?: RequestOptions): Promis
 /** F13 R3: only two of the four carry a number. */
 export function takesValue(type: RewardType): boolean {
   return type === 'percent_off' || type === 'amount_off'
+}
+
+/** F15 R7: and only one of those is counted in money. */
+export function takesCurrency(type: RewardType): boolean {
+  return type === 'amount_off'
 }
 
 /**

@@ -22,18 +22,47 @@ enum Currency: string
     case EUR = 'EUR';
     case USD = 'USD';
     case GBP = 'GBP';
+    case CNY = 'CNY';
 
     /**
-     * Vietnam, because that is where the first campaign is and because a
-     * default has to be something. The admin changes it beside the company
-     * name, and nothing in the game depends on which it is.
+     * The floor under a language nobody has mapped (F15 R3).
+     *
+     * This was VND, back when every campaign got the same default whatever
+     * language it was configured in. F15 replaced that with forLocale(),
+     * and all this constant does now is catch a locale the map misses.
      */
-    public const DEFAULT = 'VND';
+    public const DEFAULT = 'USD';
+
+    /**
+     * The currency an admin reading in this language most likely means
+     * (F15 R2).
+     *
+     * Keyed on the language alone, never the region: Symfony negotiates
+     * `fr-CA` down to `fr` before anything here sees it (F12 R3), and a map
+     * with `fr_CA => CAD` in it would be a map that then has to be complete.
+     *
+     * This decides what an *unchosen* campaign falls back to and nothing
+     * else. A currency the admin has chosen is never revisited, because
+     * re-deriving it would turn the same 50000 from đồng into euros on a
+     * change of dropdown — see F15 section 13.
+     */
+    public static function forLocale(string $locale): self
+    {
+        $language = strtolower(explode('_', str_replace('-', '_', $locale))[0]);
+
+        return match ($language) {
+            'fr' => self::EUR,
+            'vi' => self::VND,
+            'zh' => self::CNY,
+            'en' => self::USD,
+            default => self::from(self::DEFAULT),
+        };
+    }
 
     /** Forgiving on the way out, strict on the way in — as Theme is. */
     public static function fromStorage(?string $value): self
     {
-        return self::tryFrom((string) $value) ?? self::VND;
+        return self::tryFrom((string) $value) ?? self::from(self::DEFAULT);
     }
 
     public function symbol(): string
@@ -43,6 +72,7 @@ enum Currency: string
             self::EUR => '€',
             self::USD => '$',
             self::GBP => '£',
+            self::CNY => '¥',
         };
     }
 
@@ -55,7 +85,7 @@ enum Currency: string
     public function symbolLeads(): bool
     {
         return match ($this) {
-            self::USD, self::GBP, self::EUR => true,
+            self::USD, self::GBP, self::EUR, self::CNY => true,
             self::VND => false,
         };
     }

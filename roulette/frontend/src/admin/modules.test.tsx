@@ -79,6 +79,8 @@ const BRANDING = {
   currencySymbol: '₫',
   currencies: [{ value: 'VND', label: 'VND', symbol: '₫' }],
   ownTagline: null,
+  ownCurrency: null,
+  defaultCurrency: 'VND',
   defaultTagline: 'One spin, one prize. Good luck.',
 }
 

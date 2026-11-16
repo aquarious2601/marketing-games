@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Branding;
 
 use App\Entity\Branding;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Shapes branding for the API (F04 section 8).
@@ -16,6 +17,7 @@ final class BrandingPresenter
 {
     public function __construct(
         private readonly LogoStore $logos,
+        private readonly RequestStack $requests,
     ) {
     }
 
@@ -32,6 +34,8 @@ final class BrandingPresenter
      */
     public function present(Branding $branding): array
     {
+        $currency = $branding->currencyOr($this->defaultCurrency());
+
         return [
             'companyName' => $branding->getCompanyName(),
             'campaignName' => $branding->getCampaignName(),
@@ -41,10 +45,25 @@ final class BrandingPresenter
             'theme' => $branding->getTheme()->value,
             // F13 R28: the symbol travels with the code so neither the admin
             // nor the player page has to carry its own table of them.
-            'currency' => $branding->getCurrency()->value,
-            'currencySymbol' => $branding->getCurrency()->symbol(),
+            // F15 R5: the effective one — the admin's choice, or what this
+            // reader's language suggests while there is no choice.
+            'currency' => $currency->value,
+            'currencySymbol' => $currency->symbol(),
             'logoUrl' => $this->logoUrl($branding),
         ];
+    }
+
+    /**
+     * What an unchosen campaign falls back to, for whoever is asking
+     * (F15 R5).
+     *
+     * Public because the admin controller reports it in its own right: the
+     * selector has to open on something, and "what your language suggests"
+     * is the answer F15 R8 gives.
+     */
+    public function defaultCurrency(): Currency
+    {
+        return Currency::forLocale($this->requests->getCurrentRequest()?->getLocale() ?? 'en');
     }
 
     /**

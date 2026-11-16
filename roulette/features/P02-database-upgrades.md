@@ -101,8 +101,9 @@ can be run twice without harm.
 | R16 | A spin whose prize has since been deleted — `prize_id` is null — is typed **free product** with no value. Nothing survives that says what it was, and free product is the type that claims by presence rather than by a code. |
 | R17 | `spin.reward_code` stays null for every spin the upgrade touches, whatever its type. A code is something a player was shown (F13 R19); minting one now would create a code nobody has ever seen and make the log claim otherwise. |
 | R18 | A spin with a null `reward_code` is still claimable if its type is (F13 R24). The code is how a player proves a claim, not what permits one. |
-| R19 | `branding.currency` is added with the default F13 specifies, and existing branding keeps it. |
+| R19 | `branding.currency` is added **nullable and left null**. Amended 2026-11-16 by [F15](./F15-choosing-the-currency.md) R4, which made null mean *nobody has chosen*: a campaign that predates the column has indeed never chosen one, and seeding it would be the upgrade deciding what a shop trades in. |
 | R20 | The command refuses to run if the database holds no `wheel` table at all. That is an uninitialised database, which `schema:update --force --complete` should create instead. |
+| R21 | A `branding.currency` of `VND` is set back to null, unless some reward is counted in money. Added 2026-11-16: R19's first version wrote that value itself, before [F15](./F15-choosing-the-currency.md) R4 made null mean *nobody has chosen*, so every database upgraded in between claims a choice this command made. Only `VND` is taken back, because it is the only value that step ever wrote. |
 
 ## 7. Data model
 
@@ -117,7 +118,7 @@ already specifies, and fills in:
 | `spin` | `reward_code` | null (R17) |
 | `spin` | `claimed_at` | null — nothing already recorded has been claimed |
 | `wheel` | `includes_losing_slice` | R14 |
-| `branding` | `currency` | the F13 default (R19) |
+| `branding` | `currency` | null — unchosen (R19), and set back to null where an earlier run chose for you (R21) |
 
 ## 8. API surface
 
@@ -144,6 +145,7 @@ start working again, which is the point.
 | No `wheel` table | Error naming `doctrine:schema:update --force --complete`; exit 1 (R20) |
 | A data step fails | It is rolled back, the failure is printed, later steps do not run, and the command says that what ran before it stands; exit 1 (R5) |
 | A prize name matches no default | A free-product reward is invented and counted in the summary (R11, R12) |
+| Some reward is counted in money | R21 leaves the stored currency alone and says why |
 | `--dry-run` | Nothing is written; the plan is printed |
 
 ## 11. Acceptance criteria
@@ -161,6 +163,10 @@ start working again, which is the point.
       and none has a code.
 - [x] Given a spin whose prize was deleted, when the command runs, then it is
       typed free product rather than failing the `NOT NULL`.
+- [x] Given a database upgraded before R21 existed, when the command runs,
+      then its unchosen `VND` is taken back and its language decides again.
+- [x] Given the same database with an amount-off reward in it, then the
+      currency is left exactly as it was.
 - [x] Given an already-upgraded database, when the command runs again, then
       nothing changes and it exits 0.
 - [x] Given an upgraded database, when `doctrine:schema:update --dump-sql`
@@ -216,6 +222,19 @@ players — and both admin modules opened afterwards.
   the default "Free sample" nobody now uses. Harmless and visible — the
   Rewards tab shows the unused one as "Not used" and it can be deleted — but
   it means the catalogue after an upgrade may need a tidy.
+- **R21 takes something back, which no other step does.** Every other step
+  moves a database forward; this one undoes a decision an earlier version of
+  this same command made. That is uncomfortable, and the alternative was
+  worse: leaving a French shop looking at a Vietnamese currency it never
+  chose, with nothing to tell it where that came from. It is narrow on
+  purpose — one value, and only while no amount exists — so the worst it can
+  do is make an admin pick a currency they were going to have to pick anyway.
+- **Risk: R21 can unchoose a real choice.** A shop that genuinely picked
+  `VND`, and has no amount-off reward yet, is unchosen too — there is no way
+  to tell their `VND` from the one this command wrote. For a Vietnamese
+  admin the picker then opens on `VND` regardless, so nothing visible
+  changes; for anyone else it opens on their own language and they choose
+  again before the first amount exists.
 - **Risk: this command has one job and a general name.** It is named for what
   an operator wants (`app:upgrade-database`), not for F13, so the next
   schema change that needs data appends a step to it. The steps are a list

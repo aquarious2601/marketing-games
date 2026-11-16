@@ -349,7 +349,102 @@ final class RewardControllerTest extends DatabaseWebTestCase
         self::assertSame(['Lucky you!'], $byName['Free coffee']);
     }
 
+    // ------------------------------------------------- F15: the currency
+
+    /** F15 R9: the campaign's currency is settled by the save that needs it. */
+    public function testAddingAnAmountOffSetsTheCampaignCurrency(): void
+    {
+        $this->signInAsAdmin();
+
+        $this->post(self::URI, [
+            'name' => 'Five euros off',
+            'type' => 'amount_off',
+            'value' => 5,
+            'currency' => 'EUR',
+        ]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        self::assertSame('EUR', $this->storedCurrency());
+    }
+
+    /** F15 R9, on an edit as much as on a create. */
+    public function testChangingAnAmountOffSetsTheCampaignCurrency(): void
+    {
+        $this->signInAsAdmin();
+        $id = $this->addAndGetId('Five off', 'amount_off', 5);
+
+        $this->put(self::URI.'/'.$id, [
+            'name' => 'Five off',
+            'type' => 'amount_off',
+            'value' => 5,
+            'currency' => 'GBP',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('GBP', $this->storedCurrency());
+    }
+
+    /**
+     * F15 R7. A currency arriving with a type that has no amount is a
+     * field the admin could not see, so it is ignored rather than refused
+     * — the same way a value for such a type is (F13 R3).
+     */
+    public function testACurrencyIsIgnoredOnATypeWithNoAmount(): void
+    {
+        $this->signInAsAdmin();
+
+        $this->post(self::URI, [
+            'name' => 'Free coffee',
+            'type' => 'free_product',
+            'currency' => 'EUR',
+        ]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        self::assertNull($this->storedCurrency(), 'nothing was chosen');
+    }
+
+    /** F15 R4: absent leaves the campaign unchosen. */
+    public function testAnAmountOffWithNoCurrencyChoosesNothing(): void
+    {
+        $this->signInAsAdmin();
+
+        $this->add('Five off', 'amount_off', 5);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        self::assertNull($this->storedCurrency());
+    }
+
+    public function testItRefusesACurrencyItDoesNotHave(): void
+    {
+        $this->signInAsAdmin();
+
+        $this->post(self::URI, [
+            'name' => 'Five off',
+            'type' => 'amount_off',
+            'value' => 5,
+            'currency' => 'XAU',
+        ]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertSame(
+            'currency',
+            $this->decodeResponse()['error']['violations'][0]['field'],
+        );
+        self::assertSame(0, $this->countRows('reward'), 'and the reward was not created');
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    /** Null until somebody chooses (F15 R4). */
+    private function storedCurrency(): ?string
+    {
+        /** @var string|false|null $value */
+        $value = $this->entityManager
+            ->getConnection()
+            ->fetchOne('SELECT currency FROM branding');
+
+        return \is_string($value) ? $value : null;
+    }
 
     private function add(string $name, string $type, ?int $value = null): void
     {

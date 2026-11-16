@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller\Admin;
 
+use App\Branding\BrandingProvider;
+use App\Branding\Currency;
 use App\Dto\RewardInputParser;
 use App\Dto\Violation;
 use App\Entity\Reward;
@@ -35,6 +37,7 @@ final class RewardController extends AbstractController
         private readonly RewardInputParser $parser,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
+        private readonly BrandingProvider $branding,
     ) {
     }
 
@@ -69,14 +72,15 @@ final class RewardController extends AbstractController
         }
 
         [$draft, $violations] = $this->parser->parse($payload);
+        $currency = $this->readCurrency($payload, $draft?->type, $violations);
 
-        if (null === $draft) {
+        if (null === $draft || [] !== $violations) {
             return $this->invalid($violations);
         }
 
         $reward = new Reward($draft->name, $draft->type, $draft->value);
 
-        return $this->save($reward, Response::HTTP_CREATED);
+        return $this->save($reward, Response::HTTP_CREATED, $currency);
     }
 
     #[Route('/{id}', name: 'update', methods: ['PUT'], requirements: ['id' => '\d+'])]
@@ -89,8 +93,9 @@ final class RewardController extends AbstractController
         }
 
         [$draft, $violations] = $this->parser->parse($payload);
+        $currency = $this->readCurrency($payload, $draft?->type, $violations);
 
-        if (null === $draft) {
+        if (null === $draft || [] !== $violations) {
             return $this->invalid($violations);
         }
 
@@ -101,7 +106,7 @@ final class RewardController extends AbstractController
         $reward->setType($draft->type);
         $reward->setValue($draft->value);
 
-        return $this->save($reward, Response::HTTP_OK);
+        return $this->save($reward, Response::HTTP_OK, $currency);
     }
 
     /** F13 R6. */
@@ -131,9 +136,16 @@ final class RewardController extends AbstractController
      * Checking first would still race two admins adding the same name, and
      * the constraint is the only thing that cannot be raced.
      */
-    private function save(Reward $reward, int $status): JsonResponse
+    private function save(Reward $reward, int $status, ?Currency $currency = null): JsonResponse
     {
         try {
+            // F15 R9: the campaign's currency is settled in the same request
+            // that creates the amount, so the admin's one save is one save
+            // and no amount can exist before its currency is known (R13).
+            if (null !== $currency) {
+                $this->branding->getOrCreate()->setCurrency($currency);
+            }
+
             $this->entityManager->persist($reward);
             $this->entityManager->flush();
         } catch (UniqueConstraintViolationException) {
@@ -144,6 +156,39 @@ final class RewardController extends AbstractController
         }
 
         return new JsonResponse(['reward' => $this->present($reward)], $status);
+    }
+
+    /**
+     * The campaign currency sent beside an amount (F15 R7, R9).
+     *
+     * Only read for a type that takes an amount. Sent with a free product
+     * it is ignored rather than refused, for the same reason a *value* for
+     * such a type is (F13 R3): the field the admin could not see is not a
+     * field they got wrong.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     */
+    private function readCurrency(array $payload, ?RewardType $type, array &$violations): ?Currency
+    {
+        $value = $payload['currency'] ?? null;
+
+        if (null === $value || RewardType::AmountOff !== $type) {
+            return null;
+        }
+
+        $currency = \is_string($value) ? Currency::tryFrom($value) : null;
+
+        if (null === $currency) {
+            $violations[] = new Violation(
+                'currency',
+                $this->translator->trans('branding.choose_one_of', [
+                    '%values%' => implode(', ', array_column(Currency::cases(), 'value')),
+                ]),
+            );
+        }
+
+        return $currency;
     }
 
     /**

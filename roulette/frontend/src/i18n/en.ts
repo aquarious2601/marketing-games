@@ -123,6 +123,9 @@ export const en = {
   'branding.tagline': 'Tagline',
   'branding.taglineHint': 'Leave blank to use “%default%”.',
   'branding.theme': 'Theme',
+  // F15 R10, R11. The hint says what changing it affects, because the
+  // obvious guess — that the amounts convert — is the wrong one.
+  'branding.currencyHint': 'What every amount-off reward is counted in. Changing it relabels the amounts; it does not convert them.',
   'branding.logo': 'Logo',
   'branding.currentLogo': 'Current logo',
   'branding.removeLogo': 'Remove logo',
@@ -195,6 +198,8 @@ export const en = {
   'rewards.name': 'Name',
   'rewards.type': 'Type',
   'rewards.value': 'Value',
+  'rewards.currency': 'Currency',
+  'rewards.currencyHint': 'The campaign is counted in one currency. Changing it here changes it everywhere.',
   'rewards.colName': 'Name',
   'rewards.colType': 'Type',
   'rewards.colValue': 'Value',

@@ -9,6 +9,9 @@ export interface Branding {
   /**
    * F13 R27, R28. The code and its symbol travel together, so neither the
    * admin nor the player page needs its own table of symbols.
+   *
+   * F15 R5: the *effective* currency — what the admin chose, or what this
+   * reader's language suggests while nothing has been chosen.
    */
   currency: string
   currencySymbol: string
@@ -34,6 +37,10 @@ export interface AdminBranding extends Branding {
   /** What the admin actually set; null means the default is in use. */
   ownTagline: string | null
   defaultTagline: string
+  /** F15 R4: the chosen currency, or null while nobody has chosen. */
+  ownCurrency: string | null
+  /** F15 R2: what this admin's language suggests, used only while unchosen. */
+  defaultCurrency: string
 }
 
 /**
@@ -49,6 +56,8 @@ export interface BrandingSubmission {
   campaignName: string
   tagline: string
   theme: string
+  /** F15 R10. Omitted leaves the campaign's currency alone (F13 R27). */
+  currency?: string
 }
 
 export async function fetchBranding(options?: RequestOptions): Promise<AdminBranding> {

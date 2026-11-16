@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Schema;
 
-use App\Branding\Currency;
 use App\Entity\Reward;
 use App\Reward\RewardProvider;
 use App\Reward\RewardType;
@@ -72,6 +71,7 @@ final class DatabaseUpgrade
             $this->createRewardTable($dryRun),
             $this->seedCatalogue($dryRun),
             $this->addBrandingCurrency($dryRun),
+            $this->unchooseACurrencyNobodyPicked($dryRun),
             $this->addPrizeRewardColumn($dryRun),
             $this->fillPrizeRewards($dryRun),
             $this->constrainPrizeReward($dryRun),
@@ -157,13 +157,77 @@ final class DatabaseUpgrade
         }
 
         if (!$dryRun) {
-            $this->connection->executeStatement(sprintf(
-                "ALTER TABLE branding ADD currency VARCHAR(3) DEFAULT '%s' NOT NULL",
-                Currency::DEFAULT,
-            ));
+            // Nullable, and left null: F15 R4 made null mean "nobody has
+            // chosen", and a campaign that predates the column has indeed
+            // never chosen. Seeding it with a currency here would be this
+            // code deciding what a shop trades in.
+            $this->connection->executeStatement(
+                'ALTER TABLE branding ADD currency VARCHAR(3) DEFAULT NULL',
+            );
         }
 
         return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
+    }
+
+    /**
+     * Takes back a currency this command once wrote (P02 R21).
+     *
+     * The first version of the step above added the column
+     * `DEFAULT 'VND' NOT NULL`, because at the time the column could not be
+     * null. F15 then made null mean *nobody has chosen*, and every database
+     * upgraded in between is left claiming a choice that was this code's,
+     * not an admin's — which is exactly what it looks like: a French
+     * campaign offering to count its rewards in đồng.
+     *
+     * Only `VND` is taken back, because `VND` is the only value that step
+     * ever wrote; anything else was chosen by a person. And only while no
+     * reward is counted in money, which is what makes this safe: with no
+     * amount anywhere, there is no number whose meaning could change.
+     */
+    private function unchooseACurrencyNobodyPicked(bool $dryRun): UpgradeStep
+    {
+        $name = 'a currency nobody picked';
+        $written = 'VND';
+
+        if (!$this->tableExists('reward') || !$this->columnExists('branding', 'currency')) {
+            return UpgradeStep::skipped($name, 'there is no currency to take back');
+        }
+
+        $candidates = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM branding WHERE currency = :written',
+            ['written' => $written],
+        );
+
+        if (0 === $candidates) {
+            return UpgradeStep::skipped($name, 'nothing was left behind');
+        }
+
+        $amounts = (int) $this->connection->fetchOne(
+            sprintf("SELECT COUNT(*) FROM reward WHERE type = '%s'", RewardType::AmountOff->value),
+        );
+
+        if ($amounts > 0) {
+            // Somebody is counting in money, so the stored currency is load
+            // bearing whoever wrote it. Left alone, and said out loud.
+            return UpgradeStep::skipped(
+                $name,
+                sprintf('left as %s: %d rewards are counted in it', $written, $amounts),
+            );
+        }
+
+        if ($dryRun) {
+            return UpgradeStep::done($name, sprintf('would take back %s', $written));
+        }
+
+        $this->connection->executeStatement(
+            'UPDATE branding SET currency = NULL WHERE currency = :written',
+            ['written' => $written],
+        );
+
+        return UpgradeStep::done(
+            $name,
+            sprintf('took back %s; the admin\'s language decides until they choose', $written),
+        );
     }
 
     /** P02 R8: nullable first, so there is somewhere to put the answer. */
@@ -509,6 +573,24 @@ final class DatabaseUpgrade
 
         $wanted = $losing > 0 ? 1 : 0;
 
+        // R3: only written when it is wrong. An UPDATE that sets a column to
+        // what it already holds is not a change, and a step that reports one
+        // makes a second run look like it did something.
+        //
+        // Checked before the dry run answers, not after: a plan that claims
+        // a change it would not make is worse than no plan, because the
+        // whole point of --dry-run is to be believed.
+        $wrong = $exists
+            ? (int) $this->connection->fetchOne(
+                'SELECT COUNT(*) FROM wheel WHERE includes_losing_slice <> :on',
+                ['on' => $wanted],
+            )
+            : 0;
+
+        if ($exists && 0 === $wrong) {
+            return UpgradeStep::skipped($name, sprintf('already %s', $wanted ? 'on' : 'off'));
+        }
+
         if ($dryRun) {
             return UpgradeStep::done($name, sprintf(
                 'would %sset it to %s',
@@ -516,14 +598,6 @@ final class DatabaseUpgrade
                 $wanted ? 'on' : 'off',
             ));
         }
-
-        // R3: only written when it is wrong. An UPDATE that sets a column to
-        // what it already holds is not a change, and a step that reports one
-        // makes a second run look like it did something.
-        $wrong = (int) $this->connection->fetchOne(
-            'SELECT COUNT(*) FROM wheel WHERE includes_losing_slice <> :on',
-            ['on' => $wanted],
-        );
 
         if (!$exists || $wrong > 0) {
             $this->connection->executeStatement(

@@ -60,6 +60,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F12](./F12-multiple-languages.md) | Multiple languages | Both | Done |
 | [F13](./F13-reward-configuration.md) | Reward configuration | Both | Done |
 | [F14](./F14-the-losing-slice-in-the-prize-list.md) | The losing slice in the prize list | Admin | Done |
+| [F15](./F15-choosing-the-currency.md) | Choosing the currency | Admin | Agreed |
 
 ## Running the tests
 

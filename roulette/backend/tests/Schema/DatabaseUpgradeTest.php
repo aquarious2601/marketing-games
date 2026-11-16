@@ -396,8 +396,8 @@ final class DatabaseUpgradeTest extends KernelTestCase
         self::assertSame(0, (int) $this->connection->fetchOne('SELECT includes_losing_slice FROM wheel'));
     }
 
-    /** P02 R19 */
-    public function testItGivesExistingBrandingTheDefaultCurrency(): void
+    /** P02 R19, F15 R4: added, and left unchosen. */
+    public function testItAddsTheCurrencyColumnWithoutChoosingOne(): void
     {
         $this->givenTheDefaultWheel();
         $this->connection->insert('branding', [
@@ -408,12 +408,74 @@ final class DatabaseUpgradeTest extends KernelTestCase
 
         $this->upgrade()->run();
 
-        self::assertSame('VND', $this->connection->fetchOne('SELECT currency FROM branding'));
+        self::assertNull(
+            $this->connection->fetchOne('SELECT currency FROM branding'),
+            'a campaign that predates the column has not chosen a currency',
+        );
         self::assertSame(
             'Korean Cosmetics',
             $this->connection->fetchOne('SELECT company_name FROM branding'),
             'the branding already there was not disturbed',
         );
+    }
+
+    /**
+     * P02 R21. The case the rule exists for: a database upgraded while
+     * R19's first version still wrote `VND` into the column, which F15 then
+     * made mean "the admin chose this" — so a French campaign offered to
+     * count its rewards in đồng.
+     */
+    public function testItTakesBackACurrencyAnEarlierUpgradeChose(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenBrandingCountedIn('VND');
+
+        $steps = $this->upgrade()->run();
+
+        self::assertNull(
+            $this->connection->fetchOne('SELECT currency FROM branding'),
+            'nobody chose it, so nobody has chosen',
+        );
+        self::assertStringContainsString('took back', $this->detailOf($steps, 'a currency nobody picked'));
+    }
+
+    /**
+     * P02 R21. What makes taking it back safe is that no number depends on
+     * it. Once one does, the stored currency stands whoever wrote it.
+     */
+    public function testItLeavesTheCurrencyAloneOnceSomethingIsCountedInIt(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenBrandingCountedIn('VND');
+
+        $this->upgrade()->run();
+
+        $this->connection->insert('reward', [
+            'name' => 'Fifty thousand off',
+            'type' => RewardType::AmountOff->value,
+            'value' => 50000,
+            'created_at' => '2026-11-16 09:00:00',
+        ]);
+        $this->connection->executeStatement("UPDATE branding SET currency = 'VND'");
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame('VND', $this->connection->fetchOne('SELECT currency FROM branding'));
+        self::assertStringContainsString(
+            'counted in it',
+            $this->detailOf($steps, 'a currency nobody picked'),
+        );
+    }
+
+    /** P02 R21: only the value that step ever wrote is taken back. */
+    public function testItLeavesACurrencyAPersonChose(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenBrandingCountedIn('EUR');
+
+        $this->upgrade()->run();
+
+        self::assertSame('EUR', $this->connection->fetchOne('SELECT currency FROM branding'));
     }
 
     /** P02 R3 */
@@ -550,6 +612,28 @@ final class DatabaseUpgradeTest extends KernelTestCase
                 'wheel_id' => $wheel,
             ]);
         }
+    }
+
+    /**
+     * Branding as a database upgraded by R19's first version holds it: the
+     * column is there, with a currency in it.
+     */
+    private function givenBrandingCountedIn(string $currency): void
+    {
+        $this->connection->insert('branding', [
+            'company_name' => 'Korean Cosmetics',
+            'theme' => 'birthday',
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        // Added here rather than in the pre-F13 schema, because the column
+        // is exactly what the upgrade adds. Written straight after, as the
+        // old step would have left it.
+        $this->connection->executeStatement('ALTER TABLE branding ADD currency VARCHAR(3) DEFAULT NULL');
+        $this->connection->executeStatement(
+            'UPDATE branding SET currency = :currency',
+            ['currency' => $currency],
+        );
     }
 
     private function givenASpin(?int $prizeId, string $prizeName, int $probability, ?int $playerId = null): void

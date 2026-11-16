@@ -55,9 +55,14 @@ class Branding
      * F13 R27: one currency per campaign. A shop trades in one, and
      * per-reward currency would allow a wheel offering €5 off and ₫50,000
      * off at once — not a campaign anybody runs, and a bug nobody catches.
+     *
+     * Null means nobody has chosen one (F15 R4), exactly as a null tagline
+     * means nobody has written one. What an unchosen campaign *shows* is
+     * decided per request from the reader's language, which is why the
+     * fallback is not stored here — see BrandingPresenter and F15 R5.
      */
-    #[ORM\Column(length: 3, options: ['default' => Currency::DEFAULT])]
-    private string $currency = Currency::DEFAULT;
+    #[ORM\Column(length: 3, nullable: true)]
+    private ?string $currency = null;
 
     #[ORM\Column(name: 'updated_at')]
     private \DateTimeImmutable $updatedAt;
@@ -157,15 +162,29 @@ class Branding
         $this->touch();
     }
 
-    /** F13 R27. */
-    public function getCurrency(): Currency
+    /**
+     * The currency the admin chose, or null if none has been (F15 R4).
+     *
+     * There is deliberately no `getCurrency()` returning a non-null
+     * Currency. A caller that wants one has to say what to fall back to,
+     * and the only honest answer depends on who is asking — which is a
+     * question an entity cannot answer. `currencyOr()` makes the caller
+     * supply it.
+     */
+    public function getOwnCurrency(): ?Currency
     {
-        return Currency::fromStorage($this->currency);
+        return null === $this->currency ? null : Currency::fromStorage($this->currency);
     }
 
-    public function setCurrency(Currency $currency): void
+    /** F15 R5: the chosen currency, or the given fallback. */
+    public function currencyOr(Currency $fallback): Currency
     {
-        $this->currency = $currency->value;
+        return $this->getOwnCurrency() ?? $fallback;
+    }
+
+    public function setCurrency(?Currency $currency): void
+    {
+        $this->currency = $currency?->value;
         $this->touch();
     }
 

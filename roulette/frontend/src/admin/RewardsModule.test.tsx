@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchBranding } from '../api/branding'
+import { fetchBranding, type AdminBranding } from '../api/branding'
 import { ApiError, ApiValidationError } from '../api/client'
 import {
   createReward,
@@ -58,7 +58,12 @@ beforeEach(() => {
   fetchBrandingMock.mockReset()
 
   fetchRewardsMock.mockResolvedValue({ rewards: [reward()], types: TYPES })
-  fetchBrandingMock.mockResolvedValue({
+  fetchBrandingMock.mockResolvedValue(branding())
+})
+
+/** A campaign counted in đồng, which is what the catalogue reads it in. */
+function branding(overrides: Partial<AdminBranding> = {}): AdminBranding {
+  return {
     companyName: null,
     campaignName: null,
     tagline: 'One spin, one prize. Good luck.',
@@ -67,11 +72,18 @@ beforeEach(() => {
     currencySymbol: '₫',
     logoUrl: null,
     themes: [{ value: 'plain', label: 'Plain' }],
-    currencies: [{ value: 'VND', label: 'VND', symbol: '₫' }],
+    currencies: [
+      { value: 'VND', label: 'VND', symbol: '₫' },
+      { value: 'EUR', label: 'EUR', symbol: '€' },
+      { value: 'CNY', label: 'CNY', symbol: '¥' },
+    ],
     ownTagline: null,
+    ownCurrency: 'VND',
+    defaultCurrency: 'VND',
     defaultTagline: 'One spin, one prize. Good luck.',
-  })
-})
+    ...overrides,
+  }
+}
 
 /** F13 R1, R5 */
 describe('the catalogue', () => {
@@ -299,5 +311,129 @@ describe('deleting a reward', () => {
     await user.click(screen.getByTestId('reward-delete'))
 
     expect(await screen.findByTestId('rewards-error')).toHaveTextContent('Lucky you!')
+  })
+})
+
+/** F15 R7, R8, R9 */
+describe('the currency on an amount', () => {
+  function currencyField(): HTMLSelectElement {
+    return screen.getByTestId('currency-select') as HTMLSelectElement
+  }
+
+  async function openTheEditor(): Promise<ReturnType<typeof userEvent.setup>> {
+    const user = userEvent.setup()
+    render(<RewardsModule />)
+    await screen.findByTestId('reward-list')
+    await user.click(screen.getByTestId('reward-add'))
+
+    return user
+  }
+
+  /** R7: only the type that is counted in money asks what it is counted in. */
+  it('offers a currency only for an amount off', async () => {
+    const user = await openTheEditor()
+
+    expect(screen.queryByTestId('currency-select')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByTestId('reward-type-select'), 'percent_off')
+    expect(screen.queryByTestId('currency-select')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByTestId('reward-type-select'), 'amount_off')
+    expect(screen.getByTestId('currency-select')).toBeInTheDocument()
+  })
+
+  /** R8: on the campaign's effective currency, which the server resolved. */
+  it('opens on the campaign currency', async () => {
+    const user = await openTheEditor()
+    await user.selectOptions(screen.getByTestId('reward-type-select'), 'amount_off')
+
+    expect(currencyField()).toHaveValue('VND')
+  })
+
+  /**
+   * R8 again, and the point of the whole feature: a French admin whose
+   * campaign has chosen nothing gets euros without going to look for them.
+   */
+  it('opens on what the language suggests when nothing has been chosen', async () => {
+    // The server resolved it: nothing chosen, so `currency` is already
+    // the default this admin's language suggests (F15 R5).
+    fetchBrandingMock.mockResolvedValue(
+      branding({
+        ownCurrency: null,
+        defaultCurrency: 'EUR',
+        currency: 'EUR',
+        currencySymbol: '€',
+      }),
+    )
+
+    const user = await openTheEditor()
+    await user.selectOptions(screen.getByTestId('reward-type-select'), 'amount_off')
+
+    expect(currencyField()).toHaveValue('EUR')
+  })
+
+  /** The unit is stated on the field's label as well, and follows the select. */
+  it('relabels the amount field as the currency changes', async () => {
+    const user = await openTheEditor()
+    await user.selectOptions(screen.getByTestId('reward-type-select'), 'amount_off')
+
+    expect(screen.getByText(/Value \(₫\)/)).toBeInTheDocument()
+
+    await user.selectOptions(currencyField(), 'EUR')
+    expect(screen.getByText(/Value \(€\)/)).toBeInTheDocument()
+  })
+
+  /** R9: one save, and the campaign's currency is settled by it. */
+  it('sends the currency with the amount', async () => {
+    createRewardMock.mockResolvedValue(reward({ type: 'amount_off', value: 50000 }))
+
+    const user = await openTheEditor()
+    await user.type(screen.getByTestId('reward-name'), 'Fifty off')
+    await user.selectOptions(screen.getByTestId('reward-type-select'), 'amount_off')
+    await user.selectOptions(currencyField(), 'EUR')
+    await user.type(screen.getByTestId('reward-value-input'), '50000')
+    await user.click(screen.getByTestId('reward-save'))
+
+    await waitFor(() =>
+      expect(createRewardMock).toHaveBeenCalledWith({
+        name: 'Fifty off',
+        type: 'amount_off',
+        value: 50000,
+        currency: 'EUR',
+      }),
+    )
+  })
+
+  /**
+   * R7. A free product is not counted in anything, so a save about one
+   * must not carry a currency — it would move what the shop trades in from
+   * a form that never mentioned it.
+   */
+  it('sends no currency for a type that takes no amount', async () => {
+    createRewardMock.mockResolvedValue(reward({ id: 2, name: 'Free tea' }))
+
+    const user = await openTheEditor()
+    await user.type(screen.getByTestId('reward-name'), 'Free tea')
+    await user.click(screen.getByTestId('reward-save'))
+
+    await waitFor(() =>
+      expect(createRewardMock).toHaveBeenCalledWith({ name: 'Free tea', type: 'free_product' }),
+    )
+  })
+
+  it('puts a rejected currency against its own field', async () => {
+    createRewardMock.mockRejectedValue(
+      new ApiValidationError('nope', [
+        { field: 'currency', message: 'Choose one of: VND, EUR, USD, GBP, CNY.' },
+      ]),
+    )
+
+    const user = await openTheEditor()
+    await user.type(screen.getByTestId('reward-name'), 'Fifty off')
+    await user.selectOptions(screen.getByTestId('reward-type-select'), 'amount_off')
+    await user.type(screen.getByTestId('reward-value-input'), '50000')
+    await user.click(screen.getByTestId('reward-save'))
+
+    expect(await screen.findByText(/Choose one of/)).toBeInTheDocument()
   })
 })

@@ -8,6 +8,7 @@ import {
 } from '../api/branding'
 import { ApiValidationError, type ApiViolation } from '../api/client'
 import { useT } from '../i18n/I18nContext'
+import { CurrencySelect } from './CurrencySelect'
 
 const NAME_MAX_LENGTH = 60
 const TAGLINE_MAX_LENGTH = 120
@@ -19,6 +20,8 @@ interface Draft {
   campaignName: string
   tagline: string
   theme: string
+  /** F15 R10: the campaign's currency, edited here as well as in Rewards. */
+  currency: string
 }
 
 /**
@@ -37,6 +40,7 @@ export function BrandingSection() {
     campaignName: '',
     tagline: '',
     theme: 'plain',
+    currency: '',
   })
   const [saved, setSaved] = useState<Draft>(draft)
   const [saving, setSaving] = useState(false)
@@ -67,6 +71,11 @@ export function BrandingSection() {
         // way back to it.
         tagline: loaded.ownTagline ?? '',
         theme: loaded.theme,
+        // F15 R8: unlike the tagline above, the *effective* currency. There
+        // is no "no currency" to offer — the picker must open on something,
+        // and what the admin's language suggests is the best guess the
+        // server can make while nothing has been chosen.
+        currency: loaded.currency,
       }
 
       setBranding(loaded)
@@ -92,7 +101,8 @@ export function BrandingSection() {
     draft.companyName !== saved.companyName ||
     draft.campaignName !== saved.campaignName ||
     draft.tagline !== saved.tagline ||
-    draft.theme !== saved.theme
+    draft.theme !== saved.theme ||
+    draft.currency !== saved.currency
 
   const change = (patch: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...patch }))
@@ -265,6 +275,29 @@ export function BrandingSection() {
         {violationFor('theme') !== undefined && (
           <p role="alert" className="mt-1 text-xs text-rose-600">
             {violationFor('theme')}
+          </p>
+        )}
+      </div>
+
+      {/* F15 R10. Here as well as in the reward editor: the editor is where
+          an admin meets the question, and this is where they will come back
+          to change the answer. */}
+      <div className="mt-4">
+        <label htmlFor="branding-currency" className={labelClass}>
+          {t('branding.currency')}
+        </label>
+        <CurrencySelect
+          id="branding-currency"
+          value={draft.currency}
+          options={branding.currencies}
+          onChange={(currency) => change({ currency })}
+        />
+        {/* F15 R11: says what it affects, because the obvious guess — that
+            changing this converts the amounts — is the wrong one. */}
+        <p className="mt-1 text-xs text-slate-500">{t('branding.currencyHint')}</p>
+        {violationFor('currency') !== undefined && (
+          <p role="alert" className="mt-1 text-xs text-rose-600">
+            {violationFor('currency')}
           </p>
         )}
       </div>

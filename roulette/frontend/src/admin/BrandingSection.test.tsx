@@ -36,6 +36,13 @@ const THEMES = [
   { value: 'birthday', label: 'Happy Birthday' },
 ]
 
+/** F15 R1, R14: the list the server sends, symbols and all. */
+const CURRENCIES = [
+  { value: 'VND', label: 'VND', symbol: '₫' },
+  { value: 'EUR', label: 'EUR', symbol: '€' },
+  { value: 'CNY', label: 'CNY', symbol: '¥' },
+]
+
 function upload(overrides: Partial<LogoUpload> = {}): LogoUpload {
   return { ...branding(), notice: null, ...overrides }
 }
@@ -50,9 +57,11 @@ function branding(overrides: Partial<AdminBranding> = {}): AdminBranding {
     theme: 'plain',
     currency: 'VND',
     currencySymbol: '₫',
+    ownCurrency: 'VND',
+    defaultCurrency: 'VND',
     logoUrl: null,
     themes: THEMES,
-    currencies: [{ value: 'VND', label: 'VND', symbol: '₫' }],
+    currencies: CURRENCIES,
     ...overrides,
   }
 }
@@ -140,7 +149,7 @@ describe('saving', () => {
     expect(saveButton()).toBeEnabled()
   })
 
-  it('sends the names, the tagline and the theme', async () => {
+  it('sends the names, the tagline, the theme and the currency', async () => {
     saveMock.mockResolvedValue(branding({ companyName: 'AA Store', theme: 'halloween' }))
     const user = await renderSection()
 
@@ -154,8 +163,74 @@ describe('saving', () => {
         campaignName: '',
         tagline: '',
         theme: 'halloween',
+        // F15 R10: the currency travels with the rest of the branding.
+        currency: 'VND',
       }),
     )
+  })
+
+  /** F15 R10 */
+  describe('the currency', () => {
+    function currencyField(): HTMLSelectElement {
+      return screen.getByTestId('currency-select') as HTMLSelectElement
+    }
+
+    it('opens on the campaign currency and offers the rest', async () => {
+      await renderSection()
+
+      expect(currencyField()).toHaveValue('VND')
+      expect(
+        Array.from(currencyField().options).map((option) => option.value),
+      ).toEqual(['VND', 'EUR', 'CNY'])
+    })
+
+    /** F15 R14: the symbol comes from the server, beside the code. */
+    it('shows each code with its symbol', async () => {
+      await renderSection()
+
+      expect(currencyField()).toHaveTextContent('EUR €')
+      expect(currencyField()).toHaveTextContent('CNY ¥')
+    })
+
+    it('saves a change', async () => {
+      saveMock.mockResolvedValue(branding({ currency: 'EUR', currencySymbol: '€' }))
+      const user = await renderSection()
+
+      await user.selectOptions(currencyField(), 'EUR')
+      await user.click(saveButton())
+
+      await waitFor(() =>
+        expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({ currency: 'EUR' })),
+      )
+    })
+
+    /**
+     * F15 R8: a campaign nobody has chosen for opens on what the admin's
+     * language suggests, which the server has already resolved into
+     * `currency`.
+     */
+    it('opens on the language default when nothing has been chosen', async () => {
+      fetchMock.mockResolvedValue(
+        branding({ ownCurrency: null, defaultCurrency: 'EUR', currency: 'EUR', currencySymbol: '€' }),
+      )
+
+      await renderSection()
+
+      expect(currencyField()).toHaveValue('EUR')
+    })
+
+    /** F15 R11: the hint exists because the obvious guess is the wrong one. */
+    it('says that changing it does not convert the amounts', async () => {
+      await renderSection()
+
+      expect(screen.getByText(/does not convert them/i)).toBeInTheDocument()
+    })
+
+    it('does not count as a change until it is changed', async () => {
+      await renderSection()
+
+      expect(saveButton()).toBeDisabled()
+    })
   })
 
   it('sends a tagline the admin typed', async () => {

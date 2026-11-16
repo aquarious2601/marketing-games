@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchBranding } from '../api/branding'
+import { fetchBranding, type CurrencyOption } from '../api/branding'
 import { ApiValidationError, type ApiViolation } from '../api/client'
 import {
   createReward,
   deleteReward,
   fetchRewards,
   formatValue,
+  takesCurrency,
   takesValue,
   updateReward,
   type Reward,
@@ -14,6 +15,7 @@ import {
   type RewardTypeOption,
 } from '../api/rewards'
 import { useT, type Translate } from '../i18n/I18nContext'
+import { CurrencySelect, symbolFor } from './CurrencySelect'
 import { Cell, DataTable, Row, type Column } from './DataTable'
 import { formatDate } from './tableFormat'
 
@@ -47,7 +49,10 @@ export function RewardsModule() {
   const [phase, setPhase] = useState<LoadPhase>('loading')
   const [rewards, setRewards] = useState<Reward[]>([])
   const [types, setTypes] = useState<RewardTypeOption[]>([])
-  const [currencySymbol, setCurrencySymbol] = useState('')
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([])
+  // F15 R8: the effective currency — the admin's choice, or what their
+  // language suggests while there is none. The editor opens on it.
+  const [currency, setCurrency] = useState('')
   const [editing, setEditing] = useState<number | 'new' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,7 +75,8 @@ export function RewardsModule() {
 
       setRewards(catalogue.rewards)
       setTypes(catalogue.types)
-      setCurrencySymbol(branding.currencySymbol)
+      setCurrencies(branding.currencies)
+      setCurrency(branding.currency)
       setPhase('ready')
     } catch {
       if (signal?.aborted === true) {
@@ -176,7 +182,7 @@ export function RewardsModule() {
                 </Cell>
                 <Cell testId="reward-type">{t(`rewardType.${reward.type}`)}</Cell>
                 <Cell align="right" numeric testId="reward-value">
-                  {formatValue(reward, currencySymbol)}
+                  {formatValue(reward, symbolFor(currencies, currency))}
                 </Cell>
                 {/* F13 R6: what is in the way, before delete is pressed. */}
                 <Cell muted testId="reward-used-by">
@@ -193,7 +199,8 @@ export function RewardsModule() {
         {phase === 'ready' && editing !== null && (
           <RewardEditor
             types={types}
-            currencySymbol={currencySymbol}
+            currencies={currencies}
+            currency={currency}
             reward={editing === 'new' ? null : (rewards.find((r) => r.id === editing) ?? null)}
             onCancel={() => setEditing(null)}
             onSaved={() => {
@@ -225,7 +232,10 @@ export function RewardsModule() {
 interface EditorProps {
   reward: Reward | null
   types: RewardTypeOption[]
-  currencySymbol: string
+  /** F15 R14: the list and the symbols, as the server sent them. */
+  currencies: CurrencyOption[]
+  /** F15 R8: what the picker opens on. */
+  currency: string
   onCancel: () => void
   onSaved: () => void
   onDelete: (reward: Reward) => void
@@ -235,11 +245,24 @@ interface EditorProps {
  * Adding or changing one reward.
  *
  * The value field appears only for the two types that take one (F13 R3),
- * and is relabelled with the campaign's currency for an amount, so the
- * admin is never typing a number with no stated unit.
+ * and an amount is accompanied by the currency it is counted in (F15 R7),
+ * so the admin is never typing a number with no stated unit.
  */
-function RewardEditor({ reward, types, currencySymbol, onCancel, onSaved, onDelete }: EditorProps) {
+function RewardEditor({
+  reward,
+  types,
+  currencies,
+  currency,
+  onCancel,
+  onSaved,
+  onDelete,
+}: EditorProps) {
   const t = useT()
+
+  // F15 R8, R9: starts on the campaign's effective currency and is saved
+  // with the reward. Held here rather than in the draft because it is a
+  // property of the campaign, not of this reward (F13 R27).
+  const [chosenCurrency, setChosenCurrency] = useState(currency)
 
   const [draft, setDraft] = useState<RewardDraft>(() =>
     reward === null
@@ -272,6 +295,13 @@ function RewardEditor({ reward, types, currencySymbol, onCancel, onSaved, onDele
     const payload: RewardDraft = takesValue(draft.type)
       ? { name: draft.name, type: draft.type, value: draft.value ?? 0 }
       : { name: draft.name, type: draft.type }
+
+    // F15 R9: and the currency only for the one counted in money, so a
+    // save the admin made about a free product cannot move what the shop
+    // trades in.
+    if (takesCurrency(draft.type)) {
+      payload.currency = chosenCurrency
+    }
 
     try {
       if (reward === null) {
@@ -346,27 +376,51 @@ function RewardEditor({ reward, types, currencySymbol, onCancel, onSaved, onDele
           <div>
             <label htmlFor="reward-value" className={labelClass}>
               {t('rewards.value')}
-              {draft.type === 'percent_off' ? ' (%)' : ` (${currencySymbol})`}
+              {draft.type === 'percent_off'
+                ? ' (%)'
+                : ` (${symbolFor(currencies, chosenCurrency)})`}
             </label>
-            <input
-              id="reward-value"
-              type="number"
-              inputMode="numeric"
-              value={draft.value ?? ''}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  value: event.target.value === '' ? undefined : Number(event.target.value),
-                }))
-              }
-              aria-invalid={problem('value') !== undefined}
-              data-testid="reward-value-input"
-              className={inputClass}
-            />
+            {/* F15 section 9: the amount and what it is counted in are one
+                answer, so they are one line. The suffix above follows the
+                select, so the unit is stated twice and never disagrees. */}
+            <div className="flex items-start gap-2">
+              <input
+                id="reward-value"
+                type="number"
+                inputMode="numeric"
+                value={draft.value ?? ''}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    value: event.target.value === '' ? undefined : Number(event.target.value),
+                  }))
+                }
+                aria-invalid={problem('value') !== undefined}
+                data-testid="reward-value-input"
+                className={`${inputClass} min-w-0 flex-1`}
+              />
+              {takesCurrency(draft.type) && (
+                <CurrencySelect
+                  id="reward-currency"
+                  value={chosenCurrency}
+                  options={currencies}
+                  onChange={setChosenCurrency}
+                  aria-label={t('rewards.currency')}
+                />
+              )}
+            </div>
             {problem('value') !== undefined && (
               <p role="alert" className="mt-1 text-xs text-rose-600">
                 {problem('value')}
               </p>
+            )}
+            {problem('currency') !== undefined && (
+              <p role="alert" className="mt-1 text-xs text-rose-600">
+                {problem('currency')}
+              </p>
+            )}
+            {takesCurrency(draft.type) && (
+              <p className="mt-1 text-xs text-slate-500">{t('rewards.currencyHint')}</p>
             )}
           </div>
         )}
