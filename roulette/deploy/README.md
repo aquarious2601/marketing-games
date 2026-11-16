@@ -16,6 +16,51 @@ first pass on an instance and a database that hold nothing.
 | `rollback.sh` | Puts the previous release back. No network, no build |
 | `../../.github/workflows/deploy.yml` | Test, build, upload, tell the instance |
 
+## Before you start
+
+Three things this needs that are not in the repository.
+
+**An AWS account**, with permission to create IAM roles, an S3 bucket and an
+EC2 instance. A fresh account's root user has all of that; an account
+somebody else administers may not.
+
+**The AWS CLI**, which every command below is written for:
+
+```powershell
+winget install Amazon.AWSCLI
+```
+
+**The Session Manager plugin**, which is how you get a shell on a machine
+with no SSH port:
+
+```powershell
+winget install Amazon.SessionManagerPlugin
+```
+
+Close and reopen the terminal afterwards so `aws` is on the path, then sign
+the CLI in. Create an access key in the IAM console for your own user, and:
+
+```powershell
+aws configure
+```
+
+It asks for the key, the secret, a default region and an output format.
+Those credentials stay on your machine — nothing in this repository reads
+them, and they are not the credentials the deployment uses. The deployment
+has its own role, created in step 7, which is what GitHub assumes.
+
+Check it worked:
+
+```bash
+aws sts get-caller-identity
+```
+
+That prints your account id, which step 7 needs.
+
+Optional: `winget install GitHub.cli` lets you set the repository's
+variables from the command line in step 8 instead of clicking through
+Settings.
+
 ## What you create by hand, once
 
 Nothing here is scripted on purpose (P03 section 5): it is a handful of
