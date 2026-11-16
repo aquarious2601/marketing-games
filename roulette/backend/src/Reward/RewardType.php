@@ -28,6 +28,21 @@ enum RewardType: string
     public const MIN_AMOUNT = 1;
 
     /**
+     * F21 R2, R4. The largest amount-off a campaign may configure.
+     *
+     * One hundred million holds any realistic promotion in any currency the
+     * game offers — about EUR 3,600 at the weakest of them — while still
+     * refusing a number with fifteen digits in it, which is a typo and not
+     * a prize.
+     *
+     * One number for every currency rather than one per currency: a limit
+     * that moved with F15's setting would make a reward that was valid
+     * yesterday invalid because somebody switched from dong to euro. See
+     * F21 section 13.
+     */
+    public const MAX_AMOUNT = 100_000_000;
+
+    /**
      * A value already in the database that we no longer recognise reads as a
      * free product rather than throwing, so one bad row cannot take the
      * admin page down with it. Input is validated on the way in instead.

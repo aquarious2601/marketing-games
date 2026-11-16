@@ -169,6 +169,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F18](./F18-the-campaigns-phone-country.md) | The campaign's phone country | Both | Withdrawn |
 | [F19](./F19-one-person-one-number.md) | One person, one number | Both | Agreed |
 | [F20](./F20-one-spin-per-identification.md) | One spin per identification | Both | Agreed |
+| [F21](./F21-amounts-that-fit-the-currency.md) | Amounts that fit the currency | Admin | Agreed |
 
 ## Running the tests
 

@@ -154,6 +154,22 @@ final class RewardInputParser
             return null;
         }
 
+        /*
+         * F21 R3. There was no ceiling here until a column that stops at
+         * 32,767 met a 50,000 dong promotion: on a loose database the value
+         * was silently truncated, and on a strict one the save was a 500.
+         * The column is wider now, and this is what keeps the answer a
+         * message rather than either of those.
+         */
+        if ($raw > RewardType::MAX_AMOUNT) {
+            $violations[] = new Violation(
+                'value',
+                $this->translator->trans('reward.amount_too_large', ['%max%' => RewardType::MAX_AMOUNT]),
+            );
+
+            return null;
+        }
+
         return $raw;
     }
 }

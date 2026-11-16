@@ -186,6 +186,77 @@ final class RewardControllerTest extends DatabaseWebTestCase
         yield 'no amount' => ['amount_off', null];
         yield 'a zero amount' => ['amount_off', 0];
         yield 'a negative amount' => ['amount_off', -5];
+        // F21 R3. Above the cap is a message, never a truncation and never
+        // a 500 — which is what it was, depending on the database.
+        yield 'an amount past the cap' => ['amount_off', RewardType::MAX_AMOUNT + 1];
+        yield 'an amount of fifteen digits' => ['amount_off', 999_999_999_999_999];
+    }
+
+    /**
+     * F21 R1, R2, and the bug it closes. 50,000 is an ordinary Vietnamese
+     * promotion, about EUR 1.80. It used to be stored as 32,767 on a
+     * database without strict mode, and to be a 500 on one with it.
+     */
+    #[DataProvider('realisticAmounts')]
+    public function testItStoresAnAmountTooBigForTheOldColumn(int $amount): void
+    {
+        $this->signInAsAdmin();
+
+        $id = $this->addAndGetId('Big discount', 'amount_off', $amount);
+
+        $this->client->request('GET', self::URI);
+
+        $stored = array_values(array_filter(
+            $this->decodeResponse()['rewards'],
+            static fn (array $reward): bool => $reward['id'] === $id,
+        ));
+
+        self::assertCount(1, $stored);
+        self::assertSame($amount, $stored[0]['value'], 'The amount was not stored as entered.');
+    }
+
+    /**
+     * @return iterable<string, array{int}>
+     */
+    public static function realisticAmounts(): iterable
+    {
+        yield 'fifty thousand dong' => [50_000];
+        yield 'two hundred thousand dong' => [200_000];
+        yield 'one past the old smallint ceiling' => [32_768];
+        yield 'the cap itself' => [RewardType::MAX_AMOUNT];
+    }
+
+    /** F21 R3: and the message says what the limit is. */
+    public function testItSaysWhatTheAmountLimitIs(): void
+    {
+        $this->signInAsAdmin();
+
+        $this->add('Too big', 'amount_off', RewardType::MAX_AMOUNT + 1);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        $violation = $this->decodeResponse()['error']['violations'][0];
+
+        self::assertSame('value', $violation['field']);
+        self::assertStringContainsString(
+            (string) RewardType::MAX_AMOUNT,
+            $violation['message'],
+            'The admin is not told what the limit is.',
+        );
+        self::assertSame(0, $this->countRows('reward'));
+    }
+
+    /** F21 R5: percentages were already right and are untouched. */
+    public function testThePercentageLimitsAreUnchanged(): void
+    {
+        $this->signInAsAdmin();
+
+        $this->addAndGetId('All of it', 'percent_off', 100);
+
+        $this->add('More than all of it', 'percent_off', 101);
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        self::assertSame(1, $this->countRows('reward'));
     }
 
     /**

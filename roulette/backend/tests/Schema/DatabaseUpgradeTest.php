@@ -479,6 +479,111 @@ final class DatabaseUpgradeTest extends KernelTestCase
         self::assertSame('EUR', $this->connection->fetchOne('SELECT currency FROM branding'));
     }
 
+    // ------------------------------------------- P02 R26: an amount that fits
+
+    /** P02 R26, F21 R1: columns created from now on are already right. */
+    public function testItCreatesTheCatalogueWithColumnsThatHoldAPrice(): void
+    {
+        $this->givenTheDefaultWheel();
+
+        $this->upgrade()->run();
+
+        self::assertSame('int', $this->typeOf('reward', 'value'));
+        self::assertSame('int', $this->typeOf('spin', 'reward_value'));
+    }
+
+    /**
+     * P02 R26, F21 R1. The sharper half: the spin log is written while a
+     * player is at the wheel, so a column that cannot hold what the admin
+     * configured is a 500 in front of a customer.
+     */
+    public function testItWidensTheSpinLogsAmountToo(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->executeStatement(
+            'ALTER TABLE spin ADD reward_type VARCHAR(20) DEFAULT NULL, '
+            .'ADD reward_value SMALLINT DEFAULT NULL, '
+            .'ADD reward_code VARCHAR(16) DEFAULT NULL, '
+            .'ADD claimed_at DATETIME DEFAULT NULL',
+        );
+
+        self::assertSame('smallint', $this->typeOf('spin', 'reward_value'));
+
+        $this->upgrade()->run();
+
+        self::assertSame('int', $this->typeOf('spin', 'reward_value'));
+    }
+
+    /**
+     * P02 R26, F21 R6. The case that matters: a database that already holds
+     * a catalogue, with the column F13 gave it.
+     */
+    public function testItWidensASmallintCatalogueWithoutTouchingItsValues(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPreF21Catalogue();
+
+        self::assertSame('smallint', $this->typeOf('reward', 'value'));
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame('int', $this->typeOf('reward', 'value'));
+        self::assertStringContainsString(
+            'widened',
+            $this->detailOf($steps, 'amounts hold a real price'),
+        );
+
+        // F21 R7: 32,767 may be a truncated 50,000 or somebody who meant
+        // 32,767, and nothing stored can tell the two apart. Left alone.
+        //
+        // Only the three rows this test put there: the upgrade also invents
+        // a reward for each slice of the wheel (P02 R9-R11), and those are
+        // not what this is about.
+        self::assertSame(
+            ['Ten per cent' => 10, 'Truncated' => 32767, 'Two off' => 2],
+            $this->connection->fetchAllKeyValue(
+                "SELECT name, value FROM reward "
+                ."WHERE name IN ('Ten per cent', 'Two off', 'Truncated') ORDER BY name",
+            ),
+        );
+    }
+
+    /** P02 R26: and the amount that started all this now fits. */
+    public function testAPriceInDongFitsOnceWidened(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPreF21Catalogue();
+
+        $this->upgrade()->run();
+
+        $this->connection->insert('reward', [
+            'name' => 'Fifty thousand off',
+            'type' => RewardType::AmountOff->value,
+            'value' => 50000,
+            'created_at' => '2026-11-17 09:00:00',
+        ]);
+
+        self::assertSame(
+            50000,
+            $this->connection->fetchOne("SELECT value FROM reward WHERE name = 'Fifty thousand off'"),
+        );
+    }
+
+    /** P02 R3: a second run finds the column already wide. */
+    public function testItLeavesAWidenedColumnAlone(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenAPreF21Catalogue();
+
+        $this->upgrade()->run();
+        $steps = $this->upgrade()->run();
+
+        self::assertSame(
+            'already applied',
+            $this->detailOf($steps, 'amounts hold a real price'),
+        );
+    }
+
     // --------------------------------------------- P02 R22-R25: the phone tail
 
     /** P02 R22, R25 */
@@ -883,6 +988,50 @@ final class DatabaseUpgradeTest extends KernelTestCase
         }
 
         self::fail(sprintf('There is no step called "%s".', $name));
+    }
+
+    /**
+     * A catalogue as a database upgraded before F21 holds one: the column
+     * F13 created, with a value in it that the column has already spoiled.
+     */
+    private function givenAPreF21Catalogue(): void
+    {
+        $this->connection->executeStatement(
+            'CREATE TABLE reward ('
+            .'id INT AUTO_INCREMENT NOT NULL, name VARCHAR(60) NOT NULL, '
+            .'type VARCHAR(20) NOT NULL, value SMALLINT DEFAULT NULL, '
+            .'created_at DATETIME NOT NULL, '
+            .'UNIQUE INDEX uniq_reward_name (name), PRIMARY KEY (id)'
+            .') DEFAULT CHARACTER SET utf8mb4 ENGINE = InnoDB',
+        );
+
+        $rows = [
+            ['Ten per cent', RewardType::PercentOff->value, 10],
+            ['Two off', RewardType::AmountOff->value, 2],
+            // What a loose database made of somebody asking for 50,000.
+            ['Truncated', RewardType::AmountOff->value, 32767],
+        ];
+
+        foreach ($rows as [$name, $type, $value]) {
+            $this->connection->insert('reward', [
+                'name' => $name,
+                'type' => $type,
+                'value' => $value,
+                'created_at' => '2026-11-16 09:00:00',
+            ]);
+        }
+    }
+
+    /** The database's own word for a column's type, as the upgrade reads it. */
+    private function typeOf(string $table, string $column): ?string
+    {
+        $type = $this->connection->fetchOne(
+            'SELECT DATA_TYPE FROM information_schema.COLUMNS '
+            .'WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+            ['table' => $table, 'column' => $column],
+        );
+
+        return \is_string($type) ? strtolower($type) : null;
     }
 
     private function countRows(string $table): int
