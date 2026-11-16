@@ -68,17 +68,31 @@ one-off AWS objects, and Terraform for one box is more to maintain than the
 box. Run them one at a time and read each result — a half-applied script is
 harder to debug than a step that stopped.
 
-Set these once in the shell you are working in:
+**Run all of this in Git Bash, not PowerShell.** The commands use `export`,
+`$(...)` and heredocs, which PowerShell parses differently — `export` alone
+is enough to stop it. Git Bash comes with Git, so it is already here.
+
+Set these once in the shell you are working in. Only two lines need
+editing:
 
 ```bash
-export AWS_REGION=eu-west-3                  # wherever your customers are
-export BUCKET=marketing-games-roulette       # must be globally unique
-export DOMAIN=roulette.example.com
-export EMAIL=you@example.com
+export AWS_REGION=eu-west-3
 export REPO=aquarious2601/marketing-games
+
+export DOMAIN=roulette.example.com           # <- yours
+export EMAIL=you@example.com                 # <- yours
+
 export ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-echo "account $ACCOUNT, region $AWS_REGION"
+# A bucket name must be unique across every AWS account in the world, so it
+# ends in yours rather than in a guess at what nobody else has taken.
+export BUCKET="marketing-games-roulette-$ACCOUNT"
+
+echo "account $ACCOUNT, region $AWS_REGION, bucket $BUCKET"
 ```
+
+If `$ACCOUNT` comes out empty, `aws configure` has not been run or the
+credentials are wrong; nothing below will work until that line prints a
+twelve-digit number.
 
 ### 1. The S3 bucket
 
