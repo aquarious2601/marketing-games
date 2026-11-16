@@ -1,0 +1,29 @@
+# The gate in front of a merge.
+#
+# Runs on every pull request — a feature branch into a sprint branch, a
+# sprint branch into main, a fix into main — and on a push to a sprint
+# branch, which catches anything that reached one without a pull request.
+#
+# It does not run on pushes to main: deploy.yml runs the same suites there
+# before it deploys, and running them twice on the same commit would only
+# mean waiting twice.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'next-*'
+
+# A second push to the same branch makes the first run pointless, so it is
+# cancelled. Deployments are the opposite case and queue instead.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml

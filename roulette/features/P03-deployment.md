@@ -51,6 +51,8 @@ remembers them.
 ### In scope
 
 - Provisioning one Ubuntu 24.04 instance from bare to serving.
+- Deploying on every push to `main`, which is reached only through a
+  sprint branch (see [`README.md`](./README.md)).
 - nginx serving the built frontend and proxying `/api` to PHP-FPM.
 - MariaDB on the same instance, listening on localhost only.
 - A release pipeline: test, build, upload, install, verify, roll back.
@@ -111,7 +113,7 @@ remembers them.
 | # | Rule |
 |---|---|
 | R17 | After the symlink moves, the deploy requests `/api/health` on localhost. A non-200 rolls the symlink back, reloads, and fails the job. |
-| R18 | The tests that gate a deploy are the four fast suites: PHPUnit, Vitest, TypeScript and the linter. A red suite means nothing is built and nothing is uploaded. |
+| R18 | The tests that gate a deploy are the four fast suites: PHPUnit, Vitest, TypeScript and the linter. A red suite means nothing is built and nothing is uploaded. They are defined once, in a reusable workflow, and run both on a pull request and again on main — a gate defined twice is a gate that eventually differs between the two. |
 | R19 | The deploy script is idempotent: running it twice with the same SHA produces the same live result. |
 
 ### Serving

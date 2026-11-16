@@ -1,0 +1,94 @@
+# The four fast suites, in one place, called by both ci.yml and deploy.yml.
+#
+# Reusable rather than copied, because a gate that is defined twice is a gate
+# that eventually differs between the pull request and the merge — and the
+# whole point of running it on both is that they agree.
+#
+# The Playwright end-to-end suite is deliberately absent. The repository's
+# CLAUDE.md makes it the user's to run by hand and says it must not gate a
+# change, so nothing here waits on a browser.
+name: Tests
+
+on:
+  workflow_call:
+
+env:
+  PHP_VERSION: '8.3'
+  NODE_VERSION: '22'
+
+jobs:
+  suites:
+    name: Backend, types, frontend, lint
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ctype, iconv, intl, mbstring, pdo_mysql, xml, zip
+          coverage: none
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: roulette/frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: roulette/backend
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Install frontend dependencies
+        working-directory: roulette/frontend
+        run: npm ci
+
+      # config/packages/doctrine.yaml appends `_test` to the database name in
+      # the test environment, so DATABASE_URL below names `roulette` and the
+      # suite connects to `roulette_test`. DatabaseUpgradeTest creates and
+      # drops `roulette_upgrade_test` itself, which is why only one database
+      # is made here and why this user needs CREATE DATABASE.
+      - name: Create the test database
+        env:
+          MYSQL_PWD: root
+        run: |
+          mysql -h 127.0.0.1 -u root \
+            -e "CREATE DATABASE IF NOT EXISTS roulette_test DEFAULT CHARACTER SET utf8mb4;"
+
+      - name: Build the test schema
+        working-directory: roulette/backend
+        env:
+          APP_ENV: test
+          DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
+        run: php bin/console doctrine:schema:update --force --complete --env=test
+
+      - name: PHPUnit
+        working-directory: roulette/backend
+        env:
+          DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
+        run: php vendor/bin/phpunit
+
+      - name: TypeScript
+        working-directory: roulette/frontend
+        run: npm run typecheck
+
+      - name: Vitest
+        working-directory: roulette/frontend
+        run: npm test
+
+      - name: Lint
+        working-directory: roulette/frontend
+        run: npm run lint

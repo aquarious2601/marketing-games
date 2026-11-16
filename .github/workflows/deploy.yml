@@ -1,9 +1,10 @@
 # P03. Test, build, ship, verify.
 #
-# The tests are the gate (R18): a red suite builds nothing and uploads
-# nothing, so a broken commit cannot reach the instance. The Playwright
-# end-to-end suite is deliberately absent — the repository's CLAUDE.md makes
-# it the user's to run by hand and says it must not gate a change.
+# Runs only on main, because main is what is deployed. Features reach it
+# through a sprint branch — see features/README.md — so by the time a commit
+# lands here its suites have already been green on a pull request. They run
+# again anyway: the gate that matters is the one in front of the thing it
+# guards (P03 R18).
 #
 # Nothing here holds a long-lived credential. GitHub assumes an AWS role
 # through OIDC (R3) and the instance pulls the release with its own role, so
@@ -16,7 +17,8 @@ on:
   workflow_dispatch:
 
 # P03 section 10: two pushes in quick succession deploy one after the other
-# rather than racing for the symlink.
+# rather than racing for the symlink. Never cancelled mid-flight — a
+# half-finished deploy is worse than a slow one.
 concurrency:
   group: deploy-main
   cancel-in-progress: false
@@ -30,87 +32,12 @@ env:
   NODE_VERSION: '22'
 
 jobs:
-  test:
-    name: Tests
-    runs-on: ubuntu-latest
-
-    services:
-      mariadb:
-        image: mariadb:10.11
-        env:
-          MARIADB_ROOT_PASSWORD: root
-        ports: ['3306:3306']
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=5s --health-timeout=5s --health-retries=20
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ env.PHP_VERSION }}
-          extensions: ctype, iconv, intl, mbstring, pdo_mysql, xml, zip
-          coverage: none
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: roulette/frontend/package-lock.json
-
-      - name: Install backend dependencies
-        working-directory: roulette/backend
-        run: composer install --prefer-dist --no-progress --no-interaction
-
-      - name: Install frontend dependencies
-        working-directory: roulette/frontend
-        run: npm ci
-
-      # The suite needs the databases its tests create and drop. The names
-      # match what phpunit.dist.xml and DatabaseUpgradeTest expect.
-      # config/packages/doctrine.yaml appends `_test` to the database name in
-      # the test environment, so DATABASE_URL below names `roulette` and the
-      # suite connects to `roulette_test`. DatabaseUpgradeTest creates and
-      # drops `roulette_upgrade_test` itself, which is why only one database
-      # is made here and why this user needs CREATE DATABASE.
-      - name: Create the test database
-        env:
-          MYSQL_PWD: root
-        run: |
-          mysql -h 127.0.0.1 -u root \
-            -e "CREATE DATABASE IF NOT EXISTS roulette_test DEFAULT CHARACTER SET utf8mb4;"
-
-      - name: Build the test schema
-        working-directory: roulette/backend
-        env:
-          APP_ENV: test
-          DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
-        run: php bin/console doctrine:schema:update --force --complete --env=test
-
-      - name: PHPUnit
-        working-directory: roulette/backend
-        env:
-          DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
-        run: php vendor/bin/phpunit
-
-      - name: TypeScript
-        working-directory: roulette/frontend
-        run: npm run typecheck
-
-      - name: Vitest
-        working-directory: roulette/frontend
-        run: npm test
-
-      - name: Lint
-        working-directory: roulette/frontend
-        run: npm run lint
+  tests:
+    uses: ./.github/workflows/tests.yml
 
   deploy:
     name: Deploy
-    needs: test
+    needs: tests
     runs-on: ubuntu-latest
 
     # Skipped until the AWS side of P03's runbook exists, so pushing this

@@ -15,14 +15,108 @@ roulette game traces back to a numbered feature file here.
    conversation. Status becomes `Agreed`.
 5. **I implement it** on a branch named `feature/Fnn-short-name`, and tick off
    the acceptance criteria as they pass.
-6. **Status becomes `Done`** when every acceptance criterion in the file holds.
+6. **I open a pull request** into the current sprint branch. CI runs the four
+   fast suites on it.
+7. **You test it by hand.** The automated suites cannot answer every
+   criterion — anything that needs a browser is yours (see *Running the
+   tests*).
+8. **Status becomes `Done`** when every acceptance criterion holds, your pass
+   included.
+9. **On your word, I merge the pull request** into the sprint branch.
 
-A feature is never implemented while its file is still `Draft`.
+A feature is never implemented while its file is still `Draft`, and never
+merged while it is still `Agreed`.
+
+## Branches
+
+```
+feature/Fnn-short-name  ──PR──▶  next-1.1  ──end of sprint──▶  main  ──▶  deployed
+```
+
+| Branch | What it is |
+|---|---|
+| `main` | What is deployed. Every push to it deploys ([P03](./P03-deployment.md)). Nothing is committed to it directly. |
+| `next-<major>.<minor>` | The sprint branch: roughly a week of work. Finished features land here first, so main only ever receives work that has been together for a while. |
+| `feature/Fnn-short-name` | One feature, cut from the sprint branch. One file, one branch ([above](#rules-we-hold-ourselves-to)). |
+
+Versions are `<major>.<minor>`; a sprint is a minor. A major is a decision
+you make about the product, never one that happens by accident because
+twelve sprints went by.
+
+### Starting a feature
+
+```bash
+git switch next-1.1 && git pull
+git switch -c feature/F21-spin-eligibility
+```
+
+### Finishing one
+
+CI must be green and your manual pass must be done — in that order, because
+there is no sense testing by hand what the suites already reject. Then, on
+your word:
+
+```bash
+gh pr merge --no-ff --delete-branch
+```
+
+`--no-ff` on purpose: the merge commit is the record of when a feature
+landed and what it brought. Fast-forwarding would scatter a feature's
+commits into the sprint's history with nothing tying them together.
+
+### Ending a sprint
+
+On your word, and not before — this is the step that reaches customers:
+
+```bash
+git switch main && git pull
+git merge --no-ff next-1.1
+git tag -a v1.1.0 -m "Sprint 1.1"
+git push origin main --follow-tags          # this deploys
+git switch -c next-1.2 && git push -u origin next-1.2
+```
+
+The tag is what makes "roll back to the last release" a thing you can say
+rather than a SHA you have to find. The deploy itself is per-commit and
+rolls back by symlink ([P03](./P03-deployment.md) R6); the tag is for
+people.
+
+### When production breaks
+
+A fix for something already deployed is cut from `main`, not from the sprint
+branch — otherwise shipping it means shipping the whole unfinished sprint
+with it:
+
+```bash
+git switch main && git pull
+git switch -c fix/whatever-broke
+# then: PR into main, merge, and merge main back into the sprint branch
+```
+
+Merging `main` back into `next-*` afterwards is the step that is easy to
+forget and causes the next sprint's merge to conflict with itself.
+
+### Making it stick
+
+Nothing above stops anybody pushing to `main` — it is a convention until
+GitHub is told otherwise. In Settings → Branches, a rule on `main` that
+requires a pull request and a passing **CI / tests** check turns the
+convention into something the repository enforces, including against me.
+Worth doing before the first sprint rather than after the first accident.
+
+### The one exception on record
+
+F15 to F20 and P03 were committed straight to `main` before this workflow
+existed, as was the commit that introduced the workflow itself — there was
+no sprint branch to put it on yet. They are marked `Agreed` rather than
+`Done` and close once the first deployment has been tested by hand.
+
+Everything after that goes through a branch.
 
 ## Rules we hold ourselves to
 
-- **One feature, one file, one branch.** If a description needs the word
-  "and" twice to explain itself, it is probably two features.
+- **One feature, one file, one branch, one pull request.** If a description
+  needs the word "and" twice to explain itself, it is probably two features.
 - **Acceptance criteria are testable.** "Looks good on mobile" is not a
   criterion; "the wheel fits within the viewport width at 375px with no
   horizontal scroll" is.
@@ -99,8 +193,12 @@ Individually:
 | End to end (debug) | `npm run test:e2e:ui` | `roulette/frontend` |
 | End to end (report) | `npm run test:e2e:report` | `roulette/frontend` |
 
-Run `.	est-all.ps1` before committing a feature, and `.	est-all.ps1 -E2E`
-before calling one `Done`. A feature is not `Done` while any suite is red.
+Run `.	est-all.ps1` before pushing a feature branch. CI runs the same four
+suites on every pull request, so a red one is caught either way.
+
+`Done` needs more than green suites: it needs the manual pass that the
+automated ones cannot make (step 7 of the loop). A feature is not `Done`
+while any suite is red, and not `Done` because they are all green.
 
 ## Candidate features
 
