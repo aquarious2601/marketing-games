@@ -28,6 +28,17 @@ class Branding
     /** Shown when the admin has not set one of their own (F04 R28). */
     public const DEFAULT_TAGLINE = 'One spin, one prize. Good luck.';
 
+    /**
+     * F23 R4. The ceiling is what lets the column below stay a SMALLINT
+     * after what F21 cost: a value is checked against this before it is
+     * ever written, which is exactly what reward.value did not have.
+     *
+     * Ninety-nine is not a number anybody will reach. It is a number that
+     * says "this is a daily allowance" rather than "this is a budget", and
+     * an admin who types 500 has almost certainly meant something else.
+     */
+    public const MAX_DAILY_SPIN_LIMIT = 99;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -63,6 +74,20 @@ class Branding
      */
     #[ORM\Column(length: 3, nullable: true)]
     private ?string $currency = null;
+
+    /**
+     * How many times one person may spin in a day (F23 R1).
+     *
+     * Null is no limit, and is what every campaign that predates this
+     * column has: the game has always been unlimited, so null has to keep
+     * meaning what the absence of the column meant.
+     *
+     * It is on this row because `branding` is the campaign's single record
+     * in practice — F13 R27 put the currency here on the same grounds. The
+     * table's name is a debt, written down in F23 section 13.
+     */
+    #[ORM\Column(name: 'daily_spin_limit', type: 'smallint', nullable: true)]
+    private ?int $dailySpinLimit = null;
 
     #[ORM\Column(name: 'updated_at')]
     private \DateTimeImmutable $updatedAt;
@@ -185,6 +210,18 @@ class Branding
     public function setCurrency(?Currency $currency): void
     {
         $this->currency = $currency?->value;
+        $this->touch();
+    }
+
+    /** F23 R1. Null means the campaign has no limit. */
+    public function getDailySpinLimit(): ?int
+    {
+        return $this->dailySpinLimit;
+    }
+
+    public function setDailySpinLimit(?int $limit): void
+    {
+        $this->dailySpinLimit = $limit;
         $this->touch();
     }
 

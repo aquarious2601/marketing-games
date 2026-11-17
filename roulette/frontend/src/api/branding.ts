@@ -41,6 +41,14 @@ export interface AdminBranding extends Branding {
   ownCurrency: string | null
   /** F15 R2: what this admin's language suggests, used only while unchosen. */
   defaultCurrency: string
+  /**
+   * F23 R1, R22. How many spins one person gets per day, or null for no
+   * limit. Admin only — it is deliberately absent from the payload the
+   * player page loads with the wheel.
+   */
+  dailySpinLimit: number | null
+  /** F23 R4: the ceiling, so the form validates against the server's. */
+  maxDailySpinLimit: number
 }
 
 /**
@@ -58,6 +66,11 @@ export interface BrandingSubmission {
   theme: string
   /** F15 R10. Omitted leaves the campaign's currency alone (F13 R27). */
   currency?: string
+  /**
+   * F23 R1. Null clears the limit; omitting the key leaves it alone, which
+   * is what stops an older client silently unlimiting a campaign.
+   */
+  dailySpinLimit?: number | null
 }
 
 export async function fetchBranding(options?: RequestOptions): Promise<AdminBranding> {

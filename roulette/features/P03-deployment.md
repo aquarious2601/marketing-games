@@ -96,7 +96,7 @@ remembers them.
 | R8 | `var/uploads` is shared between releases, not copied into them: it holds the campaign's uploaded logo ([F05](./F05-svg-logos.md)), which is data, not code. |
 | R9 | `var/sessions` is shared, so a deploy does not sign out every admin or forget every identified player mid-spin ([F08](./F08-player-identification.md) R12). |
 | R10 | `var/log` and the cache pool directory are shared. `var/cache` is **not**: it is compiled for one release's code and must not outlive it. |
-| R11 | `.env.local` lives in `shared/` and is symlinked into each release. It holds `APP_SECRET` and `DATABASE_URL` and is never in the repository. |
+| R11 | `.env.local` lives in `shared/` and is symlinked into each release. It holds `APP_SECRET`, `DATABASE_URL` and — since [F23](./F23-a-daily-spin-limit.md) R7 — `APP_TIMEZONE`, the shop's own timezone. It is never in the repository. |
 
 ### The database
 

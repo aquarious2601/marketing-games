@@ -23,6 +23,9 @@ export const vi: Record<MessageKey, string> = {
   'player.claimByCode': 'Hãy đọc mã này cho nhân viên để nhận thưởng.',
   'player.thanksForPlaying': 'Cảm ơn bạn đã tham gia',
   'player.betterLuck': 'Chúc bạn may mắn lần sau!',
+  'player.alreadyPlayedKicker': 'Đó là lượt của bạn',
+  'player.alreadyPlayedToday': 'Hôm nay bạn đã chơi rồi.',
+  'player.comeBackTomorrow': 'Hẹn gặp lại bạn ngày mai với một lượt quay mới.',
   'player.loadFailed': 'Không tải được trò chơi.',
   'player.spinFailed': 'Lượt quay chưa hoàn tất. Vui lòng thử lại.',
   'player.identityLost': 'Trò chơi cần biết ai đang chơi. Vui lòng nhập lại số của bạn.',
@@ -108,6 +111,7 @@ export const vi: Record<MessageKey, string> = {
   'branding.taglineHint': 'Để trống để dùng “%default%”.',
   'branding.theme': 'Giao diện',
   'branding.currencyHint': 'Đơn vị tính của mọi phần thưởng giảm theo số tiền. Đổi đơn vị chỉ đổi nhãn, không quy đổi số tiền.',
+  'branding.dailySpinLimitHint': 'Mỗi người được quay bao nhiêu lần mỗi ngày. Để trống nếu không giới hạn. Tính theo người chứ không theo máy, nên nhập lại số không phải là cách lách.',
   'branding.logo': 'Logo',
   'branding.currentLogo': 'Logo hiện tại',
   'branding.removeLogo': 'Xóa logo',
@@ -205,4 +209,6 @@ export const vi: Record<MessageKey, string> = {
   'player.yourCode': 'Mã của bạn',
 
   'branding.currency': 'Đơn vị tiền tệ',
+  'branding.dailySpinLimit': 'Lượt quay mỗi người mỗi ngày',
+  'branding.dailySpinLimitBlank': 'Không giới hạn',
 }

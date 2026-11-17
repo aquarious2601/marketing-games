@@ -81,6 +81,22 @@ export interface PendingSpin {
 export interface PlayerState {
   player: PlayerIdentity | null
   spin: PendingSpin | null
+  /**
+   * How many spins this *person* has left today, or null when the campaign
+   * has no limit and when nobody is identified (F23 R12).
+   *
+   * Null rather than a large number, so "no limit" can never be rendered as
+   * a count and `spinsLeft === 0` is the whole test for an exhausted day.
+   * It is about this person, never about the campaign's rule: the page is
+   * not told what the limit is (F23 R18).
+   */
+  spinsLeft: number | null
+}
+
+/** A player the server has just identified, and their day (F23 R13). */
+export interface Identified {
+  player: PlayerIdentity
+  spinsLeft: number | null
 }
 
 export interface PhoneLookup {
@@ -88,6 +104,8 @@ export interface PhoneLookup {
   /** The canonical form the server derived from what was typed (F08 R3). */
   phone: string
   player: PlayerIdentity | null
+  /** F23 R13. Null for a number nobody has registered. */
+  spinsLeft: number | null
 }
 
 export interface Registration {
@@ -123,14 +141,13 @@ export async function identifyPhone(phone: string, options?: RequestOptions): Pr
 export async function registerPlayer(
   registration: Registration,
   options?: RequestOptions,
-): Promise<PlayerIdentity> {
-  const { player } = await apiPost<{ player: PlayerIdentity }>(
-    '/player/register',
-    registration,
-    options,
-  )
-
-  return player
+): Promise<Identified> {
+  /*
+   * F23 R13. The day comes back with the player because registering may
+   * return somebody who already exists (F08 R7) and has played today — so
+   * this cannot assume a full allowance.
+   */
+  return apiPost<Identified>('/player/register', registration, options)
 }
 
 /** F08 R14: the next person to pick up a stall phone is not this one. */

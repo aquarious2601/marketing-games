@@ -58,6 +58,23 @@ describe('the dictionaries', () => {
     }
   })
 
+  /**
+   * F23 R17. The already-played screen is the only thing a player who has
+   * used their day ever sees, so an English sentence left in `vi.ts` is not
+   * a rough edge — it is the whole screen, in the wrong language.
+   */
+  it.each(['fr', 'vi', 'zh'] as const)('says the already-played phrases in %s', (locale) => {
+    for (const key of [
+      'player.alreadyPlayedKicker',
+      'player.alreadyPlayedToday',
+      'player.comeBackTomorrow',
+    ] as const) {
+      expect(DICTIONARIES[locale][key], `${key} is still English in ${locale}`).not.toBe(
+        en[key],
+      )
+    }
+  })
+
   it.each(LOCALES)('has no key translated to nothing in %s', (locale) => {
     for (const [key, value] of Object.entries(DICTIONARIES[locale])) {
       expect(value.trim(), `${key} is empty in ${locale}`).not.toBe('')

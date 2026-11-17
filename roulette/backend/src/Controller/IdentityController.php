@@ -6,9 +6,11 @@ namespace App\Controller;
 
 use App\Dto\PlayerInputParser;
 use App\Dto\Violation;
+use App\Entity\Player;
 use App\Player\PlayerPresenter;
 use App\Player\PlayerRegistrar;
 use App\Player\PlayerSession;
+use App\Player\SpinAllowance;
 use App\Repository\PlayerRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -37,6 +39,7 @@ final class IdentityController extends AbstractController
         private readonly PlayerRegistrar $registrar,
         private readonly PlayerSession $session,
         private readonly PlayerPresenter $presenter,
+        private readonly SpinAllowance $allowance,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -66,6 +69,9 @@ final class IdentityController extends AbstractController
         return new JsonResponse([
             'player' => null === $player ? null : $this->presenter->presentForPlayer($player),
             'spin' => null === $spin ? null : $this->presenter->presentSpinForPlayer($spin),
+            // F23 R12. Null for an unlimited campaign and for nobody at all:
+            // a visitor with no identity has no day to count.
+            'spinsLeft' => $this->spinsLeft($player),
         ]);
     }
 
@@ -94,7 +100,14 @@ final class IdentityController extends AbstractController
         if (null === $player) {
             // `player` is null rather than absent so the page reads one shape
             // whichever answer it gets.
-            return new JsonResponse(['known' => false, 'phone' => $phone, 'player' => null]);
+            return new JsonResponse([
+                'known' => false,
+                'phone' => $phone,
+                'player' => null,
+                // Nobody is identified, so there is no allowance to report.
+                // The key is present so the page reads one shape (F23 R13).
+                'spinsLeft' => null,
+            ]);
         }
 
         $this->session->identify($player);
@@ -103,6 +116,13 @@ final class IdentityController extends AbstractController
             'known' => true,
             'phone' => $phone,
             'player' => $this->presenter->presentForPlayer($player),
+            /*
+             * F23 R13. Answered here as well as by /me so that identifying
+             * somebody who has used their day does not mean drawing a wheel
+             * and then taking it away again — the page knows before it
+             * renders anything.
+             */
+            'spinsLeft' => $this->spinsLeft($player),
         ]);
     }
 
@@ -131,8 +151,17 @@ final class IdentityController extends AbstractController
 
         $this->session->identify($player);
 
+        /*
+         * F23 R13. A new registration has spun nothing and has the whole
+         * allowance, but this is not hard-coded to the limit: register()
+         * returns the existing player when the number is already taken
+         * (F08 R7), and that person may well have played today.
+         */
         return new JsonResponse(
-            ['player' => $this->presenter->presentForPlayer($player)],
+            [
+                'player' => $this->presenter->presentForPlayer($player),
+                'spinsLeft' => $this->spinsLeft($player),
+            ],
             Response::HTTP_CREATED,
         );
     }
@@ -147,6 +176,18 @@ final class IdentityController extends AbstractController
         $this->session->forget();
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * How many spins this person has left today, or null (F23 R12).
+     *
+     * One place, because three routes report it and a page that was told
+     * two different numbers by two of them would show a wheel it then had
+     * to withdraw.
+     */
+    private function spinsLeft(?Player $player): ?int
+    {
+        return null === $player ? null : $this->allowance->remainingFor($player);
     }
 
     /**
