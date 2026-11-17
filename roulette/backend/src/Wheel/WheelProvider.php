@@ -9,7 +9,6 @@ use App\Entity\Wheel;
 use App\Repository\WheelRepository;
 use App\Reward\RewardProvider;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Hands out the one wheel, creating a sensible default the first time
@@ -23,13 +22,15 @@ final class WheelProvider
      *
      * The order matches RewardProvider::DEFAULTS, so slice *n* points at
      * default reward *n*. The first is the losing one, which is why this
-     * wheel ships with the toggle on (F13 R11): it has had a "Try again"
-     * slice since F01, and removing it to satisfy a column default would
-     * change a game nobody asked to change.
+     * wheel ships with the toggle on (F13 R11): it has had a losing slice
+     * since F01, and removing it to satisfy a column default would change a
+     * game nobody asked to change.
      *
-     * The labels are the slices' own (F13 R8). The first reads "Try again"
-     * while its reward is called "Maybe next time" — the clearest worked
-     * example of why the two are separate things.
+     * Every slice reads its reward's name (F26 R1). Until F26 the first one
+     * said "Try again" while the reward behind it was called "Maybe next
+     * time" — two default strings for one thing, which was offered as the
+     * worked example of why a slice kept a label of its own and turned out
+     * to be the only example anybody had.
      *
      * @var list<int>
      */
@@ -39,7 +40,6 @@ final class WheelProvider
         private readonly WheelRepository $wheels,
         private readonly EntityManagerInterface $entityManager,
         private readonly RewardProvider $rewards,
-        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -57,12 +57,11 @@ final class WheelProvider
         $rewards = $this->rewards->defaults();
 
         foreach (self::DEFAULT_PROBABILITIES as $position => $probability) {
-            $reward = $rewards[$position];
-            $label = 0 === $position
-                ? $this->translator->trans('wheel.default_losing_label')
-                : $reward->getName();
-
-            $wheel->addPrize(new Prize($label, $probability, $position, $reward));
+            // F26 R1, R5: there is no label to choose, the losing slice
+            // included. Every slice reads whatever RewardProvider called the
+            // reward behind it, which is where the wording lives now — so
+            // position 0 no longer gets a second losing label of its own.
+            $wheel->addPrize(new Prize($probability, $position, $rewards[$position]));
         }
 
         $this->entityManager->persist($wheel);

@@ -59,24 +59,31 @@ final class WheelInputParserTest extends TestCase
         self::assertCount(2, $draft->prizes);
 
         self::assertSame(1, $draft->prizes[0]->id);
-        self::assertSame('Try again', $draft->prizes[0]->name);
         self::assertSame(60, $draft->prizes[0]->probability);
 
         self::assertNull($draft->prizes[1]->id, 'A prize without an id is a new one.');
     }
 
-    /** F01 R4 — trimming */
-    public function testItTrimsNames(): void
+    /**
+     * F26 R13: a page that still sends a label is not refused for it.
+     *
+     * The admin bundle a browser is holding may predate F26, and locking it
+     * out of saving to enforce a rule that costs nothing to ignore would be
+     * the wrong trade. Every other case in this file sends a name too, so
+     * they all exercise this; it is asserted once on purpose.
+     */
+    public function testANameOnAPrizeIsIgnoredRatherThanRefused(): void
     {
-        [$draft] = $this->parser->parse([
+        [$draft, $violations] = $this->parser->parse([
             'prizes' => [
-                ['name' => '   Free gift   ', 'probability' => 50, 'rewardId' => self::REWARD_ID],
-                ['name' => 'Try again', 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => '   a label nobody reads   ', 'probability' => 50, 'rewardId' => self::REWARD_ID],
+                ['name' => str_repeat('x', 500), 'probability' => 50, 'rewardId' => self::REWARD_ID],
             ],
         ]);
 
+        self::assertSame([], $violations);
         self::assertNotNull($draft);
-        self::assertSame('Free gift', $draft->prizes[0]->name);
+        self::assertCount(2, $draft->prizes);
     }
 
     /** F01 R6 */
@@ -149,48 +156,12 @@ final class WheelInputParserTest extends TestCase
         self::assertNotNull($draft);
     }
 
-    /** F01 R4 */
-    public function testItRejectsABlankName(): void
-    {
-        [$draft, $violations] = $this->parser->parse([
-            'prizes' => [
-                ['name' => '    ', 'probability' => 50, 'rewardId' => self::REWARD_ID],
-                ['name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
-            ],
-        ]);
-
-        self::assertNull($draft);
-        self::assertSame('prizes[0].name', $violations[0]->field);
-        self::assertSame('A prize needs a name.', $violations[0]->message);
-    }
-
-    /** F01 R4 */
-    public function testItRejectsANameLongerThanFortyCharacters(): void
-    {
-        [$draft, $violations] = $this->parser->parse([
-            'prizes' => [
-                ['name' => str_repeat('a', 41), 'probability' => 50, 'rewardId' => self::REWARD_ID],
-                ['name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
-            ],
-        ]);
-
-        self::assertNull($draft);
-        self::assertStringContainsString('40 characters', $violations[0]->message);
-    }
-
-    public function testItMeasuresNameLengthInCharactersNotBytes(): void
-    {
-        // 40 accented characters is 80 bytes but a legal name.
-        [$draft, $violations] = $this->parser->parse([
-            'prizes' => [
-                ['name' => str_repeat('é', 40), 'probability' => 50, 'rewardId' => self::REWARD_ID],
-                ['name' => 'Free gift', 'probability' => 50, 'rewardId' => self::REWARD_ID],
-            ],
-        ]);
-
-        self::assertSame([], $violations);
-        self::assertNotNull($draft);
-    }
+    /*
+     * F01 R4's three name tests — blank, too long, and measured in characters
+     * rather than bytes — went with the field in F26 R10. A slice can no
+     * longer fail to save because of a label, because it has none; the
+     * catalogue's own name rules are tested in RewardControllerTest.
+     */
 
     /**
      * F01 R5. Rounding an admin's 2.6 to 3 would change the odds without
@@ -282,7 +253,6 @@ final class WheelInputParserTest extends TestCase
 
         $fields = array_map(static fn (Violation $v): string => $v->field, $violations);
 
-        self::assertContains('prizes[0].name', $fields);
         self::assertContains('prizes[0].probability', $fields);
         self::assertContains('prizes[1].probability', $fields);
     }

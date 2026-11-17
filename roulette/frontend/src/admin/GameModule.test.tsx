@@ -36,10 +36,15 @@ const fetchRewardsMock = vi.mocked(fetchRewards)
 const fetchWheelMock = vi.mocked(fetchWheel)
 const saveWheelMock = vi.mocked(saveWheel)
 
+/**
+ * F26 R1, R12: a slice is its reward and its odds, nothing else. These
+ * fixtures therefore name a reward id where they used to name a label, and
+ * reward 1 reads "Free sample" while reward 2 reads "Ten off".
+ */
 function configuration(
-  prizes: Array<[name: string, probability: number]> = [
-    ['Try again', 60],
-    ['Free gift', 40],
+  prizes: Array<[rewardId: number, probability: number]> = [
+    [1, 60],
+    [2, 40],
   ],
 ): WheelConfiguration {
   return {
@@ -47,12 +52,12 @@ function configuration(
     updatedAt: '2026-11-14T20:00:00+00:00',
     totalProbability: prizes.reduce((sum, [, p]) => sum + p, 0),
     includesLosingSlice: false,
-    prizes: prizes.map(([name, probability], index) => ({
+    prizes: prizes.map(([rewardId, probability], index) => ({
       id: index + 1,
-      name,
       probability,
       position: index,
-      colour: '#475569', rewardId: 1,
+      colour: '#475569',
+      rewardId,
     })),
   }
 }
@@ -60,7 +65,8 @@ function configuration(
 function wheelOf(count: number): WheelConfiguration {
   return configuration(
     Array.from({ length: count }, (_, index) => [
-      `Prize ${index}`,
+      // Alternating, so adjacent rows are told apart by what they give.
+      index % 2 === 0 ? 1 : 2,
       index === 0 ? 100 - (count - 1) : 1,
     ]),
   )
@@ -82,10 +88,18 @@ async function renderAdmin() {
   return user
 }
 
-function nameField(index: number): HTMLInputElement {
-  return within(screen.getAllByTestId('prize-row')[index]).getByLabelText(
-    /name$/i,
-  ) as HTMLInputElement
+/** F26 R14, R15: the reward selector is a row's identity and its first field. */
+function rewardField(index: number): HTMLSelectElement {
+  return within(screen.getAllByTestId('prize-row')[index]).getByTestId(
+    'prize-reward',
+  ) as HTMLSelectElement
+}
+
+/** What the row says it gives, which since F26 R1 is what it is called. */
+function labelOf(index: number): string {
+  const select = rewardField(index)
+
+  return select.selectedOptions[0]?.textContent ?? ''
 }
 
 function probabilityField(index: number): HTMLInputElement {
@@ -110,14 +124,48 @@ describe('loading', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/loading/i)
   })
 
-  it('renders a row per prize, with its name and percentage', async () => {
+  it('renders a row per prize, with its reward and percentage', async () => {
     await renderAdmin()
 
     expect(screen.getAllByTestId('prize-row')).toHaveLength(2)
-    expect(nameField(0)).toHaveValue('Try again')
+    expect(labelOf(0)).toBe('Free sample')
     expect(probabilityField(0)).toHaveValue('60')
-    expect(nameField(1)).toHaveValue('Free gift')
+    expect(labelOf(1)).toBe('Ten off')
     expect(probabilityField(1)).toHaveValue('40')
+  })
+
+  /** F26 R14: there is no label to type any more. */
+  it('renders no name input on a row', async () => {
+    await renderAdmin()
+
+    expect(screen.queryByLabelText(/name$/i)).not.toBeInTheDocument()
+  })
+
+  /**
+   * F26 R19, R20: one column, the list first and the preview after it.
+   *
+   * Asserted on document order rather than on classes, because what the
+   * rule is about is what an admin meets as they scroll — edit the rows,
+   * then see the wheel — and that survives the styling being rewritten.
+   */
+  it('puts the prize list before the preview', async () => {
+    await renderAdmin()
+
+    const list = screen.getByRole('region', { name: 'Prize list' })
+    const preview = screen.getByRole('region', { name: 'Wheel preview' })
+
+    expect(list.compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(list.contains(preview)).toBe(false)
+  })
+
+  /** F26 R15: the reward comes before the percentage. */
+  it('puts the reward before the percentage', async () => {
+    await renderAdmin()
+
+    const row = screen.getAllByTestId('prize-row')[0]
+    const controls = Array.from(row.querySelectorAll('select, input'))
+
+    expect(controls[0]).toHaveAttribute('data-testid', 'prize-reward')
   })
 
   /**
@@ -148,8 +196,8 @@ describe('loading', () => {
    */
   it('ignores a load that a newer one has superseded', async () => {
     fetchWheelMock
-      .mockResolvedValueOnce(configuration([['Stale', 60], ['Also stale', 40]]))
-      .mockResolvedValueOnce(configuration([['Fresh', 60], ['Also fresh', 40]]))
+      .mockResolvedValueOnce(configuration([[1, 60], [1, 40]]))
+      .mockResolvedValueOnce(configuration([[2, 60], [2, 40]]))
 
     render(
       <StrictMode>
@@ -158,10 +206,10 @@ describe('loading', () => {
     )
 
     await screen.findByRole('heading', { level: 1 })
-    await waitFor(() => expect(nameField(0)).toHaveValue('Fresh'))
+    await waitFor(() => expect(labelOf(0)).toBe('Ten off'))
 
     expect(fetchWheelMock).toHaveBeenCalledTimes(2)
-    expect(screen.queryByDisplayValue('Stale')).not.toBeInTheDocument()
+    expect(labelOf(1)).toBe('Ten off')
   })
 
   /** F01 section 9, "Load failed" */
@@ -194,14 +242,16 @@ describe('validation while editing', () => {
     expect(saveButton()).toBeDisabled()
   })
 
-  /** F01 R4 */
-  it('shows an error and disables saving when a name is blank', async () => {
+  /**
+   * F13 R7 in place of F01 R4's blank name, which F26 R10 removed: the one
+   * thing a slice can now be missing is the reward it gives.
+   */
+  it('shows an error and disables saving when a slice gives nothing', async () => {
     const user = await renderAdmin()
 
-    await user.clear(nameField(0))
+    await user.selectOptions(rewardField(0), '')
 
-    expect(await screen.findByText('A prize needs a name.')).toBeInTheDocument()
-    expect(nameField(0)).toHaveAttribute('aria-invalid', 'true')
+    expect(await screen.findByText(/choose what this slice gives away/i)).toBeInTheDocument()
     expect(saveButton()).toBeDisabled()
   })
 
@@ -225,23 +275,23 @@ describe('validation while editing', () => {
     expect(total()).toHaveAttribute('data-valid', 'false')
   })
 
-  /** F01 R4 — the input itself stops at the limit */
-  it('caps a name at forty characters', async () => {
-    await renderAdmin()
-
-    expect(nameField(0)).toHaveAttribute('maxlength', '40')
-  })
+  // F01 R4's forty-character cap went with the field (F26 R10, R25). What a
+  // name may be is the catalogue's rule now, and the server's.
 })
 
 describe('the live preview', () => {
-  /** F01 R18 */
-  it('shows a renamed prize before anything is saved', async () => {
+  /** F01 R18 with F26 R1: the label follows the reward, live. */
+  it('redraws a slice when its reward changes, before anything is saved', async () => {
     const user = await renderAdmin()
 
-    await user.clear(nameField(0))
-    await user.type(nameField(0), 'Nearly won')
+    expect(await screen.findByText('Free sample', { selector: 'tspan' })).toBeInTheDocument()
 
-    expect(await screen.findByText('Nearly won', { selector: 'tspan' })).toBeInTheDocument()
+    await user.selectOptions(rewardField(0), '2')
+
+    // Both slices give reward 2 now, so both read it — which is F26 R4: two
+    // slices on one reward are alike on purpose.
+    expect(await screen.findAllByText('Ten off', { selector: 'tspan' })).toHaveLength(2)
+    expect(screen.queryByText('Free sample', { selector: 'tspan' })).not.toBeInTheDocument()
     expect(saveWheelMock).not.toHaveBeenCalled()
   })
 
@@ -264,7 +314,7 @@ describe('adding, removing and reordering', () => {
     await user.click(screen.getByRole('button', { name: /add prize/i }))
 
     expect(screen.getAllByTestId('prize-row')).toHaveLength(3)
-    expect(nameField(2)).toHaveValue('')
+    expect(rewardField(2)).toHaveValue('')
   })
 
   /**
@@ -316,7 +366,8 @@ describe('adding, removing and reordering', () => {
     )
 
     expect(screen.getAllByTestId('prize-row')).toHaveLength(2)
-    expect(nameField(1)).toHaveValue('Prize 2')
+    // The third row survives: wheelOf alternates, so it gives reward 1.
+    expect(rewardField(1)).toHaveValue('1')
   })
 
   /** F01 R7 */
@@ -330,8 +381,8 @@ describe('adding, removing and reordering', () => {
       within(screen.getAllByTestId('prize-row')[0]).getByRole('button', { name: /move down/i }),
     )
 
-    expect(nameField(0)).toHaveValue('Free gift')
-    expect(nameField(1)).toHaveValue('Try again')
+    expect(labelOf(0)).toBe('Ten off')
+    expect(labelOf(1)).toBe('Free sample')
     expect(
       within(screen.getAllByTestId('prize-row')[0]).getByTestId('prize-swatch').dataset.colour,
     ).toBe(firstSwatchColour)
@@ -353,25 +404,26 @@ describe('saving', () => {
 
     expect(saveButton()).toBeDisabled()
 
-    await user.type(nameField(0), '!')
+    // F26: changing the reward is the content change a slice now has.
+    await user.selectOptions(rewardField(0), '2')
 
     expect(saveButton()).toBeEnabled()
   })
 
-  it('sends the trimmed names and numeric probabilities', async () => {
-    saveWheelMock.mockResolvedValue(configuration([['Changed', 60], ['Free gift', 40]]))
+  it('sends the rewards and numeric probabilities, and no label', async () => {
+    saveWheelMock.mockResolvedValue(configuration([[2, 60], [2, 40]]))
     const user = await renderAdmin()
 
-    await user.clear(nameField(0))
-    await user.type(nameField(0), '  Changed  ')
+    await user.selectOptions(rewardField(0), '2')
     await user.click(saveButton())
 
     await waitFor(() =>
       expect(saveWheelMock).toHaveBeenCalledWith(
         [
-          // F13 R7: every slice says what it gives away.
-          { id: 1, name: 'Changed', probability: 60, rewardId: 1 },
-          { id: 2, name: 'Free gift', probability: 40, rewardId: 1 },
+          // F13 R7: every slice says what it gives away. F26 R12: and that
+          // is the whole of it — no name goes up.
+          { id: 1, probability: 60, rewardId: 2 },
+          { id: 2, probability: 40, rewardId: 2 },
         ],
         // F13 R11: the toggle travels with the prizes, in one save.
         false,
@@ -380,11 +432,10 @@ describe('saving', () => {
   })
 
   it('confirms a successful save and goes back to clean', async () => {
-    saveWheelMock.mockResolvedValue(configuration([['Changed', 60], ['Free gift', 40]]))
+    saveWheelMock.mockResolvedValue(configuration([[2, 60], [2, 40]]))
     const user = await renderAdmin()
 
-    await user.clear(nameField(0))
-    await user.type(nameField(0), 'Changed')
+    await user.selectOptions(rewardField(0), '2')
     await user.click(saveButton())
 
     expect(await screen.findByText('Saved')).toBeInTheDocument()
@@ -400,42 +451,45 @@ describe('saving', () => {
     )
     const user = await renderAdmin()
 
-    await user.clear(nameField(0))
-    await user.type(nameField(0), 'Still here')
+    await user.selectOptions(rewardField(0), '2')
     await user.click(saveButton())
 
     expect(await screen.findByText(/currently total 97/i)).toBeInTheDocument()
-    expect(nameField(0)).toHaveValue('Still here')
+    expect(rewardField(0)).toHaveValue('2')
   })
 
-  /** F01 R12 — a field-level violation lands on that field */
+  /**
+   * F01 R12 — a field-level violation lands on that field. With the name
+   * gone (F26 R14) a violation that names no field of its own goes to the
+   * reward selector, the only thing left on the row to point at.
+   */
   it('puts a server violation against the prize it names', async () => {
     saveWheelMock.mockRejectedValue(
       new ApiValidationError('Invalid', [
-        { field: 'prizes[1].name', message: 'A prize needs a name.' },
+        { field: 'prizes[1].id', message: 'That slice no longer exists.' },
       ]),
     )
     const user = await renderAdmin()
 
-    await user.type(nameField(0), '!')
+    await user.selectOptions(rewardField(0), '2')
     await user.click(saveButton())
 
-    await waitFor(() => expect(nameField(1)).toHaveAttribute('aria-invalid', 'true'))
-    expect(
-      within(screen.getAllByTestId('prize-row')[1]).getByText('A prize needs a name.'),
-    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        within(screen.getAllByTestId('prize-row')[1]).getByText('That slice no longer exists.'),
+      ).toBeInTheDocument(),
+    )
   })
 
   it('keeps the edits and explains when the server is unreachable', async () => {
     saveWheelMock.mockRejectedValue(new TypeError('Failed to fetch'))
     const user = await renderAdmin()
 
-    await user.clear(nameField(0))
-    await user.type(nameField(0), 'Still here')
+    await user.selectOptions(rewardField(0), '2')
     await user.click(saveButton())
 
     expect(await screen.findByText(/could not be saved/i)).toBeInTheDocument()
-    expect(nameField(0)).toHaveValue('Still here')
+    expect(rewardField(0)).toHaveValue('2')
     expect(saveButton()).toBeEnabled()
   })
 })
@@ -450,13 +504,12 @@ describe('the losing slice in the prize list', () => {
    */
   function withALosingSlice(): WheelConfiguration {
     const wheel = configuration([
-      ['Try again', 50],
-      ['Free gift', 30],
-      ['Free sample', 20],
+      [3, 50],
+      [1, 30],
+      [2, 20],
     ])
 
     wheel.includesLosingSlice = true
-    wheel.prizes[0].rewardId = 3
 
     return wheel
   }
@@ -498,16 +551,19 @@ describe('the losing slice in the prize list', () => {
     )
   })
 
-  /** R4: the label and the odds are still the admin's to set. */
-  it('keeps the name and percentage fields on the losing row', async () => {
+  /**
+   * F14 R4 as F26 R16 amends it: the odds are still the admin's to set, and
+   * where the label used to be editable the row now shows the losing
+   * reward's name as text — so the admin can read what the player will read
+   * without being able to make the two differ.
+   */
+  it('keeps the percentage and shows the losing reward it reads', async () => {
     fetchWheelMock.mockResolvedValue(withALosingSlice())
-    const user = await renderAdmin()
+    await renderAdmin()
 
-    await user.clear(nameField(0))
-    await user.type(nameField(0), 'Better luck')
-
-    expect(nameField(0)).toHaveValue('Better luck')
     expect(probabilityField(0)).toHaveValue('50')
+    expect(within(rows()[0]).getByTestId('prize-label')).toHaveTextContent('Maybe next time')
+    expect(within(rows()[0]).queryByLabelText(/name$/i)).not.toBeInTheDocument()
   })
 
   /**
@@ -545,20 +601,19 @@ describe('the losing slice in the prize list', () => {
    */
   it('moves a loaded losing slice to the front without making the page dirty', async () => {
     const wheel = configuration([
-      ['Free gift', 50],
-      ['Free sample', 20],
-      ['Try again', 30],
+      [1, 50],
+      [2, 20],
+      [3, 30],
     ])
 
     wheel.includesLosingSlice = true
-    wheel.prizes[2].rewardId = 3
     fetchWheelMock.mockResolvedValue(wheel)
 
     await renderAdmin()
 
     expect(rows()[0]).toHaveAttribute('data-losing', 'true')
-    expect(nameField(0)).toHaveValue('Try again')
-    expect(nameField(1)).toHaveValue('Free gift')
+    expect(within(rows()[0]).getByTestId('prize-label')).toHaveTextContent('Maybe next time')
+    expect(labelOf(1)).toBe('Free sample')
     expect(saveButton()).toBeDisabled()
   })
 
@@ -572,7 +627,7 @@ describe('the losing slice in the prize list', () => {
     )
 
     expect(rows()[0]).toHaveAttribute('data-losing', 'true')
-    expect(nameField(0)).toHaveValue('Free gift')
+    expect(labelOf(1)).toBe('Free sample')
   })
 
   /** F14 R5a */
@@ -597,14 +652,17 @@ describe('the losing slice in the prize list', () => {
     expect(screen.getAllByTestId('prize-reward')).toHaveLength(2)
   })
 
-  /** R7: every field is labelled, which is what makes the three line up. */
+  /**
+   * R7: every field is labelled, which is what makes them line up. Two of
+   * them since F26 R14, where there were three.
+   */
   it('gives every field on a row a visible label', async () => {
     await renderAdmin()
 
     const row = within(rows()[0])
 
-    expect(row.getByText('Prize name')).toBeInTheDocument()
-    expect(row.getByText('Percentage')).toBeInTheDocument()
     expect(row.getByText('Gives away')).toBeInTheDocument()
+    expect(row.getByText('Percentage')).toBeInTheDocument()
+    expect(row.queryByText('Prize name')).not.toBeInTheDocument()
   })
 })

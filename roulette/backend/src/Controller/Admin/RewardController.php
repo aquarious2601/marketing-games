@@ -113,14 +113,21 @@ final class RewardController extends AbstractController
     #[Route('/{id}', name: 'delete', methods: ['DELETE'], requirements: ['id' => '\d+'])]
     public function delete(#[MapEntity(id: 'id')] Reward $reward): JsonResponse
     {
-        $slices = $this->rewards->slicesUsing($reward);
+        $slices = $this->rewards->slicePositionsUsing($reward);
 
         if ([] !== $slices) {
-            // Named, not counted: "it is on the wheel" leaves the admin
-            // hunting for which slice.
+            // Pointed at, not counted: "it is on the wheel" leaves the admin
+            // hunting for which slice. Since F26 the pointer is the position
+            // rather than the label, because the label would be this very
+            // reward's name.
             return $this->invalid([new Violation(
                 '',
-                $this->translator->trans('reward.in_use', ['%slices%' => implode(', ', $slices)]),
+                $this->translator->trans('reward.in_use', [
+                    '%slices%' => implode(', ', array_map(
+                        static fn (int $position): string => '#'.$position,
+                        $slices,
+                    )),
+                ]),
             )]);
         }
 
@@ -203,8 +210,9 @@ final class RewardController extends AbstractController
             'value' => $reward->getValue(),
             'createdAt' => $reward->getCreatedAt()->format(\DateTimeInterface::ATOM),
             // So the list can show what is in use, and grey out its delete
-            // before the admin presses it and is told no (F13 R6).
-            'usedBy' => $this->rewards->slicesUsing($reward),
+            // before the admin presses it and is told no (F13 R6). Slice
+            // positions since F26, counted from 1 (R24).
+            'usedBy' => $this->rewards->slicePositionsUsing($reward),
         ];
     }
 

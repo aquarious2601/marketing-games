@@ -189,9 +189,11 @@ export function GameModule() {
 
   const generalViolations = serverViolations.filter((violation) => !violation.field.startsWith('prizes['))
 
+  // F26 R1: a slice's label is its reward's name, resolved from the
+  // catalogue this page already holds rather than sent twice (R12).
   const slices: PreviewSlice[] = drafts.map((draft) => ({
     key: draft.key,
-    name: draft.name,
+    name: rewards.find((reward) => reward.id === draft.rewardId)?.name ?? '',
     probability: /^\d+$/.test(draft.probability) ? Number(draft.probability) : null,
   }))
 
@@ -228,15 +230,14 @@ export function GameModule() {
       {/* Saved separately from the prizes (F04 R5). */}
       <BrandingSection />
 
-      {/* Preview first on a narrow screen, beside the form on a wide one. */}
-      <div className="flex flex-col gap-8 lg:flex-row-reverse lg:items-start">
-        <section aria-label={t('game.preview')} className="lg:sticky lg:top-8 lg:w-2/5">
-          <div className="mx-auto max-w-xs lg:max-w-none">
-            <WheelPreview slices={slices} showOdds />
-          </div>
-        </section>
-
-        <section aria-label={t('game.prizeList')} className="lg:w-3/5">
+      {/*
+        F26 R19 to R23: one column at every width. The list takes the whole
+        page and the preview follows it, so an admin edits a row and then
+        looks at the result rather than scrolling past a wheel to reach the
+        rows. The preview stops being sticky with the column that held it —
+        the trade recorded in F26 section 13.
+      */}
+      <section aria-label={t('game.prizeList')}>
           <h2 className="mb-1 text-sm font-semibold uppercase tracking-[0.15em] text-slate-500">
             {t('game.prizes')}
           </h2>
@@ -265,7 +266,7 @@ export function GameModule() {
                 setDrafts((current) =>
                   wanted
                     ? // F14 R5: at the top, not appended.
-                      [losingSlice(losingReward.id, t('rewardType.nothing')), ...current]
+                      [losingSlice(losingReward.id), ...current]
                     : current.filter((draft) => draft.rewardId !== losingReward.id),
                 )
               }}
@@ -375,9 +376,17 @@ export function GameModule() {
             {dirty && !saving && (
               <span className="text-sm text-slate-400">{t('common.unsavedChanges')}</span>
             )}
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
+
+      {/* F26 R20, R21: after the list and the save controls, centred, and no
+          wider than it is on a phone — a 1,600-pixel window has no use for a
+          bigger wheel. */}
+      <section aria-label={t('game.preview')} className="mt-8">
+        <div className="mx-auto max-w-xs">
+          <WheelPreview slices={slices} showOdds />
+        </div>
+      </section>
     </>
   )
 }
@@ -390,8 +399,10 @@ export function GameModule() {
  * would change the odds behind their back. The total then fails F01 R8
  * until they decide, which is the prompt.
  */
-function losingSlice(rewardId: number, label: string): DraftPrize {
-  return { ...createPrize(), name: label, rewardId }
+function losingSlice(rewardId: number): DraftPrize {
+  // F26 R1, R5: no label to give it. It reads the losing reward's name, which
+  // is where that wording lives now.
+  return { ...createPrize(), rewardId }
 }
 
 function TotalBadge({ total, error }: { total: number | null; error: string | null }) {
@@ -459,9 +470,10 @@ function mergeViolations(
       continue
     }
 
-    // An id problem has no input of its own; show it against the name, which
-    // is the field the admin can actually see.
-    const target = field === 'id' ? 'name' : (field as 'name' | 'probability')
+    // An id problem has no input of its own. It used to be shown against the
+    // name; with that field gone (F26 R14) the reward selector is the only
+    // thing on the row an admin can see and act on, so it goes there.
+    const target = field === 'probability' ? 'probability' : 'rewardId'
 
     merged[index][target] ??= violation.message
   }

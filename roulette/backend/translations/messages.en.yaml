@@ -44,8 +44,6 @@ wheel:
     prize_must_be_object: 'Each prize must be an object.'
     too_few_prizes: 'A wheel needs at least %min% prizes. It has %count%.'
     too_many_prizes: 'A wheel can have at most %max% prizes. It has %count%.'
-    prize_name_required: 'A prize needs a name.'
-    prize_name_too_long: 'A prize name can be at most %max% characters.'
     prize_id_invalid: 'A prize id must be a positive whole number, or absent for a new prize.'
     probability_not_whole: 'A probability must be a whole number.'
     probability_out_of_range: 'A probability must be between %min% and %max%.'
@@ -54,6 +52,12 @@ wheel:
     prize_reward_required: 'Choose what this slice gives away.'
     unknown_reward: 'That reward no longer exists. Reload the page and try again.'
     one_losing_slice: 'A wheel can have only one losing slice.'
+    # Not rendered anywhere since F26: no slice carries a label of its own.
+    # Kept because DatabaseUpgrade::defaultNamesToKeys() matches the labels an
+    # old database still holds against the rewards it seeds, and this is the
+    # one it looks for on the losing slice. Changing the words here would stop
+    # that match working, which is a fragility the F13 steps have for every
+    # default name and not something F26 introduced.
     default_losing_label: 'Try again'
 
 branding:
@@ -112,7 +116,7 @@ reward:
     amount_too_small: 'An amount must be at least %min%.'
     amount_too_large: 'An amount cannot be more than %max%.'
     value_not_allowed: 'This type of reward does not take a value.'
-    in_use: 'This reward is on the wheel, used by: %slices%. Change those slices first.'
+    in_use: 'This reward is on the wheel: %slices%. Point those slices at something else first.'
     not_found: 'That reward does not exist.'
 
 spin:

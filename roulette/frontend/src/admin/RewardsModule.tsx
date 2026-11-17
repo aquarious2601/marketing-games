@@ -186,7 +186,12 @@ export function RewardsModule() {
                 </Cell>
                 {/* F13 R6: what is in the way, before delete is pressed. */}
                 <Cell muted testId="reward-used-by">
-                  {reward.usedBy.length === 0 ? t('rewards.unused') : reward.usedBy.join(', ')}
+                  {/* F26 R24: positions, since a slice's label is this
+                      reward's own name and listing it back would say
+                      nothing. */}
+                  {reward.usedBy.length === 0
+                    ? t('rewards.unused')
+                    : reward.usedBy.map((position) => `#${position}`).join(', ')}
                 </Cell>
                 <Cell numeric muted>
                   {formatDate(reward.createdAt)}

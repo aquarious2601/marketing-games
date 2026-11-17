@@ -97,7 +97,6 @@ export const vi: Record<MessageKey, string> = {
   'game.saveFailed': 'Không lưu được cấu hình. Các thay đổi của bạn vẫn còn đây.',
   'game.rejected': 'Máy chủ đã từ chối cấu hình này.',
   'game.emptyWheel': 'Vòng quay trống',
-  'game.prizeName': 'Tên phần thưởng',
   'game.prizePercentage': 'Tỷ lệ phần trăm',
   'game.moveUp': 'Chuyển lên',
   'game.moveDown': 'Chuyển xuống',

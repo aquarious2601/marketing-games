@@ -78,14 +78,12 @@ final class WheelWriter
 
                 if (null === $prize) {
                     $prize = new Prize(
-                        $prizeDraft->name,
                         $prizeDraft->probability,
                         self::PARKING_OFFSET + $index,
                         $reward,
                     );
                     $wheel->addPrize($prize);
                 } else {
-                    $prize->setName($prizeDraft->name);
                     $prize->setProbability($prizeDraft->probability);
                     $prize->setPosition(self::PARKING_OFFSET + $index);
                     $prize->setReward($reward);

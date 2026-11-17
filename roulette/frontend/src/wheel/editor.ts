@@ -10,7 +10,6 @@ import type { PrizeSubmission, WheelConfiguration } from '../api/wheel'
  */
 export const MIN_PRIZES = 2
 export const MAX_PRIZES = 12
-export const NAME_MAX_LENGTH = 40
 export const MIN_PROBABILITY = 1
 export const MAX_PROBABILITY = 100
 export const REQUIRED_TOTAL = 100
@@ -22,18 +21,17 @@ export interface DraftPrize {
    */
   key: string
   id: number | null
-  name: string
   /** Held as text so the field can be empty mid-edit without becoming 0. */
   probability: string
   /**
-   * F13 R7. Null only while a freshly added slice has not been given one
-   * yet; `validate` refuses to let that be saved.
+   * F13 R7, F26 R1. Null only while a freshly added slice has not been given
+   * one yet; `validate` refuses to let that be saved. Since F26 this is also
+   * the slice's label, so it is the whole of its identity.
    */
   rewardId: number | null
 }
 
 export interface PrizeErrors {
-  name?: string
   probability?: string
   rewardId?: string
 }
@@ -59,7 +57,6 @@ export function fromConfiguration(configuration: WheelConfiguration): DraftPrize
   return configuration.prizes.map((prize) => ({
     key: nextKey(),
     id: prize.id,
-    name: prize.name,
     probability: String(prize.probability),
     rewardId: prize.rewardId,
   }))
@@ -68,7 +65,6 @@ export function fromConfiguration(configuration: WheelConfiguration): DraftPrize
 export function toSubmission(drafts: DraftPrize[]): PrizeSubmission[] {
   return drafts.map((draft) => ({
     id: draft.id,
-    name: draft.name.trim(),
     probability: Number(draft.probability),
     // Coerced here rather than guarded: `validate` has already refused a
     // draft with no reward, so nothing reaches this with a null.
@@ -77,7 +73,7 @@ export function toSubmission(drafts: DraftPrize[]): PrizeSubmission[] {
 }
 
 export function createPrize(): DraftPrize {
-  return { key: nextKey(), id: null, name: '', probability: '', rewardId: null }
+  return { key: nextKey(), id: null, probability: '', rewardId: null }
 }
 
 export function canAddPrize(drafts: DraftPrize[]): boolean {
@@ -143,7 +139,7 @@ export function movePrize(drafts: DraftPrize[], index: number, offset: number): 
 export function updatePrize(
   drafts: DraftPrize[],
   index: number,
-  change: Partial<Pick<DraftPrize, 'name' | 'probability' | 'rewardId'>>,
+  change: Partial<Pick<DraftPrize, 'probability' | 'rewardId'>>,
 ): DraftPrize[] {
   return drafts.map((draft, i) => (i === index ? { ...draft, ...change } : draft))
 }
@@ -184,14 +180,8 @@ export function validate(drafts: DraftPrize[]): DraftValidation {
   for (const draft of drafts) {
     const errors: PrizeErrors = {}
 
-    // F01 R4
-    const name = draft.name.trim()
-
-    if (name === '') {
-      errors.name = 'A prize needs a name.'
-    } else if (name.length > NAME_MAX_LENGTH) {
-      errors.name = `A prize name can be at most ${NAME_MAX_LENGTH} characters.`
-    }
+    // F01 R4's name rules went with the field (F26 R10). A slice can no
+    // longer fail to save because of a label, because it has none.
 
     // F01 R5
     const probability = parseProbability(draft.probability)
@@ -255,9 +245,12 @@ export function isDirty(drafts: DraftPrize[], saved: DraftPrize[]): boolean {
   return drafts.some((draft, index) => {
     const original = saved[index]
 
+    // rewardId is compared since F26: with the label gone it is the only
+    // thing on a slice besides its odds, so a form that ignored it would
+    // call a changed wheel unchanged.
     return (
       draft.id !== original.id ||
-      draft.name !== original.name ||
+      draft.rewardId !== original.rewardId ||
       draft.probability !== original.probability
     )
   })

@@ -7,13 +7,19 @@ import type { APIRequestContext } from '@playwright/test'
  * reward it points at is called "Maybe next time" (F13 R8), which is why
  * this maps a slice to a reward by name rather than assuming the two match.
  */
+/**
+ * F26 R1: no `name` beside the reward any more. A slice reads whatever its
+ * reward is called, so one column says both what it gives and what it says.
+ * The first slice used to be labelled "Try again" while giving "Maybe next
+ * time" — the divergence F26 removed.
+ */
 export const DEFAULT_PRIZES = [
-  { name: 'Try again', probability: 40, reward: 'Maybe next time' },
-  { name: '5% off your next order', probability: 25, reward: '5% off your next order' },
-  { name: '10% off your next order', probability: 15, reward: '10% off your next order' },
-  { name: 'Free sample', probability: 10, reward: 'Free sample' },
-  { name: 'Free gift', probability: 7, reward: 'Free gift' },
-  { name: 'Grand prize', probability: 3, reward: 'Grand prize' },
+  { probability: 40, reward: 'Maybe next time' },
+  { probability: 25, reward: '5% off your next order' },
+  { probability: 15, reward: '10% off your next order' },
+  { probability: 10, reward: 'Free sample' },
+  { probability: 7, reward: 'Free gift' },
+  { probability: 3, reward: 'Grand prize' },
 ] as const
 
 /**
@@ -34,8 +40,10 @@ export async function restoreDefaultWheel(request: APIRequestContext): Promise<v
   const response = await request.put('/api/admin/wheel', {
     data: {
       includesLosingSlice: true,
-      prizes: DEFAULT_PRIZES.map(({ name, probability, reward }) => ({
-        name,
+      // F26 R12, R13: a slice is its reward and its odds. A name would be
+      // ignored rather than refused, but sending one would suggest it still
+      // meant something.
+      prizes: DEFAULT_PRIZES.map(({ probability, reward }) => ({
         probability,
         rewardId: rewardId(catalogue, reward),
       })),

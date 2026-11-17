@@ -377,7 +377,6 @@ final class BrandingControllerTest extends DatabaseWebTestCase
         $prizes = array_map(
             static fn (array $p): array => [
                 'id' => $p['id'],
-                'name' => $p['name'],
                 'probability' => $p['probability'],
                 'rewardId' => $p['rewardId'],
             ],

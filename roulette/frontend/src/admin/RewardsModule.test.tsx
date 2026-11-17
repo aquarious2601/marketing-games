@@ -135,16 +135,20 @@ describe('the catalogue', () => {
   })
 
   /** F13 R6: what is in the way, before delete is pressed. */
-  it('names the slices using a reward', async () => {
+  /**
+   * F26 R24: by position, not by label. A label would be this reward's own
+   * name, so the column would have repeated it back.
+   */
+  it('points at the slices using a reward', async () => {
     fetchRewardsMock.mockResolvedValue({
-      rewards: [reward({ usedBy: ['Lucky you!', 'Second chance'] })],
+      rewards: [reward({ usedBy: [1, 4] })],
       types: TYPES,
     })
 
     render(<RewardsModule />)
     await screen.findByTestId('reward-list')
 
-    expect(screen.getByTestId('reward-used-by')).toHaveTextContent('Lucky you!, Second chance')
+    expect(screen.getByTestId('reward-used-by')).toHaveTextContent('#1, #4')
   })
 
   it('says when a reward is on no slice', async () => {

@@ -33,8 +33,6 @@ wheel:
     prize_must_be_object: 'Mỗi phần thưởng phải là một đối tượng.'
     too_few_prizes: 'Vòng quay cần ít nhất %min% phần thưởng. Hiện có %count%.'
     too_many_prizes: 'Vòng quay có tối đa %max% phần thưởng. Hiện có %count%.'
-    prize_name_required: 'Phần thưởng cần có tên.'
-    prize_name_too_long: 'Tên phần thưởng không được dài quá %max% ký tự.'
     prize_id_invalid: 'Mã phần thưởng phải là số nguyên dương, hoặc bỏ trống nếu là phần thưởng mới.'
     probability_not_whole: 'Xác suất phải là số nguyên.'
     probability_out_of_range: 'Xác suất phải từ %min% đến %max%.'
@@ -43,6 +41,7 @@ wheel:
     prize_reward_required: 'Hãy chọn phần thưởng cho ô này.'
     unknown_reward: 'Phần thưởng này không còn nữa. Hãy tải lại trang và thử lại.'
     one_losing_slice: 'Vòng quay chỉ được có một ô không trúng.'
+    # Not rendered since F26; kept for the F13 upgrade step (see messages.en.yaml).
     default_losing_label: 'Chúc may mắn lần sau'
 
 branding:
@@ -95,7 +94,7 @@ reward:
     amount_too_small: 'Số tiền phải ít nhất là %min%.'
     amount_too_large: 'Số tiền không được vượt quá %max%.'
     value_not_allowed: 'Loại phần thưởng này không nhận giá trị.'
-    in_use: 'Phần thưởng này đang nằm trên vòng quay, được dùng bởi: %slices%. Hãy sửa các ô đó trước.'
+    in_use: 'Phần thưởng này đang nằm trên vòng quay: %slices%. Hãy trỏ các ô đó sang phần thưởng khác trước.'
     not_found: 'Phần thưởng đó không tồn tại.'
 
 spin:

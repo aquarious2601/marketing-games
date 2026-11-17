@@ -33,8 +33,6 @@ wheel:
     prize_must_be_object: '每个奖品都必须是一个对象。'
     too_few_prizes: '转盘至少需要 %min% 个奖品，现在只有 %count% 个。'
     too_many_prizes: '转盘最多 %max% 个奖品，现在有 %count% 个。'
-    prize_name_required: '奖品需要一个名称。'
-    prize_name_too_long: '奖品名称最多 %max% 个字符。'
     prize_id_invalid: '奖品编号必须是正整数；新奖品请留空。'
     probability_not_whole: '概率必须是整数。'
     probability_out_of_range: '概率必须在 %min% 到 %max% 之间。'
@@ -43,6 +41,7 @@ wheel:
     prize_reward_required: '请选择该扇区送出的奖励。'
     unknown_reward: '该奖励已不存在。请重新加载页面后再试。'
     one_losing_slice: '一个转盘只能有一个未中奖扇区。'
+    # Not rendered since F26; kept for the F13 upgrade step (see messages.en.yaml).
     default_losing_label: '再试一次'
 
 branding:
@@ -95,7 +94,7 @@ reward:
     amount_too_small: '金额至少为 %min%。'
     amount_too_large: '金额不能超过 %max%。'
     value_not_allowed: '这种奖励不需要数值。'
-    in_use: '该奖励正在转盘上使用：%slices%。请先修改这些扇区。'
+    in_use: '该奖励正在转盘上使用：%slices%。请先将这些扇区指向其他奖励。'
     not_found: '该奖励不存在。'
 
 spin:

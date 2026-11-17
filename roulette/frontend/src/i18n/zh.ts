@@ -93,7 +93,6 @@ export const zh: Record<MessageKey, string> = {
   'game.saveFailed': '无法保存配置。您的更改仍然保留。',
   'game.rejected': '服务器拒绝了此配置。',
   'game.emptyWheel': '空转盘',
-  'game.prizeName': '奖品名称',
   'game.prizePercentage': '百分比',
   'game.moveUp': '上移',
   'game.moveDown': '下移',

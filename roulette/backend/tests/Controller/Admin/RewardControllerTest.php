@@ -388,7 +388,11 @@ final class RewardControllerTest extends DatabaseWebTestCase
         $this->client->request('DELETE', self::URI.'/'.$id);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
-        self::assertStringContainsString('Lucky you!', $this->decodeResponse()['error']['violations'][0]['message']);
+
+        // F26 R1 left the refusal nothing to name but the place on the wheel:
+        // a label would be this reward's own name, so "Free coffee is used by
+        // Free coffee" is the best it could have said.
+        self::assertStringContainsString('#1', $this->decodeResponse()['error']['violations'][0]['message']);
 
         // Checked by name rather than by counting rows: saving a wheel runs
         // WheelProvider, which seeds the six default rewards (F01 R2), so
@@ -417,7 +421,8 @@ final class RewardControllerTest extends DatabaseWebTestCase
 
         $byName = array_column($this->decodeResponse()['rewards'], 'usedBy', 'name');
 
-        self::assertSame(['Lucky you!'], $byName['Free coffee']);
+        // Positions counted from 1, as an admin counts the rows (F26 R24).
+        self::assertSame([1], $byName['Free coffee']);
     }
 
     // ------------------------------------------------- F15: the currency
