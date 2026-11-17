@@ -39,7 +39,10 @@ chown -h www-data:www-data "$APP_DIR/current" "$APP_DIR/previous"
 systemctl reload "php${PHP_VERSION}-fpm"
 systemctl reload nginx
 
-if curl -fsS --max-time 5 -o /dev/null http://127.0.0.1/api/health; then
+# The same hostname-and-HTTPS check as deploy.sh, for the same reason:
+# certbot's port 80 block answers 404 to anything that is not the domain.
+if curl -fsS --max-time 5 -o /dev/null \
+     --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/api/health"; then
   echo "Rolled back. $(basename "$going_to") is live and answering."
 else
   echo "Rolled back, but /api/health still does not answer." >&2

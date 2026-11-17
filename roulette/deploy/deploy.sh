@@ -107,9 +107,19 @@ systemctl reload nginx
 # ------------------------------------------------------ 6. verify (R17)
 
 log "Checking the release answers"
+# Over HTTPS, with the campaign's own hostname, resolved to this machine.
+#
+# Not http://127.0.0.1: certbot rewrites the port 80 block to redirect the
+# domain and `return 404` for everything else, so a localhost request is
+# answered 404 by nginx before it reaches the application — which reads as
+# a broken release and rolls back a perfectly good one.
+#
+# --resolve keeps the request on this box, so the check still tests this
+# instance rather than whatever DNS currently points at.
 healthy=0
 for attempt in 1 2 3 4 5; do
-  if curl -fsS --max-time 5 -o /dev/null http://127.0.0.1/api/health; then
+  if curl -fsS --max-time 5 -o /dev/null \
+       --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/api/health"; then
     healthy=1
     break
   fi
