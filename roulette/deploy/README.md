@@ -16,6 +16,57 @@ first pass on an instance and a database that hold nothing.
 | `rollback.sh` | Puts the previous release back. No network, no build |
 | `../../.github/workflows/deploy.yml` | Test, build, upload, tell the instance |
 
+## Before you start
+
+Three things this needs that are not in the repository.
+
+**An AWS account**, with permission to create IAM roles, an S3 bucket and an
+EC2 instance. A fresh account's root user has all of that; an account
+somebody else administers may not.
+
+**The AWS CLI**, which every command below is written for:
+
+```powershell
+winget install Amazon.AWSCLI
+```
+
+**The Session Manager plugin**, which is how you get a shell on a machine
+with no SSH port:
+
+```powershell
+winget install Amazon.SessionManagerPlugin
+```
+
+Install everything you are going to install first, then **close and reopen
+the terminal** — winget updates the PATH for new shells only, so a freshly
+installed tool is "not recognized" in the window you installed it from. That
+will happen once per tool otherwise.
+
+Then sign the CLI in. Create an access key in the IAM console for your own user, and:
+
+```powershell
+aws configure
+```
+
+It asks for the key, the secret, a default region and an output format.
+Those credentials stay on your machine — nothing in this repository reads
+them, and they are not the credentials the deployment uses. The deployment
+has its own role, created in step 7, which is what GitHub assumes.
+
+Check it worked:
+
+```bash
+aws sts get-caller-identity
+```
+
+That prints your account id, which step 7 needs.
+
+Optional but worth it: `winget install GitHub.cli`. It sets the
+repository's variables in step 8 without clicking through Settings, triggers
+a deploy with `gh workflow run deploy.yml --ref main`, follows it with
+`gh run watch`, and is what the branching workflow in
+[`../features/README.md`](../features/README.md) uses for pull requests.
+
 ## What you create by hand, once
 
 Nothing here is scripted on purpose (P03 section 5): it is a handful of
@@ -23,17 +74,80 @@ one-off AWS objects, and Terraform for one box is more to maintain than the
 box. Run them one at a time and read each result — a half-applied script is
 harder to debug than a step that stopped.
 
-Set these once in the shell you are working in:
+**Run all of this in Git Bash, not PowerShell.** The commands use `export`,
+`$(...)` and heredocs, which PowerShell parses differently — `export` alone
+is enough to stop it. Git Bash comes with Git, so it is already here.
+
+Git Bash has one trap of its own, worth knowing before it bites: it
+rewrites anything that *looks* like a POSIX path into a Windows path
+before the command sees it. Not only arguments that begin with a slash —
+it reaches inside them too, so `DeviceName=/dev/sda1` arrives as
+`DeviceName=C:/Program Files/Git/dev/sda1`.
+
+What makes it expensive is that the errors blame the value. A mangled
+`/aws/service/...` comes back as `ParameterNotFound`, which reads as a
+wrong parameter name; a mangled `/dev/sda1` comes back as
+`InvalidBlockDeviceMapping`, which reads as a wrong device. Both are the
+shell.
+
+So `MSYS_NO_PATHCONV=1` is exported once below, for the whole session,
+rather than guessed at per command. It is an unused variable on Linux
+and macOS.
+
+It has one consequence worth knowing, because it looks like a new bug
+the first time: with rewriting off, a *local* path like
+`~/marketing-games/x.sh` is no longer translated either, and the
+Windows `aws.exe` cannot open `/c/Users/...`. So every local file below
+is given as a relative path, which needs no translation on any
+platform. If you ever need an absolute one here, write it Windows-style
+with forward slashes: `C:/Users/you/thing.sh`.
+
+Work from a directory of its own, because the steps below write small
+policy files and you do not want them in the repository:
 
 ```bash
-export AWS_REGION=eu-west-3                  # wherever your customers are
-export BUCKET=marketing-games-roulette       # must be globally unique
-export DOMAIN=roulette.example.com
-export EMAIL=you@example.com
-export REPO=aquarious2601/marketing-games
-export ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-echo "account $ACCOUNT, region $AWS_REGION"
+mkdir -p ~/roulette-setup && cd ~/roulette-setup
 ```
+
+Set these once in the shell you are working in. Only two lines need
+editing:
+
+```bash
+# Git Bash only. See the note above: without this, any argument that
+# looks like a POSIX path is rewritten before the command sees it, and
+# the errors blame the value rather than the shell. Harmless elsewhere.
+export MSYS_NO_PATHCONV=1
+
+# Windows only. The console encoding is cp1252, and some of what the
+# instance prints is not: apt and certbot use arrows and box drawing.
+# Without this the CLI dies with "charmap codec can't encode character",
+# which looks like the command failed when only the printing did.
+export PYTHONUTF8=1
+
+export AWS_REGION=eu-west-3
+export REPO=aquarious2601/marketing-games
+
+export DOMAIN=roulette.example.com           # <- yours
+export EMAIL=you@example.com                 # <- yours
+export TIMEZONE=Europe/Paris                 # <- yours
+
+export ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+# A bucket name must be unique across every AWS account in the world, so it
+# ends in yours rather than in a guess at what nobody else has taken.
+export BUCKET="marketing-games-roulette-$ACCOUNT"
+
+echo "account $ACCOUNT, region $AWS_REGION, bucket $BUCKET"
+```
+
+If `$ACCOUNT` comes out empty, `aws configure` has not been run or the
+credentials are wrong; nothing below will work until that line prints a
+twelve-digit number.
+
+The policy files below are written and referenced **relatively**, on
+purpose. On Windows the AWS CLI is a native binary and Git Bash's `/tmp` is
+not a path it can see, so `file:///tmp/thing.json` fails with "No such file
+or directory" while `file://thing.json` works everywhere. (The `/tmp` paths
+in step 6 are different — those run on the instance, which is Linux.)
 
 ### 1. The S3 bucket
 
@@ -57,12 +171,12 @@ later one is a dump you no longer have.
 Releases are disposable; dumps are not. Expire only the former:
 
 ```bash
-cat > /tmp/lifecycle.json <<'JSON'
+cat > lifecycle.json <<'JSON'
 {"Rules":[{"ID":"expire-releases","Status":"Enabled",
   "Filter":{"Prefix":"releases/"},"Expiration":{"Days":30}}]}
 JSON
 aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" \
-  --lifecycle-configuration file:///tmp/lifecycle.json
+  --lifecycle-configuration file://lifecycle.json
 ```
 
 ### 2. The instance's role
@@ -71,18 +185,18 @@ What the box itself is allowed to do: be managed by SSM, read its own
 releases, write its own backups. Nothing else.
 
 ```bash
-cat > /tmp/ec2-trust.json <<'JSON'
+cat > ec2-trust.json <<'JSON'
 {"Version":"2012-10-17","Statement":[{"Effect":"Allow",
   "Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}
 JSON
 
 aws iam create-role --role-name roulette-instance \
-  --assume-role-policy-document file:///tmp/ec2-trust.json
+  --assume-role-policy-document file://ec2-trust.json
 
 aws iam attach-role-policy --role-name roulette-instance \
   --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 
-cat > /tmp/instance-policy.json <<JSON
+cat > instance-policy.json <<JSON
 {"Version":"2012-10-17","Statement":[
  {"Effect":"Allow","Action":"s3:GetObject",
   "Resource":["arn:aws:s3:::$BUCKET/releases/*","arn:aws:s3:::$BUCKET/bootstrap/*"]},
@@ -91,7 +205,7 @@ cat > /tmp/instance-policy.json <<JSON
 JSON
 
 aws iam put-role-policy --role-name roulette-instance \
-  --policy-name roulette-s3 --policy-document file:///tmp/instance-policy.json
+  --policy-name roulette-s3 --policy-document file://instance-policy.json
 
 aws iam create-instance-profile --instance-profile-name roulette-instance
 aws iam add-role-to-instance-profile \
@@ -173,8 +287,12 @@ Create an **A record** for `$DOMAIN` pointing at that address, then wait for
 it to resolve:
 
 ```bash
-dig +short "$DOMAIN"        # must print the address above before you provision
+nslookup "$DOMAIN"          # must print the address above before you provision
 ```
+
+`dig` is not installed on Windows, and Git Bash does not bring it;
+`nslookup` ships with the operating system and is in every shell. On Linux
+or macOS `dig +short "$DOMAIN"` is the tidier answer.
 
 Certbot verifies by HTTP, so provisioning before this resolves gets you an
 instance without a certificate. Not fatal — the script says how to re-run
@@ -183,19 +301,79 @@ certbot — but it is the step people skip.
 ### 6. Provisioning the instance
 
 **The instance has no git and no GitHub credentials** (P03 R1), so the
-script reaches it the same way releases do: through the bucket.
+script reaches it through the bucket — but it cannot be fetched with
+`aws s3 cp`, because a fresh Ubuntu image has no AWS CLI and installing it
+is one of the things `provision.sh` does. A bootstrap cannot depend on the
+tool it bootstraps.
+
+So the two files are fetched with `curl`, which Ubuntu does ship, from
+presigned URLs generated on your machine. The URLs carry their own
+short-lived read permission, so the bucket stays private and the instance
+still needs no credentials of its own at this point.
 
 ```bash
+# From the repository, not from ~/roulette-setup: these two paths are
+# relative to the checkout. Relative is deliberate — with
+# MSYS_NO_PATHCONV=1 set, Git Bash no longer rewrites ~/... into a
+# Windows path either, so an absolute POSIX path is one the Windows
+# aws.exe cannot open. A relative path has nothing to rewrite.
+cd ~/marketing-games        # wherever this repository is checked out
+
+# Both files: provision.sh installs nginx.conf from beside itself, so a
+# bootstrap that carries only the script dies half way through, after
+# MariaDB and PHP are installed and before anything serves.
 aws s3 cp roulette/deploy/provision.sh "s3://$BUCKET/bootstrap/provision.sh"
+aws s3 cp roulette/deploy/nginx.conf   "s3://$BUCKET/bootstrap/nginx.conf"
+
+# Generated here, where the credentials are. Thirty minutes is longer
+# than provisioning takes and short enough not to matter afterwards.
+export PROVISION_URL=$(aws s3 presign "s3://$BUCKET/bootstrap/provision.sh" --expires-in 1800)
+export NGINX_URL=$(aws s3 presign "s3://$BUCKET/bootstrap/nginx.conf" --expires-in 1800)
 
 aws ssm send-command --instance-ids "$INSTANCE" \
   --document-name AWS-RunShellScript \
   --timeout-seconds 900 \
   --parameters commands="[
-    \"aws s3 cp s3://$BUCKET/bootstrap/provision.sh /tmp/provision.sh\",
-    \"DOMAIN=$DOMAIN ADMIN_EMAIL=$EMAIL RELEASE_BUCKET=$BUCKET bash /tmp/provision.sh\"
+    \"curl -fsSL '$PROVISION_URL' -o /tmp/provision.sh\",
+    \"curl -fsSL '$NGINX_URL' -o /tmp/nginx.conf\",
+    \"DOMAIN=$DOMAIN ADMIN_EMAIL=$EMAIL RELEASE_BUCKET=$BUCKET TIMEZONE=$TIMEZONE bash /tmp/provision.sh\"
   ]" --query 'Command.CommandId' --output text
 ```
+
+`TIMEZONE` is where the shop is, and it is what decides when a player's day
+rolls over for [F23](../features/F23-a-daily-spin-limit.md)'s spin limit.
+It is **required**: `provision.sh` stops before it installs anything if you
+have not set it, exactly as it does for `DOMAIN`. There is no default,
+because a default would be a guess at the one fact only the shop knows —
+and `UTC` is a guess that draws the day's boundary at 1am in Paris and 7am
+in Ho Chi Minh City. Seven in the morning is inside opening hours, which is
+where a wrong boundary stops being cosmetic: it leaks a second spin to the
+customer who comes in early and refuses one to the customer who came in
+late yesterday, a few times a week, looking for all the world like a bug in
+the limit.
+
+An identifier PHP does not recognise stops the application rather than
+quietly becoming UTC (F23 R8), so a typo fails the health check and rolls
+the release back. That is the intended failure: a timezone that is silently
+wrong is one nobody notices for a week.
+
+To change it on an instance that is already running, edit
+`/srv/roulette/shared/.env.local` and reload PHP — nothing needs
+redeploying, because no stored data depends on it:
+
+```bash
+aws ssm send-command --instance-ids "$INSTANCE" \
+  --document-name AWS-RunShellScript \
+  --parameters commands="[
+    \"sed -i 's|^APP_TIMEZONE=.*|APP_TIMEZONE=Europe/Paris|' /srv/roulette/shared/.env.local\",
+    \"grep -q '^APP_TIMEZONE=' /srv/roulette/shared/.env.local || echo 'APP_TIMEZONE=Europe/Paris' >> /srv/roulette/shared/.env.local\",
+    \"systemctl reload php8.3-fpm\",
+    \"curl -fsS -o /dev/null -w '%{http_code}' https://$DOMAIN/api/health\"
+  ]" --query 'Command.CommandId' --output text
+```
+
+The `grep ... ||` line is there for an instance provisioned before F23,
+whose `.env.local` has no such line for `sed` to find.
 
 Take the command id it prints and read what happened — this is the one step
 worth watching line by line the first time:
@@ -222,28 +400,59 @@ aws iam create-open-id-connect-provider \
 
 If that says the provider already exists, good — one per account is enough.
 
+The subject claim needs care. The documented form is
+`repo:OWNER/REPO:ref:refs/heads/main`, but GitHub also issues an
+**immutable** form with the owner and repository ids embedded —
+`repo:OWNER@1015326/REPO@1458892419:ref:refs/heads/main` — and which one
+your account sends is not something you can tell by looking. Matching only
+the documented one fails with `Not authorized to perform
+sts:AssumeRoleWithWebIdentity`, an error that says nothing about why.
+
+So allow both. They are two spellings of the same repository and branch,
+and `StringEquals` with a list is still an exact match — no wildcards, so
+no `owner*` that a similarly-named account could slip through:
+
 ```bash
-cat > /tmp/gh-trust.json <<JSON
+export OWNER_ID=$(gh api users/${REPO%%/*} --jq .id)
+export REPO_ID=$(gh api repos/$REPO --jq .id)
+echo "owner $OWNER_ID, repo $REPO_ID"
+
+cat > gh-trust.json <<JSON
 {"Version":"2012-10-17","Statement":[{
  "Effect":"Allow",
  "Principal":{"Federated":"arn:aws:iam::$ACCOUNT:oidc-provider/token.actions.githubusercontent.com"},
  "Action":"sts:AssumeRoleWithWebIdentity",
  "Condition":{
-  "StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com"},
-  "StringLike":{"token.actions.githubusercontent.com:sub":"repo:$REPO:ref:refs/heads/main"}}}]}
+  "StringEquals":{
+   "token.actions.githubusercontent.com:aud":"sts.amazonaws.com",
+   "token.actions.githubusercontent.com:sub":[
+    "repo:$REPO:ref:refs/heads/main",
+    "repo:${REPO%%/*}@$OWNER_ID/${REPO#*/}@$REPO_ID:ref:refs/heads/main"
+   ]}}}]}
 JSON
 
 aws iam create-role --role-name roulette-deploy \
-  --assume-role-policy-document file:///tmp/gh-trust.json \
+  --assume-role-policy-document file://gh-trust.json \
   --query 'Role.Arn' --output text
 ```
 
-The `StringLike` on `sub` is the part that matters: without it, **any**
-GitHub repository in the world can assume this role. Restricted to
-`refs/heads/main`, a pull request from a fork cannot deploy.
+The condition on `sub` is the part that matters: without it, **any** GitHub
+repository in the world can assume this role. Pinned to `refs/heads/main`,
+a pull request from a fork cannot deploy.
+
+If it is still refused, read what was actually presented rather than
+guessing — CloudTrail records the claim verbatim:
 
 ```bash
-cat > /tmp/deploy-policy.json <<JSON
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity \
+  --max-items 1 --query 'Events[].CloudTrailEvent' --output text
+```
+
+The `userName` field is the subject claim. Put that string in the policy.
+
+```bash
+cat > deploy-policy.json <<JSON
 {"Version":"2012-10-17","Statement":[
  {"Effect":"Allow","Action":"s3:PutObject","Resource":"arn:aws:s3:::$BUCKET/releases/*"},
  {"Effect":"Allow","Action":"ssm:SendCommand",
@@ -254,7 +463,7 @@ cat > /tmp/deploy-policy.json <<JSON
 JSON
 
 aws iam put-role-policy --role-name roulette-deploy \
-  --policy-name roulette-deploy --policy-document file:///tmp/deploy-policy.json
+  --policy-name roulette-deploy --policy-document file://deploy-policy.json
 ```
 
 `SendCommand` is scoped to this one instance and this one document, so a
@@ -319,17 +528,29 @@ the instance to install it.
 
 The database is still empty at this point, and `app:upgrade-database`
 refuses an empty database by design (P02 R20), so the first deploy's schema
-step will say so and stop. That is expected. Once the release is on the
-instance, create the schema and an admin, once:
+step will say so and stop. That is expected, and it is the deploy script
+working: the schema step runs before the symlink moves (R14), so a failure
+there leaves the previous release serving.
+
+Which means `current` still points at the placeholder, and the placeholder
+has no `backend/`. The release is on disk, but only under its own
+directory — so the one-off commands below go to the newest release rather
+than to `current`:
 
 ```bash
-cd /srv/roulette/current/backend
+cd "$(ls -dt /srv/roulette/releases/*/ | grep -v placeholder | head -1)backend"
+pwd        # should be /srv/roulette/releases/<sha>/backend
+
 sudo -u www-data php bin/console doctrine:schema:update --force --complete
 sudo -u www-data php bin/console app:upgrade-database
 sudo -u www-data php bin/console app:create-admin
 ```
 
-Then push again, or re-run the workflow, and the deploy completes cleanly.
+Then re-run the workflow, and the deploy completes: the schema step finds
+nothing to do, the symlink moves, and `current` becomes the release.
+
+From the second deploy onwards none of this applies — `current` is always a
+real release and the schema step is routine.
 
 ## When a release is bad
 

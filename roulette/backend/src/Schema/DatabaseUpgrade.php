@@ -91,6 +91,7 @@ final class DatabaseUpgrade
             $this->addPlayerPhoneTail($dryRun),
             $this->fillPlayerPhoneTails($dryRun),
             $this->constrainPlayerPhoneTail($dryRun),
+            $this->addBrandingDailySpinLimit($dryRun),
         ];
     }
 
@@ -210,6 +211,31 @@ final class DatabaseUpgrade
             $this->tense($dryRun, 'would create %d', 'created %d'),
             \count($specifications),
         ));
+    }
+
+    /**
+     * F23 R1, P02 R19.
+     *
+     * Nullable and left null, for the same reason the currency above is:
+     * null means nobody has set a limit, and a campaign that predates the
+     * column has indeed never set one. Choosing a number here would be this
+     * code deciding how often a shop's customers may play.
+     */
+    private function addBrandingDailySpinLimit(bool $dryRun): UpgradeStep
+    {
+        $name = 'branding.daily_spin_limit';
+
+        if ($this->columnExists('branding', 'daily_spin_limit')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                'ALTER TABLE branding ADD daily_spin_limit SMALLINT DEFAULT NULL',
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
     }
 
     /** P02 R19 */

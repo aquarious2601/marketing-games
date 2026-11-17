@@ -23,6 +23,9 @@ export const fr: Record<MessageKey, string> = {
   'player.claimByCode': 'Donnez ce code à un membre du personnel pour récupérer votre lot.',
   'player.thanksForPlaying': 'Merci d’avoir joué',
   'player.betterLuck': 'Bonne chance la prochaine fois !',
+  'player.alreadyPlayedKicker': 'C’était votre tour',
+  'player.alreadyPlayedToday': 'Vous avez déjà joué aujourd’hui.',
+  'player.comeBackTomorrow': 'Revenez demain pour un nouveau tour.',
   'player.loadFailed': 'Le jeu n’a pas pu être chargé.',
   'player.spinFailed': 'Le tour n’a pas pu aboutir. Veuillez réessayer.',
   'player.identityLost':
@@ -111,6 +114,7 @@ export const fr: Record<MessageKey, string> = {
   'branding.taglineHint': 'Laissez vide pour utiliser « %default% ».',
   'branding.theme': 'Thème',
   'branding.currencyHint': 'L’unité de toute récompense en montant. La changer réétiquette les montants ; elle ne les convertit pas.',
+  'branding.dailySpinLimitHint': 'Combien de fois une même personne peut jouer par jour. Laissez vide pour aucune limite. Le compte porte sur la personne, pas sur le téléphone : ressaisir son numéro ne la contourne pas.',
   'branding.logo': 'Logo',
   'branding.currentLogo': 'Logo actuel',
   'branding.removeLogo': 'Supprimer le logo',
@@ -209,4 +213,6 @@ export const fr: Record<MessageKey, string> = {
   'player.yourCode': 'Votre code',
 
   'branding.currency': 'Devise',
+  'branding.dailySpinLimit': 'Tours par personne et par jour',
+  'branding.dailySpinLimitBlank': 'Aucune limite',
 }

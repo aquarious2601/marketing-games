@@ -3,7 +3,7 @@ import { ApiValidationError } from '../api/client'
 import {
   identifyPhone,
   registerPlayer,
-  type PlayerIdentity,
+  type Identified,
   type Registration,
 } from '../api/player'
 import { useT, type Translate } from '../i18n/I18nContext'
@@ -21,8 +21,14 @@ import {
 } from './identity'
 
 interface IdentityStepProps {
-  /** Called once the server has identified this player (F08 R5, R6). */
-  onIdentified: (player: PlayerIdentity) => void
+  /**
+   * Called once the server has identified this player (F08 R5, R6).
+   *
+   * The whole answer, not just the player: how many spins they have left
+   * today arrives with the identification (F23 R13), so the page knows
+   * before it draws a wheel whether there is one to draw.
+   */
+  onIdentified: (identified: Identified) => void
 }
 
 type Phase =
@@ -95,7 +101,7 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
 
       if (lookup.known && lookup.player !== null) {
         // F08 R5: nothing further is asked.
-        onIdentified(lookup.player)
+        onIdentified({ player: lookup.player, spinsLeft: lookup.spinsLeft })
 
         return
       }

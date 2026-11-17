@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiValidationError } from '../api/client'
@@ -15,6 +15,7 @@ import {
 } from '../api/player'
 import { THEMES, THEME_NAMES } from '../branding/themes'
 import { colourFor } from '../wheel/palette'
+import { CELEBRATION_MS } from './Confetti'
 import { PlayerPage } from './PlayerPage'
 import { sliceUnderPointer } from './rotation'
 
@@ -46,8 +47,19 @@ const PLAYER = { firstName: 'Anh', phone: '0912345678' }
  * What GET /api/player/me answers, which since F20 is two facts rather than
  * one: who, and whether that identification has had its spin (F20 R5, R9).
  */
-const NOBODY = { player: null, spin: null }
-const IDENTIFIED = { player: PLAYER, spin: null }
+const NOBODY = { player: null, spin: null, spinsLeft: null }
+const IDENTIFIED = { player: PLAYER, spin: null, spinsLeft: null }
+
+/*
+ * What identify and register answer (F08 R5, F23 R13).
+ *
+ * Named rather than written out at each call site: since F23 they carry the
+ * person's day as well as their name, and a dozen copies of one literal is a
+ * dozen places to forget it.
+ */
+const UNKNOWN_NUMBER = { known: false, phone: '0912345678', player: null, spinsLeft: null }
+const KNOWN_NUMBER = { known: true, phone: '0912345678', player: PLAYER, spinsLeft: null }
+const REGISTERED = { player: PLAYER, spinsLeft: null }
 
 /**
  * An identification that has already had its spin (F20 R5).
@@ -69,6 +81,12 @@ function alreadySpun(prizeName = 'Free sample', reward?: Partial<SpinReward>) {
       },
       spunAt: '2026-11-14T20:00:00+00:00',
     },
+    /*
+     * F23. Unlimited unless a test says otherwise: this helper is about
+     * the reload case (F20 R5), and every one of its callers predates the
+     * daily limit. A test that wants an exhausted day passes its own.
+     */
+    spinsLeft: null as number | null,
   }
 }
 
@@ -334,7 +352,7 @@ describe('spinning', () => {
   /** F10 R3, R7 — the next player starts clean, and may be the same person */
   it('shows no stale result once the next player has identified', async () => {
     spinMock.mockResolvedValue(result(0))
-    identifyPhoneMock.mockResolvedValue({ known: true, phone: '0912345678', player: PLAYER })
+    identifyPhoneMock.mockResolvedValue(KNOWN_NUMBER)
     const user = await renderPlayer()
 
     await user.click(screen.getByTestId('spin-button'))
@@ -736,6 +754,147 @@ describe('the wheel at rest', () => {
  * reload actually does: mount the page again and let it ask the server what
  * it knows.
  */
+/**
+ * F22: the couple of seconds after the wheel stops on a prize.
+ *
+ * The rule worth guarding is the negative one. A celebration on a losing
+ * spin reads as mockery, and F17 exists because this page once told a
+ * losing player they had won.
+ */
+describe('the celebration', () => {
+  /** F22 R1, R3 */
+  it('throws confetti when the wheel stops on a prize', async () => {
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+
+    // F22 R3: not before the settle finishes. The wheel is still the story.
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+
+    expect(screen.getByTestId('confetti')).toBeInTheDocument()
+  })
+
+  /** F22 R2. The half of this feature that was asked for explicitly. */
+  it('throws none at all on the losing slice', async () => {
+    spinMock.mockResolvedValue(result(0, { type: 'nothing', code: null }))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+
+    const panel = await screen.findByTestId('spin-result')
+
+    expect(panel).toHaveTextContent('Thanks for playing')
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+  })
+
+  /** F22 R8: it clears itself rather than animating behind the result. */
+  it('removes itself once it is over', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+
+    try {
+      spinMock.mockResolvedValue(result(0))
+      const user = await renderPlayer()
+
+      await user.click(screen.getByTestId('spin-button'))
+      await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+      finishTheSpin()
+      await screen.findByTestId('spin-result')
+
+      expect(screen.getByTestId('confetti')).toBeInTheDocument()
+
+      await act(async () => {
+        vi.advanceTimersByTime(CELEBRATION_MS + 50)
+      })
+
+      expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+      // The result stays. Only the celebration is over (F10 R5).
+      expect(screen.getByTestId('spin-result')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  /**
+   * F22 R11, and the reason it reads that way.
+   *
+   * The first version of this feature suppressed the celebration under a
+   * reduced-motion preference, and it was invisible on the machine it was
+   * built for: Windows reports `reduce` whenever animation effects are off,
+   * as do most automated browsers. A celebration most players never see is
+   * not one. F03 R12 reached the same conclusion about the spin.
+   */
+  it('throws confetti even for somebody who asked for less motion', async () => {
+    stubMatchMedia(true)
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+
+    expect(screen.getByTestId('confetti')).toBeInTheDocument()
+  })
+
+  /**
+   * F22 R4. The rule most likely to be broken by a well-meaning
+   * simplification: celebrating when the panel mounts is shorter and looks
+   * identical the first time, and would then fire on every reload somebody
+   * makes to re-read their code (F20 R6).
+   */
+  it('does not celebrate a result that was already won', async () => {
+    fetchIdentityMock.mockResolvedValue(alreadySpun('Free gift'))
+
+    render(<PlayerPage />)
+
+    await screen.findByTestId('spin-result')
+
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+  })
+
+  /** F22 R5 */
+  it('is cleared by handing over to the next player', async () => {
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+    expect(screen.getByTestId('confetti')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('next-player-button'))
+
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+  })
+
+  /** F22 R9, R10: decoration, and silent to a screen reader. */
+  it('says nothing and intercepts nothing', async () => {
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+
+    const confetti = screen.getByTestId('confetti')
+
+    expect(confetti).toHaveAttribute('aria-hidden', 'true')
+    expect(confetti.className).toContain('pointer-events-none')
+
+    // F03 R1: outside the box whose transitions drive the spin's phases.
+    expect(screen.getByTestId('wheel-stage')).not.toContainElement(confetti)
+  })
+})
+
 describe('a reload after the spin', () => {
   /**
    * F20 R15. The question "who is this?" is open until the server answers,
@@ -896,7 +1055,7 @@ describe('identifying the player', () => {
   /** F08 R5 — a known number asks nothing further */
   it('shows the wheel for a number the server recognises', async () => {
     fetchIdentityMock.mockResolvedValue(NOBODY)
-    identifyPhoneMock.mockResolvedValue({ known: true, phone: '0912345678', player: PLAYER })
+    identifyPhoneMock.mockResolvedValue(KNOWN_NUMBER)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -914,7 +1073,7 @@ describe('identifying the player', () => {
   /** F08 R6 */
   it('asks for a name and a birthday for a number it has not seen', async () => {
     fetchIdentityMock.mockResolvedValue(NOBODY)
-    identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -938,7 +1097,7 @@ describe('identifying the player', () => {
    */
   it('shows the number being registered on the details step', async () => {
     fetchIdentityMock.mockResolvedValue(NOBODY)
-    identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -953,8 +1112,8 @@ describe('identifying the player', () => {
   /** F08 R6 — and then the wheel */
   it('registers the details and shows the wheel', async () => {
     fetchIdentityMock.mockResolvedValue(NOBODY)
-    identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
-    registerPlayerMock.mockResolvedValue(PLAYER)
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
+    registerPlayerMock.mockResolvedValue(REGISTERED)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -983,7 +1142,7 @@ describe('identifying the player', () => {
 
   it('lets the player go back and change the number', async () => {
     fetchIdentityMock.mockResolvedValue(NOBODY)
-    identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -1029,7 +1188,7 @@ describe('identifying the player', () => {
   /** F08 R10 — every problem at once, not one per submission */
   it('reports all three missing details together', async () => {
     fetchIdentityMock.mockResolvedValue(NOBODY)
-    identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
@@ -1049,7 +1208,7 @@ describe('identifying the player', () => {
 
   it('keeps what was typed when the server rejects the details', async () => {
     fetchIdentityMock.mockResolvedValue(NOBODY)
-    identifyPhoneMock.mockResolvedValue({ known: false, phone: '0912345678', player: null })
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
     registerPlayerMock.mockRejectedValue(
       new ApiValidationError('nope', [{ field: 'firstName', message: 'Server says no.' }]),
     )
@@ -1085,7 +1244,7 @@ describe('identifying the player', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not check that number/i)
 
-    identifyPhoneMock.mockResolvedValue({ known: true, phone: '0912345678', player: PLAYER })
+    identifyPhoneMock.mockResolvedValue(KNOWN_NUMBER)
     await user.click(screen.getByTestId('phone-submit'))
 
     expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
@@ -1323,7 +1482,7 @@ describe('handing over after a result', () => {
     await user.click(screen.getByTestId('next-player-button'))
     await screen.findByTestId('identity-phone')
 
-    identifyPhoneMock.mockResolvedValue({ known: true, phone: '0987654321', player: PLAYER })
+    identifyPhoneMock.mockResolvedValue({ ...KNOWN_NUMBER, phone: '0987654321' })
     await user.type(screen.getByTestId('phone-input'), '0987654321')
     await user.click(screen.getByTestId('phone-submit'))
 
@@ -1344,7 +1503,7 @@ describe('handing over after a result', () => {
     await user.click(screen.getByTestId('next-player-button'))
     await screen.findByTestId('identity-phone')
 
-    identifyPhoneMock.mockResolvedValue({ known: true, phone: '0912345678', player: PLAYER })
+    identifyPhoneMock.mockResolvedValue(KNOWN_NUMBER)
     await user.type(screen.getByTestId('phone-input'), '0912345678')
     await user.click(screen.getByTestId('phone-submit'))
 
@@ -1404,7 +1563,7 @@ describe('when the spin is refused', () => {
 
   it('clears the message once the player identifies again', async () => {
     spinMock.mockRejectedValue(new ApiError('nope', 403))
-    identifyPhoneMock.mockResolvedValue({ known: true, phone: '0912345678', player: PLAYER })
+    identifyPhoneMock.mockResolvedValue(KNOWN_NUMBER)
 
     const user = await renderPlayer()
     await user.click(screen.getByTestId('spin-button'))
@@ -1414,6 +1573,152 @@ describe('when the spin is refused', () => {
     await user.click(screen.getByTestId('phone-submit'))
 
     expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * F23 — the person has had their spins for today.
+ *
+ * The page never counts anything itself: every number here came from the
+ * server (F23 R3), which is why these tests set it on the answer rather
+ * than on the page.
+ */
+describe('a day that has been used up', () => {
+  const exhausted = { ...IDENTIFIED, spinsLeft: 0 }
+
+  /** F23 R14 */
+  it('shows the already-played screen instead of the wheel', async () => {
+    fetchIdentityMock.mockResolvedValue(exhausted)
+
+    render(<PlayerPage />)
+
+    expect(await screen.findByTestId('spins-exhausted')).toHaveTextContent(/already played today/i)
+    expect(screen.queryByTestId('wheel-preview')).not.toBeInTheDocument()
+  })
+
+  /** F23 R14: not a disabled button — no button (F10 R8's rule). */
+  it('leaves no spin control in the document', async () => {
+    fetchIdentityMock.mockResolvedValue(exhausted)
+
+    render(<PlayerPage />)
+    await screen.findByTestId('spins-exhausted')
+
+    expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
+  })
+
+  /**
+   * F23 R15. The one that matters: anybody may type anybody's number into a
+   * stall phone, so this screen is shown to whoever typed it.
+   */
+  it('says nothing about what they won or how often they played', async () => {
+    fetchIdentityMock.mockResolvedValue(exhausted)
+
+    render(<PlayerPage />)
+    await screen.findByTestId('spins-exhausted')
+
+    expect(screen.queryByTestId('spin-result')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
+
+    const page = screen.getByTestId('player-screen')
+
+    expect(page).not.toHaveTextContent('A7K3-M9PX')
+    expect(page).not.toHaveTextContent('Free sample')
+  })
+
+  /** F23 R18: and nothing about the campaign's rule either. */
+  it('never states the limit', async () => {
+    fetchIdentityMock.mockResolvedValue({ ...IDENTIFIED, spinsLeft: 0 })
+
+    render(<PlayerPage />)
+    await screen.findByTestId('spins-exhausted')
+
+    // The only numeral that belongs on this screen is none of them.
+    expect(screen.getByTestId('player-screen').textContent).not.toMatch(/\d/)
+  })
+
+  /** F23 R16: the queue behind them has to be able to play. */
+  it('hands the device on to the next player', async () => {
+    fetchIdentityMock.mockResolvedValue(exhausted)
+
+    const user = userEvent.setup()
+    render(<PlayerPage />)
+    await screen.findByTestId('spins-exhausted')
+
+    fetchIdentityMock.mockResolvedValue(NOBODY)
+    await user.click(screen.getByTestId('next-player-button'))
+
+    expect(await screen.findByTestId('identity-phone')).toBeInTheDocument()
+    expect(forgetPlayerMock).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * F23 R14 against F20 R6. Somebody who has just used their last spin has
+   * both an empty day and a prize to read, and the prize wins — otherwise
+   * winning the last spin of the day would make the code vanish.
+   */
+  it('still shows a result won in this session', async () => {
+    fetchIdentityMock.mockResolvedValue({ ...alreadySpun('Free gift'), spinsLeft: 0 })
+
+    render(<PlayerPage />)
+
+    expect(await screen.findByTestId('spin-result')).toHaveTextContent('Free gift')
+    expect(screen.getByTestId('reward-code')).toHaveTextContent('A7K3-M9PX')
+    expect(screen.queryByTestId('spins-exhausted')).not.toBeInTheDocument()
+  })
+
+  /** F23 R19: one spin left is not an exhausted day. */
+  it('shows the wheel while a spin remains', async () => {
+    fetchIdentityMock.mockResolvedValue({ ...IDENTIFIED, spinsLeft: 1 })
+
+    render(<PlayerPage />)
+
+    expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
+    expect(screen.getByTestId('spin-button')).toBeInTheDocument()
+    expect(screen.queryByTestId('spins-exhausted')).not.toBeInTheDocument()
+  })
+
+  /** F23 R1: and nor is a campaign with no limit at all. */
+  it('shows the wheel when the campaign has no limit', async () => {
+    fetchIdentityMock.mockResolvedValue({ ...IDENTIFIED, spinsLeft: null })
+
+    render(<PlayerPage />)
+
+    expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
+  })
+
+  /**
+   * F23 R13. The answer arrives with the identification, so somebody who
+   * has used their day is never offered a wheel to press.
+   */
+  it('appears as soon as an exhausted person identifies', async () => {
+    fetchIdentityMock.mockResolvedValue(NOBODY)
+    identifyPhoneMock.mockResolvedValue({ ...KNOWN_NUMBER, spinsLeft: 0 })
+
+    const user = userEvent.setup()
+    render(<PlayerPage />)
+    await screen.findByTestId('identity-phone')
+
+    await user.type(screen.getByTestId('phone-input'), '0912345678')
+    await user.click(screen.getByTestId('phone-submit'))
+
+    expect(await screen.findByTestId('spins-exhausted')).toBeInTheDocument()
+    expect(screen.queryByTestId('wheel-preview')).not.toBeInTheDocument()
+  })
+
+  /**
+   * F23 R10, R11. A tab left open since before the day was used up: the
+   * refusal is recovered from rather than shown as a failure.
+   */
+  it('recovers from a 429 by re-asking the server', async () => {
+    spinMock.mockRejectedValue(new ApiError('too many', 429))
+
+    const user = await renderPlayer()
+
+    fetchIdentityMock.mockResolvedValue(exhausted)
+    await user.click(screen.getByTestId('spin-button'))
+
+    expect(await screen.findByTestId('spins-exhausted')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

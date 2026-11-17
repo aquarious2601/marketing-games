@@ -75,6 +75,14 @@ final class BrandingController extends AbstractController
             // F15 R2: what this admin's language suggests. Only ever used
             // while nothing has been chosen.
             'defaultCurrency' => $this->presenter->defaultCurrency()->value,
+            /*
+             * F23 R22. Here and not in the presenter, so it reaches the
+             * admin and not the player page: a player is told about their
+             * own day, never about the campaign's rule (F23 R18), and
+             * anything in the public payload is readable by anybody.
+             */
+            'dailySpinLimit' => $branding->getDailySpinLimit(),
+            'maxDailySpinLimit' => Branding::MAX_DAILY_SPIN_LIMIT,
         ]);
     }
 
@@ -100,6 +108,16 @@ final class BrandingController extends AbstractController
         $theme = $this->readTheme($payload, $violations);
         $currency = $this->readCurrency($payload, $violations);
 
+        /*
+         * F23 R1. Absent and null mean different things here, which is why
+         * this is not another `?int` reader: absent leaves the limit alone,
+         * null clears it. A reader returning null for both could not tell a
+         * client that has never heard of the field from an admin emptying
+         * it, and the first upgrade would quietly unlimit every campaign.
+         */
+        $limitGiven = \array_key_exists('dailySpinLimit', $payload);
+        $dailySpinLimit = $limitGiven ? $this->readDailySpinLimit($payload, $violations) : null;
+
         if ([] !== $violations) {
             return $this->invalid($violations);
         }
@@ -114,6 +132,10 @@ final class BrandingController extends AbstractController
         // chose today, a currency is a fact about the shop.
         if (null !== $currency) {
             $branding->setCurrency($currency);
+        }
+
+        if ($limitGiven) {
+            $branding->setDailySpinLimit($dailySpinLimit);
         }
 
         $this->entityManager->flush();
@@ -222,6 +244,55 @@ final class BrandingController extends AbstractController
         }
 
         return $value;
+    }
+
+    /**
+     * F23 R4. A whole number from 1 to the ceiling, or null for no limit.
+     *
+     * Zero is refused rather than read as "nobody may play". A campaign
+     * nobody can play is a mistake somebody made in a number field, and
+     * obeying it would make this the quiet way to pause a campaign — which
+     * is campaign scheduling, and is not this.
+     *
+     * An empty string is null, because that is what a cleared number input
+     * sends; a string of digits is a number, because a form does not care
+     * which of the two it posts.
+     *
+     * Checked before it reaches a SMALLINT column, which is what lets the
+     * column stay one after what F21 cost.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     */
+    private function readDailySpinLimit(array $payload, array &$violations): ?int
+    {
+        /** @var mixed $value */
+        $value = $payload['dailySpinLimit'] ?? null;
+
+        if (null === $value || '' === $value) {
+            return null;
+        }
+
+        $limit = null;
+
+        if (\is_int($value)) {
+            $limit = $value;
+        } elseif (\is_string($value) && 1 === preg_match('/^\d{1,3}$/', $value)) {
+            $limit = (int) $value;
+        }
+
+        if (null === $limit || $limit < 1 || $limit > Branding::MAX_DAILY_SPIN_LIMIT) {
+            $violations[] = new Violation(
+                'dailySpinLimit',
+                $this->translator->trans('branding.daily_spin_limit_invalid', [
+                    '%max%' => Branding::MAX_DAILY_SPIN_LIMIT,
+                ]),
+            );
+
+            return null;
+        }
+
+        return $limit;
     }
 
     /**

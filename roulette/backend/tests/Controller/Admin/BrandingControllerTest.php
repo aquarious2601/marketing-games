@@ -191,6 +191,136 @@ final class BrandingControllerTest extends DatabaseWebTestCase
     }
 
         /** F04 R12 */
+    // ------------------------------------------- F23: spins per day
+
+    /** F23 R1: a campaign arrives with no limit, as every campaign has. */
+    public function testACampaignStartsWithNoDailySpinLimit(): void
+    {
+        $this->client->request('GET', self::URI);
+
+        self::assertNull($this->decodeResponse()['dailySpinLimit']);
+    }
+
+    /** F23 R20 */
+    public function testItSavesADailySpinLimit(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => 3]);
+
+        self::assertResponseIsSuccessful();
+
+        $this->client->request('GET', self::URI);
+        self::assertSame(3, $this->decodeResponse()['dailySpinLimit']);
+    }
+
+    /** What a number input actually posts when somebody types in it. */
+    public function testItAcceptsTheLimitAsAString(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => '5']);
+
+        self::assertResponseIsSuccessful();
+
+        $this->client->request('GET', self::URI);
+        self::assertSame(5, $this->decodeResponse()['dailySpinLimit']);
+    }
+
+    /** F23 R1: and what it posts when somebody clears it. */
+    public function testAnEmptyStringClearsTheLimit(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => 4]);
+        $this->put(self::URI, ['dailySpinLimit' => '']);
+
+        self::assertResponseIsSuccessful();
+
+        $this->client->request('GET', self::URI);
+        self::assertNull($this->decodeResponse()['dailySpinLimit']);
+    }
+
+    public function testNullClearsTheLimit(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => 4]);
+        $this->put(self::URI, ['dailySpinLimit' => null]);
+
+        $this->client->request('GET', self::URI);
+        self::assertNull($this->decodeResponse()['dailySpinLimit']);
+    }
+
+    /**
+     * F23 R1. The same rule the currency has (F13 R27), and for a sharper
+     * reason: without it, the first save from any client that predates this
+     * field would quietly unlimit the campaign.
+     */
+    public function testOmittingTheLimitLeavesItAlone(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => 7]);
+        $this->put(self::URI, ['campaignName' => 'Spring']);
+
+        $this->client->request('GET', self::URI);
+        self::assertSame(7, $this->decodeResponse()['dailySpinLimit']);
+    }
+
+    /**
+     * F23 R4. Zero is a mistake in a number field, not an instruction to
+     * close the campaign.
+     */
+    public function testItRejectsALimitOfZero(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => 4]);
+        $this->put(self::URI, ['dailySpinLimit' => 0]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertSame('dailySpinLimit', $this->decodeResponse()['error']['violations'][0]['field']);
+
+        $this->client->request('GET', self::URI);
+        self::assertSame(4, $this->decodeResponse()['dailySpinLimit'], 'Nothing should have been stored.');
+    }
+
+    /** F23 R4: and the ceiling that keeps the column a SMALLINT. */
+    public function testItRejectsALimitOverNinetyNine(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => 100]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertSame('dailySpinLimit', $this->decodeResponse()['error']['violations'][0]['field']);
+    }
+
+    public function testItAcceptsALimitOfExactlyNinetyNine(): void
+    {
+        $this->put(self::URI, ['dailySpinLimit' => 99]);
+
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testItRejectsALimitThatIsNotANumber(): void
+    {
+        foreach (['three', '3.5', -1, 2.5, true] as $value) {
+            $this->put(self::URI, ['dailySpinLimit' => $value]);
+
+            self::assertResponseStatusCodeSame(
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+                var_export($value, true).' was accepted as a limit.',
+            );
+        }
+    }
+
+    /** F23 R21: the rest of the section is not saved behind a bad limit. */
+    public function testABadLimitSavesNothingElseEither(): void
+    {
+        $this->put(self::URI, ['campaignName' => 'Spring', 'dailySpinLimit' => 0]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        $this->client->request('GET', self::URI);
+        self::assertNull($this->decodeResponse()['campaignName']);
+    }
+
+    /** F23 R20: the admin form needs the ceiling to validate against. */
+    public function testItReportsTheCeiling(): void
+    {
+        $this->client->request('GET', self::URI);
+
+        self::assertSame(99, $this->decodeResponse()['maxDailySpinLimit']);
+    }
+
     public function testItRejectsAnUnknownTheme(): void
     {
         $this->put(self::URI, ['theme' => 'easter']);

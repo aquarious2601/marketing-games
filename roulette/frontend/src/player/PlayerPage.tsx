@@ -13,6 +13,7 @@ import { ThemeScene } from '../branding/ThemeScene'
 import { useT } from '../i18n/I18nContext'
 import { LanguagePicker } from '../i18n/LanguagePicker'
 import { themeFor, themeStyle } from '../branding/themes'
+import { CELEBRATION_MS, Confetti } from './Confetti'
 import { IdentityStep } from './IdentityStep'
 import { PlayerHeader } from './PlayerHeader'
 import { WheelPreview, type PreviewSlice } from '../wheel/WheelPreview'
@@ -72,6 +73,19 @@ export function PlayerPage() {
   const [error, setError] = useState<string | null>(null)
   // F08 R12: what the *server* said, never something this page decided.
   const [player, setPlayer] = useState<PlayerIdentity | null>(null)
+  /*
+   * F23 R12. Spins left today for this person, or null when the campaign
+   * has no limit — which is also what an unidentified visitor gets, since
+   * they have no day to count.
+   *
+   * From the server on every answer, never decremented here: the count is
+   * over recorded spins (F23 R3), and a page that kept its own would be
+   * wrong the moment the same person played on the second stall phone.
+   */
+  const [spinsLeft, setSpinsLeft] = useState<number | null>(null)
+  // F22 R1. Separate from `result` on purpose: a result stays until Next
+  // player, and the celebration is over long before that.
+  const [celebrating, setCelebrating] = useState(false)
 
   // F03 R13: disabled from the moment Spin is pressed until the wheel stops.
   const busy = awaitingSpin || isSpinning(animation)
@@ -80,6 +94,20 @@ export function PlayerPage() {
   // result rather than the one captured when the spin started.
   const pendingResult = useRef<string | null>(null)
   const pendingReward = useRef<SpinReward | null>(null)
+  const celebrationTimer = useRef<number | null>(null)
+
+  const stopCelebrating = useCallback(() => {
+    if (celebrationTimer.current !== null) {
+      window.clearTimeout(celebrationTimer.current)
+      celebrationTimer.current = null
+    }
+
+    setCelebrating(false)
+  }, [])
+
+  // A player who hands the phone over mid-celebration unmounts this with a
+  // timer still pending.
+  useEffect(() => stopCelebrating, [stopCelebrating])
 
   /**
    * The wheel and the identity are fetched together, not one after the other.
@@ -103,7 +131,7 @@ export function PlayerPage() {
       ),
       fetchIdentity({ signal }).then(
         (value) => value,
-        () => ({ player: null, spin: null }),
+        () => ({ player: null, spin: null, spinsLeft: null }),
       ),
     ])
 
@@ -112,6 +140,7 @@ export function PlayerPage() {
     }
 
     setPlayer(identity.player)
+    setSpinsLeft(identity.spinsLeft)
 
     /*
      * F20 R6. This identification has already spun, so the result goes
@@ -147,12 +176,40 @@ export function PlayerPage() {
   }, [loadWheel])
 
   const reveal = useCallback(() => {
-    if (pendingResult.current !== null) {
-      setResult(pendingResult.current)
-      setReward(pendingReward.current)
-      pendingResult.current = null
-      pendingReward.current = null
+    if (pendingResult.current === null) {
+      return
     }
+
+    const won = pendingReward.current
+
+    setResult(pendingResult.current)
+    setReward(won)
+    pendingResult.current = null
+    pendingReward.current = null
+
+    /*
+     * F22 R1, R2, R3. Here and nowhere else: this runs when the settle
+     * finishes (F03 R11), which is the moment the player learns what they
+     * won. Celebrating on mount instead would be one line shorter and would
+     * throw confetti every time somebody reloaded to re-read their code
+     * (F20 R6), which is F22 R4.
+     *
+     * A reward of `nothing` is the losing slice and gets none of this
+     * (F17 R1). An *absent* reward is read as a win, which is the same
+     * defensive reading F17 R7 takes.
+     *
+     * The system's reduced-motion preference is deliberately not consulted,
+     * exactly as F03 R12 does not consult it for the spin. See F22 R11.
+     */
+    if (won?.type === 'nothing') {
+      return
+    }
+
+    setCelebrating(true)
+    celebrationTimer.current = window.setTimeout(() => {
+      celebrationTimer.current = null
+      setCelebrating(false)
+    }, CELEBRATION_MS)
   }, [])
 
   /**
@@ -213,6 +270,16 @@ export function PlayerPage() {
       if (caught instanceof ApiError && caught.status === 403) {
         setPlayer(null)
         setError(t('player.identityLost'))
+      } else if (caught instanceof ApiError && caught.status === 429) {
+        /*
+         * F23 R10, R11. This person has used the day, and this page did not
+         * know: it was loaded before they played on another device, or
+         * before an admin lowered the limit. Re-asking the server is the
+         * same recovery the conflict below takes, and it lands on the
+         * already-played screen rather than leaving a button that can only
+         * fail again.
+         */
+        await loadWheel()
       } else if (caught instanceof ApiError && caught.status === 409) {
         /*
          * F20 R2: this identification has already spun, and this page did not
@@ -251,6 +318,10 @@ export function PlayerPage() {
     setReward(null)
     setError(null)
     setAnimation(atRest())
+    // F23 R16: and does not inherit the last one's exhausted day either.
+    setSpinsLeft(null)
+    // F22 R5: the next person does not inherit the last one's confetti.
+    stopCelebrating()
 
     try {
       await forgetPlayer()
@@ -345,10 +416,81 @@ export function PlayerPage() {
 
           <IdentityStep
             onIdentified={(identified) => {
-              setPlayer(identified)
+              setPlayer(identified.player)
+              // F23 R13: known before a wheel is drawn, so nobody is offered
+              // a spin that is about to be refused.
+              setSpinsLeft(identified.spinsLeft)
               setError(null)
             }}
           />
+
+          <LanguagePicker />
+        </Stage>
+      </Screen>
+    )
+  }
+
+  /**
+   * F23 R14. This person has no spins left today.
+   *
+   * Returned before the wheel, like the phone step above it, so there is no
+   * spin control anywhere in the document rather than a disabled one — the
+   * same rule F10 R8 holds for a result on screen.
+   *
+   * Only while nothing is on screen from this session: somebody who has just
+   * played has both used their last spin *and* a result to read, and the
+   * result wins (F20 R6). Without that condition the prize and the code
+   * would vanish the instant they were won.
+   *
+   * What it does not say is as deliberate as what it does (F23 R15). Not the
+   * prize, not the code, not how many times they played — anybody may type
+   * anybody's number into a stall phone, and this screen is shown to whoever
+   * types it.
+   */
+  if (spinsLeft === 0 && result === null) {
+    return (
+      <Screen theme={wheel.branding.theme}>
+        <Stage>
+          <PlayerHeader branding={wheel.branding} />
+
+          <div
+            role="status"
+            data-testid="spins-exhausted"
+            className="player-result w-[min(19rem,100%)] rounded-2xl border p-5 text-center"
+            style={{
+              backgroundColor: 'var(--panel-bg)',
+              borderColor: 'var(--panel-border)',
+              color: 'var(--panel-text)',
+              boxShadow: '0 18px 40px -12px rgba(0, 0, 0, 0.65)',
+            }}
+          >
+            <p className="player-kicker" style={{ color: 'var(--panel-heading)' }}>
+              {t('player.alreadyPlayedKicker')}
+            </p>
+            <p className="mt-1 text-xl font-bold" style={{ color: 'var(--panel-heading)' }}>
+              {t('player.alreadyPlayedToday')}
+            </p>
+            <p className="mt-2 text-xs">{t('player.comeBackTomorrow')}</p>
+          </div>
+
+          {/* F23 R16. The same control the result screen offers, for the
+              same reason: this is a stall's device and the queue behind
+              this person has to be able to play. */}
+          <button
+            type="button"
+            onClick={() => void handOver()}
+            data-testid="next-player-button"
+            className={buttonClass}
+            style={buttonStyle}
+          >
+            {t('player.nextPlayer')}
+          </button>
+
+          <p className="player-kicker text-center" data-testid="player-identity">
+            <span style={{ color: 'var(--body)' }}>
+              {t('player.playingAs', { name: player.firstName })}
+            </span>
+          </p>
 
           <LanguagePicker />
         </Stage>
@@ -417,6 +559,10 @@ export function PlayerPage() {
               />
             </div>
           </div>
+
+          {/* Behind the panel and outside `wheel-stage`: nothing it does
+              may reach the spin's phase handler (F22 R9, F03 R1). */}
+          {celebrating && <Confetti />}
 
           {result !== null && <ResultPanel name={result} reward={reward} />}
         </div>

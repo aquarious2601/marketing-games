@@ -54,6 +54,10 @@ function branding(overrides: Partial<AdminBranding> = {}): AdminBranding {
     tagline: DEFAULT_TAGLINE,
     ownTagline: null,
     defaultTagline: DEFAULT_TAGLINE,
+    // F23 R1: a campaign with no limit, which is every campaign
+    // until an admin sets one.
+    dailySpinLimit: null,
+    maxDailySpinLimit: 99,
     theme: 'plain',
     currency: 'VND',
     currencySymbol: '₫',
@@ -165,6 +169,10 @@ describe('saving', () => {
         theme: 'halloween',
         // F15 R10: the currency travels with the rest of the branding.
         currency: 'VND',
+        // F23 R1: and the limit, as null, because the field is empty. The
+        // key is always sent from this form — it is the thing that edits
+        // it — so "absent leaves it alone" is for other clients.
+        dailySpinLimit: null,
       }),
     )
   })
@@ -410,5 +418,73 @@ describe('the logo', () => {
 
     expect(screen.getByText(/PNG, JPEG, WebP or SVG, up to 2MB/i)).toBeInTheDocument()
     expect(screen.getByText(/cleaned before use/i)).toBeInTheDocument()
+  })
+})
+
+/** F23 R20, R21 — the campaign's daily spin limit. */
+describe('the daily spin limit', () => {
+  const limitField = () => screen.getByLabelText(/spins per person per day/i)
+
+  /** F23 R1: blank is no limit, and it is the common case. */
+  it('is empty when the campaign has none', async () => {
+    await renderSection({ dailySpinLimit: null })
+
+    expect(limitField()).toHaveValue(null)
+  })
+
+  it('shows the limit the campaign has', async () => {
+    await renderSection({ dailySpinLimit: 3 })
+
+    expect(limitField()).toHaveValue(3)
+  })
+
+  it('saves a limit that was typed in', async () => {
+    const user = await renderSection({ dailySpinLimit: null })
+
+    await user.type(limitField(), '2')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({ dailySpinLimit: 2 })),
+    )
+  })
+
+  /** F23 R1: clearing the field is how a campaign goes back to no limit. */
+  it('sends null when the field is cleared', async () => {
+    const user = await renderSection({ dailySpinLimit: 5 })
+
+    await user.clear(limitField())
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({ dailySpinLimit: null })),
+    )
+  })
+
+  /**
+   * F23 R21. The server decides what a valid limit is — one place, because
+   * it is the one that also has to refuse the next client — and its answer
+   * lands on the field that caused it (F01 R12).
+   */
+  it('shows the server violation under the field', async () => {
+    saveMock.mockRejectedValue(
+      new ApiValidationError('The branding is invalid.', [
+        { field: 'dailySpinLimit', message: 'Spins per day must be a whole number from 1 to 99.' },
+      ]),
+    )
+
+    const user = await renderSection({ dailySpinLimit: null })
+
+    await user.type(limitField(), '0')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(await screen.findByText(/whole number from 1 to 99/i)).toBeInTheDocument()
+  })
+
+  /** F23 R2 is the part an admin would not guess from the label. */
+  it('says that it counts the person rather than the phone', async () => {
+    await renderSection({ dailySpinLimit: null })
+
+    expect(screen.getByText(/counts the person, not the phone/i)).toBeInTheDocument()
   })
 })

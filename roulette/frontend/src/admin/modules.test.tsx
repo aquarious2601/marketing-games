@@ -82,6 +82,10 @@ const BRANDING = {
   ownCurrency: null,
   defaultCurrency: 'VND',
   defaultTagline: 'One spin, one prize. Good luck.',
+  // F23 R1: a campaign with no limit, which is every campaign
+  // until an admin sets one.
+  dailySpinLimit: null,
+  maxDailySpinLimit: 99,
 }
 
 const PLAYER = {

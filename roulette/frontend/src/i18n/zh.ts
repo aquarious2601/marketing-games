@@ -23,6 +23,9 @@ export const zh: Record<MessageKey, string> = {
   'player.claimByCode': '请向工作人员提供此兑换码领取奖品。',
   'player.thanksForPlaying': '感谢参与',
   'player.betterLuck': '祝您下次好运！',
+  'player.alreadyPlayedKicker': '这就是您的一次机会',
+  'player.alreadyPlayedToday': '您今天已经玩过了。',
+  'player.comeBackTomorrow': '明天再来转一次吧。',
   'player.loadFailed': '无法加载游戏。',
   'player.spinFailed': '本次转动未能完成，请重试。',
   'player.identityLost': '游戏需要知道是谁在玩。请重新输入您的号码。',
@@ -104,6 +107,7 @@ export const zh: Record<MessageKey, string> = {
   'branding.taglineHint': '留空则使用“%default%”。',
   'branding.theme': '主题',
   'branding.currencyHint': '所有「减免金额」奖励的计价单位。修改后只会更换标注，不会换算金额。',
+  'branding.dailySpinLimitHint': '同一人每天可以转多少次。留空表示不限。按人计数，不按手机，所以重新输入号码也绕不过去。',
   'branding.logo': '标志',
   'branding.currentLogo': '当前标志',
   'branding.removeLogo': '移除标志',
@@ -198,4 +202,6 @@ export const zh: Record<MessageKey, string> = {
   'player.yourCode': '您的兑换码',
 
   'branding.currency': '货币',
+  'branding.dailySpinLimit': '每人每日转动次数',
+  'branding.dailySpinLimitBlank': '不限',
 }

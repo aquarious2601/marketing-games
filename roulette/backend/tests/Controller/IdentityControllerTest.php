@@ -70,11 +70,60 @@ final class IdentityControllerTest extends DatabaseWebTestCase
 
             $body = (string) $this->client->getResponse()->getContent();
 
-            self::assertStringNotContainsString('Le', $body, $uri.' leaked the last name.');
-            self::assertStringNotContainsString('1994', $body, $uri.' leaked the birthday.');
+            // The field names are a fact about the envelope, so they are
+            // still read straight off it.
             self::assertStringNotContainsString('lastName', $body);
             self::assertStringNotContainsString('birthday', $body);
+
+            /*
+             * The values are read decoded, not searched for in the raw
+             * body. Searching the body was the same test until a key named
+             * `spinsLeft` arrived (F23 R12) and the surname "Le" was found
+             * inside it — at which point a test of what leaks had quietly
+             * become a test of how the keys are spelled. Values are what
+             * F08 R11 is about.
+             */
+            foreach (self::valuesIn($this->decodeResponse()) as $path => $value) {
+                self::assertStringNotContainsString(
+                    'Le',
+                    $value,
+                    $uri.' leaked the last name at '.$path.'.',
+                );
+                self::assertStringNotContainsString(
+                    '1994',
+                    $value,
+                    $uri.' leaked the birthday at '.$path.'.',
+                );
+            }
         }
+    }
+
+    /**
+     * Every scalar in a decoded response, keyed by where it was found, so a
+     * failure names the field rather than making somebody look for it.
+     *
+     * @param array<mixed> $payload
+     *
+     * @return array<string, string>
+     */
+    private static function valuesIn(array $payload, string $prefix = ''): array
+    {
+        $values = [];
+
+        /** @var mixed $value */
+        foreach ($payload as $key => $value) {
+            $path = '' === $prefix ? (string) $key : $prefix.'.'.$key;
+
+            if (\is_array($value)) {
+                $values += self::valuesIn($value, $path);
+
+                continue;
+            }
+
+            $values[$path] = \is_scalar($value) ? (string) $value : '';
+        }
+
+        return $values;
     }
 
     /** F08 R15 */

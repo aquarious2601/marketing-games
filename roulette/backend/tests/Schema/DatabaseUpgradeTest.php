@@ -584,6 +584,60 @@ final class DatabaseUpgradeTest extends KernelTestCase
         );
     }
 
+    // ------------------------------------------- F23: the daily spin limit
+
+    /**
+     * F23 R1. Added, and left null, for the same reason the currency is:
+     * null means nobody has set a limit, and a campaign that predates the
+     * column has never set one. Seeding a number here would be this code
+     * deciding how often a shop's customers may play.
+     */
+    public function testItAddsTheDailySpinLimitWithoutChoosingOne(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->insert('branding', [
+            'company_name' => 'Korean Cosmetics',
+            'theme' => 'birthday',
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        $this->upgrade()->run();
+
+        $column = $this->columnOf('branding', 'daily_spin_limit');
+
+        self::assertNotNull($column, 'The column was not added.');
+        self::assertFalse($column->getNotnull(), 'Null has to stay available: it means no limit.');
+        self::assertNull(
+            $this->connection->fetchOne('SELECT daily_spin_limit FROM branding'),
+            'an upgraded campaign was given a limit nobody asked for',
+        );
+        self::assertSame(
+            'Korean Cosmetics',
+            $this->connection->fetchOne('SELECT company_name FROM branding'),
+            'the branding already there was not disturbed',
+        );
+    }
+
+    /** P02 R2: running it twice is running it once. */
+    public function testItLeavesADailySpinLimitAlreadySetAlone(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->upgrade()->run();
+
+        $this->connection->insert('branding', [
+            'theme' => 'plain',
+            'daily_spin_limit' => 3,
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        $this->upgrade()->run();
+
+        self::assertSame(
+            3,
+            (int) $this->connection->fetchOne('SELECT daily_spin_limit FROM branding'),
+        );
+    }
+
     // --------------------------------------------- P02 R22-R25: the phone tail
 
     /** P02 R22, R25 */

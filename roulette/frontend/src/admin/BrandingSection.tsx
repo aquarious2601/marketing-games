@@ -22,6 +22,12 @@ interface Draft {
   theme: string
   /** F15 R10: the campaign's currency, edited here as well as in Rewards. */
   currency: string
+  /**
+   * F23 R1, R20. A string, not a number, because this is what a text box
+   * holds: empty means no limit, and an empty number input has no number
+   * in it to represent that. The conversion happens once, on the way out.
+   */
+  dailySpinLimit: string
 }
 
 /**
@@ -41,6 +47,7 @@ export function BrandingSection() {
     tagline: '',
     theme: 'plain',
     currency: '',
+    dailySpinLimit: '',
   })
   const [saved, setSaved] = useState<Draft>(draft)
   const [saving, setSaving] = useState(false)
@@ -76,6 +83,10 @@ export function BrandingSection() {
         // and what the admin's language suggests is the best guess the
         // server can make while nothing has been chosen.
         currency: loaded.currency,
+        // F23 R1: unlike the currency, there is a real "nothing chosen"
+        // here and it is the common case, so it is shown as empty rather
+        // than filled in with a guess.
+        dailySpinLimit: loaded.dailySpinLimit === null ? '' : String(loaded.dailySpinLimit),
       }
 
       setBranding(loaded)
@@ -102,7 +113,8 @@ export function BrandingSection() {
     draft.campaignName !== saved.campaignName ||
     draft.tagline !== saved.tagline ||
     draft.theme !== saved.theme ||
-    draft.currency !== saved.currency
+    draft.currency !== saved.currency ||
+    draft.dailySpinLimit !== saved.dailySpinLimit
 
   const change = (patch: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...patch }))
@@ -117,7 +129,20 @@ export function BrandingSection() {
     setViolations([])
 
     try {
-      const result = await saveBranding(draft)
+      /*
+       * F23 R1. Empty is null, which clears the limit; the key is always
+       * sent, because this form is the thing that edits it. Anything else
+       * typed in goes to the server as it was typed rather than being
+       * silently repaired here — one place decides what a valid limit is
+       * (F23 R21), and it is the one that also has to refuse the next
+       * client.
+       */
+      const limit = draft.dailySpinLimit.trim()
+
+      const result = await saveBranding({
+        ...draft,
+        dailySpinLimit: '' === limit ? null : Number(limit),
+      })
 
       setBranding((current) => (current === null ? current : { ...current, ...result }))
       setSaved(draft)
@@ -298,6 +323,36 @@ export function BrandingSection() {
         {violationFor('currency') !== undefined && (
           <p role="alert" className="mt-1 text-xs text-rose-600">
             {violationFor('currency')}
+          </p>
+        )}
+      </div>
+
+      {/* F23 R20. Beneath the currency, because both are facts about how
+          the campaign is run rather than how it looks — and because this is
+          where an admin will come looking for it. */}
+      <div className="mt-4">
+        <label htmlFor="branding-daily-spin-limit" className={labelClass}>
+          {t('branding.dailySpinLimit')}
+        </label>
+        <input
+          id="branding-daily-spin-limit"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={branding.maxDailySpinLimit}
+          step={1}
+          value={draft.dailySpinLimit}
+          placeholder={t('branding.dailySpinLimitBlank')}
+          onChange={(event) => change({ dailySpinLimit: event.target.value })}
+          className={inputClass}
+        />
+        {/* F23 R2 is the part that is not obvious from the label: it counts
+            the person, so the stall cannot be worked around by typing the
+            number in again. */}
+        <p className="mt-1 text-xs text-slate-500">{t('branding.dailySpinLimitHint')}</p>
+        {violationFor('dailySpinLimit') !== undefined && (
+          <p role="alert" className="mt-1 text-xs text-rose-600">
+            {violationFor('dailySpinLimit')}
           </p>
         )}
       </div>

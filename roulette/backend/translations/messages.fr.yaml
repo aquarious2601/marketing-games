@@ -14,6 +14,7 @@ player:
     details_invalid: "Ces informations n'ont pas pu être utilisées."
     spin_requires_identity: 'Dites-nous qui vous êtes avant de tourner la roue.'
     spin_already_used: 'Vous avez déjà tourné la roue. Appuyez sur Joueur suivant pour passer le téléphone.'
+    spin_limit_reached: "Vous avez déjà joué aujourd'hui. Revenez demain."
     phone_required: 'Saisissez votre numéro de téléphone.'
     phone_invalid: "Cela ne ressemble pas à un numéro de téléphone. Il faut entre %min% et %max% chiffres."
     first_name_required: 'Saisissez votre prénom.'
@@ -49,6 +50,7 @@ branding:
     must_be_text: 'Ceci doit être du texte.'
     too_long: 'Ceci ne peut pas dépasser %max% caractères.'
     choose_one_of: 'Choisissez parmi : %values%.'
+    daily_spin_limit_invalid: 'Le nombre de tours par jour doit être un entier de 1 à %max%, ou vide pour aucune limite.'
 
 logo:
     required: 'Choisissez une image à envoyer.'
