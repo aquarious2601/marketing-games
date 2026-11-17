@@ -37,8 +37,12 @@ with no SSH port:
 winget install Amazon.SessionManagerPlugin
 ```
 
-Close and reopen the terminal afterwards so `aws` is on the path, then sign
-the CLI in. Create an access key in the IAM console for your own user, and:
+Install everything you are going to install first, then **close and reopen
+the terminal** — winget updates the PATH for new shells only, so a freshly
+installed tool is "not recognized" in the window you installed it from. That
+will happen once per tool otherwise.
+
+Then sign the CLI in. Create an access key in the IAM console for your own user, and:
 
 ```powershell
 aws configure
@@ -57,9 +61,11 @@ aws sts get-caller-identity
 
 That prints your account id, which step 7 needs.
 
-Optional: `winget install GitHub.cli` lets you set the repository's
-variables from the command line in step 8 instead of clicking through
-Settings.
+Optional but worth it: `winget install GitHub.cli`. It sets the
+repository's variables in step 8 without clicking through Settings, triggers
+a deploy with `gh workflow run deploy.yml --ref main`, follows it with
+`gh run watch`, and is what the branching workflow in
+[`../features/README.md`](../features/README.md) uses for pull requests.
 
 ## What you create by hand, once
 
