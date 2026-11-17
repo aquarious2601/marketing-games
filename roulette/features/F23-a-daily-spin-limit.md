@@ -107,7 +107,7 @@ and an open till.
 | # | Rule |
 |---|---|
 | R6 | A day runs from midnight to midnight in the shop's own timezone. |
-| R7 | That timezone is one deployment setting, `APP_TIMEZONE`, defaulting to `UTC`. It is not an admin field: a stall does not move, and the shop does not need a control for it. |
+| R7 | That timezone is one deployment setting, `APP_TIMEZONE`. The application falls back to `UTC` when it is unset, which is what a development checkout and the test suites run on — but a provisioned instance may not be silent about it: `provision.sh` requires `TIMEZONE` alongside `DOMAIN`, because a default is a guess at the one fact only the shop knows. It is not an admin field: a stall does not move, and a Game module dropdown of four hundred identifiers to carry one string was specified and withdrawn ([F24](./F24-the-campaigns-timezone.md)) — a decision that holds only while one installation serves one shop. |
 | R8 | An identifier the runtime does not recognise stops the application from starting rather than quietly becoming UTC. A timezone that is silently wrong is a limit that resets in the middle of the trading day, and nobody would notice for a week — whereas a deploy that will not serve is caught by [P03](./P03-deployment.md) R5's health check and rolled back within the minute. |
 | R9 | Spins are still stored in UTC, as every timestamp in this application is. The day's boundary is computed as a UTC instant and compared against the stored column, so no stored data depends on the setting and changing it needs no migration. |
 

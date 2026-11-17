@@ -21,13 +21,15 @@ set -Eeuo pipefail
 : "${RELEASE_BUCKET:?set RELEASE_BUCKET to the S3 bucket holding releases}"
 
 # F23 R6, R7: where the shop is, which is what decides when a player's day
-# rolls over. Optional, because UTC is a working default and a campaign with
-# no limit never asks the question — but a campaign that does set one and
-# leaves this wrong will reset itself in the middle of the trading day. An
-# identifier PHP does not recognise stops the application rather than
-# falling back to UTC (F23 R8), so a typo here fails the health check and
-# rolls the release back instead of going quietly wrong.
-TIMEZONE="${TIMEZONE:-UTC}"
+# rolls over. Required rather than defaulted, because a default here is a
+# guess at the one fact only the shop knows. `UTC` would draw the day's
+# boundary at 07:00 for a shop at UTC+7 — inside opening hours, where it
+# leaks a second spin to an early visitor and refuses a late one on what the
+# shop calls a new day. An identifier PHP does not recognise stops the
+# application rather than falling back to UTC (F23 R8), so a typo here fails
+# the health check and rolls the release back instead of going quietly
+# wrong.
+: "${TIMEZONE:?set TIMEZONE to where the shop is, e.g. Europe/Paris}"
 
 APP_DIR=/srv/roulette
 PHP_VERSION=8.3

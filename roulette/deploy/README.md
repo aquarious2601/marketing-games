@@ -129,6 +129,7 @@ export REPO=aquarious2601/marketing-games
 
 export DOMAIN=roulette.example.com           # <- yours
 export EMAIL=you@example.com                 # <- yours
+export TIMEZONE=Europe/Paris                 # <- yours
 
 export ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 # A bucket name must be unique across every AWS account in the world, so it
@@ -341,11 +342,15 @@ aws ssm send-command --instance-ids "$INSTANCE" \
 
 `TIMEZONE` is where the shop is, and it is what decides when a player's day
 rolls over for [F23](../features/F23-a-daily-spin-limit.md)'s spin limit.
-Set it before you provision — `export TIMEZONE=Europe/Paris`, or
-`Asia/Ho_Chi_Minh` — because UTC midnight is 1am in Paris and 7am in Ho Chi
-Minh City, and a campaign with a daily limit would hand out its next round
-of spins at those hours. It defaults to `UTC`, which is right only for a
-shop that is actually in it.
+It is **required**: `provision.sh` stops before it installs anything if you
+have not set it, exactly as it does for `DOMAIN`. There is no default,
+because a default would be a guess at the one fact only the shop knows —
+and `UTC` is a guess that draws the day's boundary at 1am in Paris and 7am
+in Ho Chi Minh City. Seven in the morning is inside opening hours, which is
+where a wrong boundary stops being cosmetic: it leaks a second spin to the
+customer who comes in early and refuses one to the customer who came in
+late yesterday, a few times a week, looking for all the world like a bug in
+the limit.
 
 An identifier PHP does not recognise stops the application rather than
 quietly becoming UTC (F23 R8), so a typo fails the health check and rolls
