@@ -120,15 +120,23 @@ jobs:
           set -Eeuo pipefail
           sha="${GITHUB_SHA}"
 
+          # set -eu, not set -Eeuo pipefail: AWS-RunShellScript executes
+          # with /bin/sh, which is dash on Ubuntu, where -o pipefail and -E
+          # do not exist and abort the script on line 1. There are no pipes
+          # in these commands. deploy.sh keeps the stricter set because it
+          # is invoked with bash.
+          #
+          # And nothing inside the commands=[...] value may be commented:
+          # it is a JSON string, so a # line is text the parser chokes on.
           command_id="$(aws ssm send-command \
             --instance-ids "${{ vars.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy ${sha:0:7}" \
             --timeout-seconds 600 \
             --parameters commands="[
-              \"set -Eeuo pipefail\",
+              \"set -eu\",
               \"release=/srv/roulette/releases/${sha}\",
-              \"rm -rf \\\"\$release\\\" && mkdir -p \\\"\$release\\\"\",
+              \"rm -rf \\\"\$release\\\" && mkdir -p \\\"\$release\\\" && chmod 755 \\\"\$release\\\"\",
               \"aws s3 cp s3://${{ vars.RELEASE_BUCKET }}/releases/release-${sha}.tar.gz /tmp/release-${sha}.tar.gz\",
               \"tar -C \\\"\$release\\\" -xzf /tmp/release-${sha}.tar.gz\",
               \"rm -f /tmp/release-${sha}.tar.gz\",
