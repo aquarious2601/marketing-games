@@ -126,7 +126,12 @@ jobs:
             --comment "Deploy ${sha:0:7}" \
             --timeout-seconds 600 \
             --parameters commands="[
-              \"set -Eeuo pipefail\",
+              # SSM's AWS-RunShellScript runs under /bin/sh, which is
+              # dash on Ubuntu: -o pipefail and -E are bash only and
+              # abort the whole script on line 1. There are no pipes
+              # here, so -eu is all this needed. deploy.sh keeps its
+              # own stricter set, because it is run with bash.
+              \"set -eu\",
               \"release=/srv/roulette/releases/${sha}\",
               \"rm -rf \\\"\$release\\\" && mkdir -p \\\"\$release\\\"\",
               \"aws s3 cp s3://${{ vars.RELEASE_BUCKET }}/releases/release-${sha}.tar.gz /tmp/release-${sha}.tar.gz\",
