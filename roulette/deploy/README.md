@@ -266,8 +266,12 @@ Create an **A record** for `$DOMAIN` pointing at that address, then wait for
 it to resolve:
 
 ```bash
-dig +short "$DOMAIN"        # must print the address above before you provision
+nslookup "$DOMAIN"          # must print the address above before you provision
 ```
+
+`dig` is not installed on Windows, and Git Bash does not bring it;
+`nslookup` ships with the operating system and is in every shell. On Linux
+or macOS `dig +short "$DOMAIN"` is the tidier answer.
 
 Certbot verifies by HTTP, so provisioning before this resolves gets you an
 instance without a certificate. Not fatal — the script says how to re-run
