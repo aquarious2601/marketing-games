@@ -170,6 +170,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F19](./F19-one-person-one-number.md) | One person, one number | Both | Agreed |
 | [F20](./F20-one-spin-per-identification.md) | One spin per identification | Both | Agreed |
 | [F21](./F21-amounts-that-fit-the-currency.md) | Amounts that fit the currency | Admin | Agreed |
+| [F22](./F22-a-celebration-on-the-result.md) | A celebration on the result | Player | Agreed |
 
 ## Running the tests
 

@@ -150,6 +150,90 @@
   }
 }
 
+/*
+ * F22: the celebration, and only for a win.
+ *
+ * Two layers per piece, and the split is not decoration. The track is the
+ * full height of the card and carries the fall, so a percentage in its
+ * transform means a percentage of the card — the shape inside is 14px
+ * tall, and animating *that* by 115% moved it 16px and hid the whole
+ * effect behind the result panel. The shape carries only the tumble.
+ *
+ * The fall sways rather than dropping straight: the intermediate keyframes
+ * push the drift one way and then the other, which is what paper does and
+ * what a straight line does not. The tumble flips through `scaleX` as well
+ * as rotating, so a flat rectangle reads as something with two sides.
+ *
+ * `transform` and `opacity` only, so every piece is composited and thirty
+ * of them cost a phone nothing measurable.
+ *
+ * Not inside a reduced-motion guard, unlike `result-pop` above it.
+ *
+ * It was, and that was wrong in the way F03 R12 was wrong before it was
+ * amended: a great many machines report `reduce` — Windows does whenever
+ * animation effects are off — so the celebration was invisible to a large
+ * share of players, including the person who asked for it. The spin they
+ * have already watched for six seconds is not suppressed either (F22 R11).
+ */
+
+@keyframes confetti-fall {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -12%, 0);
+  }
+  7% {
+    opacity: 1;
+  }
+  25% {
+    transform: translate3d(calc(var(--confetti-drift) * 0.9), 20%, 0);
+  }
+  50% {
+    transform: translate3d(calc(var(--confetti-drift) * -0.7), 47%, 0);
+  }
+  75% {
+    transform: translate3d(calc(var(--confetti-drift) * 0.85), 74%, 0);
+  }
+  92% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(calc(var(--confetti-drift) * -0.45), 108%, 0);
+  }
+}
+
+@keyframes confetti-tumble {
+  from {
+    transform: rotate(0deg) scaleX(1);
+  }
+  35% {
+    transform: rotate(calc(var(--confetti-spin) * 0.35)) scaleX(-0.55);
+  }
+  70% {
+    transform: rotate(calc(var(--confetti-spin) * 0.7)) scaleX(0.8);
+  }
+  to {
+    transform: rotate(var(--confetti-spin)) scaleX(1);
+  }
+}
+
+.player-confetti-track {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  animation: confetti-fall var(--confetti-fall) linear var(--confetti-delay) both;
+}
+
+.player-confetti-piece {
+  display: block;
+  /* Runs once, over the whole fall. It was `infinite` with a shorter
+     cycle, which looked the same and broke the rule the scene animations
+     are held to: nothing on this page loops for a player who asked for
+     less motion. A celebration that ends is a different thing from a
+     background that never does. */
+  animation: confetti-tumble var(--confetti-fall) linear var(--confetti-delay) both;
+}
+
 /* -- Size ----------------------------------------------------------------- */
 
 /*
