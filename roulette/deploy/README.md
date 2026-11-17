@@ -283,13 +283,18 @@ certbot — but it is the step people skip.
 script reaches it the same way releases do: through the bucket.
 
 ```bash
+# Both files: provision.sh installs nginx.conf from beside itself, so a
+# bootstrap that carries only the script dies half way through, after
+# MariaDB and PHP are installed and before anything serves.
 aws s3 cp roulette/deploy/provision.sh "s3://$BUCKET/bootstrap/provision.sh"
+aws s3 cp roulette/deploy/nginx.conf   "s3://$BUCKET/bootstrap/nginx.conf"
 
 aws ssm send-command --instance-ids "$INSTANCE" \
   --document-name AWS-RunShellScript \
   --timeout-seconds 900 \
   --parameters commands="[
     \"aws s3 cp s3://$BUCKET/bootstrap/provision.sh /tmp/provision.sh\",
+    \"aws s3 cp s3://$BUCKET/bootstrap/nginx.conf /tmp/nginx.conf\",
     \"DOMAIN=$DOMAIN ADMIN_EMAIL=$EMAIL RELEASE_BUCKET=$BUCKET bash /tmp/provision.sh\"
   ]" --query 'Command.CommandId' --output text
 ```
