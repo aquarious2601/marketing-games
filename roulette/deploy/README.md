@@ -112,6 +112,12 @@ editing:
 # the errors blame the value rather than the shell. Harmless elsewhere.
 export MSYS_NO_PATHCONV=1
 
+# Windows only. The console encoding is cp1252, and some of what the
+# instance prints is not: apt and certbot use arrows and box drawing.
+# Without this the CLI dies with "charmap codec can't encode character",
+# which looks like the command failed when only the printing did.
+export PYTHONUTF8=1
+
 export AWS_REGION=eu-west-3
 export REPO=aquarious2601/marketing-games
 
