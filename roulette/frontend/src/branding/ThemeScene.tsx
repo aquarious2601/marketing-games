@@ -880,7 +880,10 @@ function ChristmasScene() {
         className={FILL}
         style={{
           background:
-            'linear-gradient(180deg, var(--bg-deep) 0%, #0A4433 34%, var(--bg) 62%, #06281E 100%)',
+            /* The last stop is the card's own deepest green, so the ground
+               ends on the tone the card is cut from. It tracks stageEdge in
+               themes.ts by hand — a scene literal cannot read a token. */
+            'linear-gradient(180deg, var(--bg-deep) 0%, #0A4433 34%, var(--bg) 62%, #05271D 100%)',
         }}
       />
 
