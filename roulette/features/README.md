@@ -119,6 +119,12 @@ existed, as was the commit that introduced the workflow itself — there was
 no sprint branch to put it on yet. They are marked `Agreed` rather than
 `Done` and close once the first deployment has been tested by hand.
 
+That deployment now exists: sprint 1.2 (`v1.2.0`) is live, so what each of
+those features needs is no longer a deployment but a look at the running
+site. [P03](./P03-deployment.md) itself needs one thing more than a look —
+its rollback has never been exercised, which its section 12 now says in as
+many words.
+
 Everything after that goes through a branch.
 
 ## Rules we hold ourselves to

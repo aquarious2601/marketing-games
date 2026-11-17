@@ -161,13 +161,13 @@ something is wrong, `rollback.sh` over SSM.
 
 ## 11. Acceptance criteria
 
-- [ ] Given a bare Ubuntu 24.04 instance, when `provision.sh` runs, then
+- [x] Given a bare Ubuntu 24.04 instance, when `provision.sh` runs, then
       nginx, PHP-FPM and MariaDB are installed and the layout in section 7
       exists.
-- [ ] Given a provisioned instance and a push to `main`, when the tests
+- [x] Given a provisioned instance and a push to `main`, when the tests
       pass, then the new release is live and `/api/health` answers 200.
-- [ ] Given a push whose tests fail, then nothing on the instance changes.
-- [ ] Given a deploy, then a dump of the database exists in S3 from before
+- [x] Given a push whose tests fail, then nothing on the instance changes.
+- [x] Given a deploy, then a dump of the database exists in S3 from before
       it ran.
 - [ ] Given a release that does not answer `/api/health`, then the previous
       release is serving again and the job has failed.
@@ -179,15 +179,45 @@ something is wrong, `rollback.sh` over SSM.
 
 ## 12. Verification
 
-**Not verified.** Every script here is written and unrun: this session has
-no AWS account, no instance and no domain. What has been checked is only
-what can be checked without one — shell syntax, the nginx configuration's
-grammar, and that the paths, commands and extension names match what this
-repository actually needs.
+**Half verified.** It has been run. An instance exists, it was provisioned
+from `provision.sh`, and `main` has deployed to it — most recently sprint
+1.2 (`v1.2.0`), which carried [F22](./F22-a-celebration-on-the-result.md),
+[F23](./F23-a-daily-spin-limit.md) and a schema change.
 
-That is a real limitation and not a formality. The first run of
-`provision.sh` should be watched, on an instance that holds nothing, and the
-first deploy should be made to an empty database rather than a campaign's.
+What has been observed:
+
+| Criterion | How it was established |
+|---|---|
+| The instance is provisioned | It serves. `/api/health` answers `{"status":"ok","app":"roulette","env":"prod"}`, which needs nginx, PHP-FPM and MariaDB and the section 7 layout `deploy.sh` writes into |
+| A push to `main` goes live | Sprint 1.2's merge deployed in under two minutes, and the live bundle contains code only that release introduced. `GET /api/player/me` answers with F23's `spinsLeft` |
+| The schema upgrade runs | `GET /api/wheel` hydrates the `Branding` entity, whose mapping now has `daily_spin_limit`. A column `app:upgrade-database` had not added would raise *Unknown column* rather than answer 200 |
+| Failing tests change nothing | By construction: the deploy job is `needs: tests`, so a red suite skips it rather than deploying and rolling back. Every deploy run so far followed a green one |
+| The backup exists | Inferred rather than listed: the dump and its `aws s3 cp` run under `set -e` before anything else moves, so the job could not have succeeded without them. The bucket itself has not been read from here |
+| The logo survives a deploy | `logoUrl` served a 1,668-byte `image/svg+xml` after the release, from `shared/` through the symlink |
+
+What has **not** been established, and what would do it:
+
+- **The rollback has never fired.** R5 and R6 are the whole safety argument
+  of this feature and the one part of it that has only ever been read. It
+  wants a deliberate drill: run `rollback.sh` on the instance and time how
+  long the previous release takes to serve. Worth doing when the stall is
+  closed, because it briefly takes the current release off the shop.
+- **A release that fails its health check** has not been seen rolling back
+  on its own. Hard to arrange honestly without breaking a live shop; the
+  drill above covers the mechanism, and a second environment
+  ([`ROADMAP.md`](./ROADMAP.md)) would cover the rest.
+- **The admin's session surviving a deploy** — half of the sixth criterion.
+  The logo half holds; the session half needs somebody to sign in, deploy,
+  and still be signed in. One click, nobody's yet.
+- **Six deploys leaving five releases** accrues on its own. Three have
+  succeeded so far.
+
+So this stays `Agreed`. It is not `Draft` any more in any meaningful sense —
+it runs, it has deployed real features, and it has survived thirteen
+corrections found by following its own runbook on a Windows machine. But a
+deployment feature whose rollback has never been exercised is not one to
+call `Done`, because rollback is the only part that matters on the day it
+matters.
 
 ## 13. Decisions and risks
 
