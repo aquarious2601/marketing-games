@@ -364,15 +364,35 @@ aws iam create-open-id-connect-provider \
 
 If that says the provider already exists, good — one per account is enough.
 
+The subject claim needs care. The documented form is
+`repo:OWNER/REPO:ref:refs/heads/main`, but GitHub also issues an
+**immutable** form with the owner and repository ids embedded —
+`repo:OWNER@1015326/REPO@1458892419:ref:refs/heads/main` — and which one
+your account sends is not something you can tell by looking. Matching only
+the documented one fails with `Not authorized to perform
+sts:AssumeRoleWithWebIdentity`, an error that says nothing about why.
+
+So allow both. They are two spellings of the same repository and branch,
+and `StringEquals` with a list is still an exact match — no wildcards, so
+no `owner*` that a similarly-named account could slip through:
+
 ```bash
+export OWNER_ID=$(gh api users/${REPO%%/*} --jq .id)
+export REPO_ID=$(gh api repos/$REPO --jq .id)
+echo "owner $OWNER_ID, repo $REPO_ID"
+
 cat > gh-trust.json <<JSON
 {"Version":"2012-10-17","Statement":[{
  "Effect":"Allow",
  "Principal":{"Federated":"arn:aws:iam::$ACCOUNT:oidc-provider/token.actions.githubusercontent.com"},
  "Action":"sts:AssumeRoleWithWebIdentity",
  "Condition":{
-  "StringEquals":{"token.actions.githubusercontent.com:aud":"sts.amazonaws.com"},
-  "StringLike":{"token.actions.githubusercontent.com:sub":"repo:$REPO:ref:refs/heads/main"}}}]}
+  "StringEquals":{
+   "token.actions.githubusercontent.com:aud":"sts.amazonaws.com",
+   "token.actions.githubusercontent.com:sub":[
+    "repo:$REPO:ref:refs/heads/main",
+    "repo:${REPO%%/*}@$OWNER_ID/${REPO#*/}@$REPO_ID:ref:refs/heads/main"
+   ]}}}]}
 JSON
 
 aws iam create-role --role-name roulette-deploy \
@@ -380,9 +400,20 @@ aws iam create-role --role-name roulette-deploy \
   --query 'Role.Arn' --output text
 ```
 
-The `StringLike` on `sub` is the part that matters: without it, **any**
-GitHub repository in the world can assume this role. Restricted to
-`refs/heads/main`, a pull request from a fork cannot deploy.
+The condition on `sub` is the part that matters: without it, **any** GitHub
+repository in the world can assume this role. Pinned to `refs/heads/main`,
+a pull request from a fork cannot deploy.
+
+If it is still refused, read what was actually presented rather than
+guessing — CloudTrail records the claim verbatim:
+
+```bash
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity \
+  --max-items 1 --query 'Events[].CloudTrailEvent' --output text
+```
+
+The `userName` field is the subject claim. Put that string in the policy.
 
 ```bash
 cat > deploy-policy.json <<JSON
