@@ -26,7 +26,7 @@ final class WheelPresenter
      *     updatedAt: string,
      *     totalProbability: int,
      *     includesLosingSlice: bool,
-     *     prizes: list<array{id: int|null, name: string, probability: int, position: int, colour: string, rewardId: int|null}>
+     *     prizes: list<array{id: int|null, probability: int, position: int, colour: string, rewardId: int|null}>
      * }
      */
     public function present(Wheel $wheel): array
@@ -36,12 +36,14 @@ final class WheelPresenter
         foreach ($wheel->getPrizes() as $prize) {
             $prizes[] = [
                 'id' => $prize->getId(),
-                'name' => $prize->getName(),
                 'probability' => $prize->getProbability(),
                 'position' => $prize->getPosition(),
                 'colour' => $this->palette->colourFor($prize->getPosition()),
-                // F13 R7: what this slice gives away. The admin's selector
-                // needs the id; the label beside it is the slice's own.
+                // F13 R7, F26 R12: what this slice gives away, and therefore
+                // what it is called. No name travels with it — the page holds
+                // the reward catalogue to fill its selector, so it reads the
+                // label from there rather than from a second copy here that
+                // the PUT would have to ignore.
                 'rewardId' => $prize->getReward()?->getId(),
             ];
         }

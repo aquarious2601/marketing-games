@@ -92,6 +92,8 @@ final class DatabaseUpgrade
             $this->fillPlayerPhoneTails($dryRun),
             $this->constrainPlayerPhoneTail($dryRun),
             $this->addBrandingDailySpinLimit($dryRun),
+            $this->widenNamesToTheCatalogueLimit($dryRun),
+            $this->dropPrizeName($dryRun),
         ];
     }
 
@@ -238,6 +240,148 @@ final class DatabaseUpgrade
         return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
     }
 
+    /**
+     * P02 R6, F26 R25.
+     *
+     * Two columns were sized to things F26 changed. `spin.prize_name` held a
+     * slice label, 40 characters, and now snapshots a reward name.
+     * `reward.name` held 60, chosen when it was only an admin's private word
+     * for a prize rather than what the wheel says. Both become
+     * Reward::NAME_MAX_LENGTH.
+     *
+     * Unfixed, this is the fault widenRewardValue() fixed for amounts in
+     * different clothes: on a strict database the insert fails at the moment
+     * somebody spins, and on a lenient one it quietly truncates the record
+     * of what they won.
+     *
+     * Before dropPrizeName() rather than after, so a database interrupted
+     * between the two is wide enough for what it is about to be asked to
+     * store.
+     */
+    private function widenNamesToTheCatalogueLimit(bool $dryRun): UpgradeStep
+    {
+        $name = 'names hold a full reward name';
+
+        // Both columns, for the reason widenRewardValue() gives about
+        // amounts: a catalogue that can hold 256 characters and a spin log
+        // that cannot would move the failure from the admin's screen to the
+        // moment a player presses the button.
+        $widened = [];
+
+        foreach ([['reward', 'name'], ['spin', 'prize_name']] as [$table, $column]) {
+            if (!$this->columnExists($table, $column)) {
+                continue;
+            }
+
+            $length = $this->columnLengthOf($table, $column);
+
+            if (null !== $length && $length >= Reward::NAME_MAX_LENGTH) {
+                continue;
+            }
+
+            if (!$dryRun) {
+                $this->connection->executeStatement(sprintf(
+                    'ALTER TABLE %s MODIFY %s VARCHAR(%d) NOT NULL',
+                    $table,
+                    $column,
+                    Reward::NAME_MAX_LENGTH,
+                ));
+            }
+
+            $widened[] = $table.'.'.$column;
+        }
+
+        if ([] === $widened) {
+            if (!$this->tableExists('reward')) {
+                return UpgradeStep::done($name, 'would widen them (the reward table does not exist yet)');
+            }
+
+            return UpgradeStep::skipped($name);
+        }
+
+        return UpgradeStep::done($name, sprintf(
+            $this->tense(
+                $dryRun,
+                'would widen %s to '.Reward::NAME_MAX_LENGTH,
+                'widened %s to '.Reward::NAME_MAX_LENGTH,
+            ),
+            implode(' and ', $widened),
+        ));
+    }
+
+    /**
+     * P02 R6, F26 R7 to R9.
+     *
+     * Last in the list, and that is load-bearing: fillPrizeRewards() above
+     * matches a slice to a reward *by this column*, so a database old enough
+     * to need that step still has the name when it runs. Steps run in order
+     * (P02 R3), and this one drops the column after its last reader.
+     */
+    private function dropPrizeName(bool $dryRun): UpgradeStep
+    {
+        $name = 'prize.name';
+
+        if (!$this->columnExists('prize', 'name')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        /*
+         * F26 R9. Named rather than counted: these are the labels a player
+         * will see change, and a number tells the operator that something
+         * happened while telling them nothing about what to go and look at.
+         *
+         * Read before the drop, obviously, and read even on a dry run — the
+         * point of the dry run is to put this list in the deploy log before
+         * the column is gone (P03 runs it first).
+         */
+        $comparable = $this->tableExists('reward') && $this->columnExists('prize', 'reward_id');
+
+        $diverging = $comparable
+            ? $this->connection->fetchAllAssociative(
+                'SELECT p.name AS slice, r.name AS reward
+                   FROM prize p
+                   JOIN reward r ON r.id = p.reward_id
+                  WHERE p.name <> r.name
+                  ORDER BY p.position',
+            )
+            : [];
+
+        if (!$dryRun) {
+            $this->connection->executeStatement('ALTER TABLE prize DROP name');
+        }
+
+        if (!$comparable) {
+            // A dry run against a database old enough to have no reward table
+            // yet: the step that creates it has not really run, so there is
+            // nothing to compare the labels against. The real run will.
+            return UpgradeStep::done($name, sprintf(
+                '%s (the labels cannot be compared until the reward table exists)',
+                $this->tense($dryRun, 'drop it', 'dropped it'),
+            ));
+        }
+
+        if ([] === $diverging) {
+            return UpgradeStep::done($name, sprintf(
+                '%s; every slice already reads its reward\'s name',
+                $this->tense($dryRun, 'drop it', 'dropped it'),
+            ));
+        }
+
+        $changes = array_map(
+            static fn (array $row): string => sprintf('"%s" -> "%s"', $row['slice'], $row['reward']),
+            $diverging,
+        );
+
+        return UpgradeStep::done($name, sprintf(
+            '%s. %d label%s differed from the reward behind it; %s: %s',
+            $this->tense($dryRun, 'drop it', 'dropped it'),
+            \count($changes),
+            1 === \count($changes) ? '' : 's',
+            $dryRun ? 'each would now read the reward' : 'each now reads the reward',
+            implode(', ', $changes),
+        ));
+    }
+
     /** P02 R19 */
     private function addBrandingCurrency(bool $dryRun): UpgradeStep
     {
@@ -347,6 +491,20 @@ final class DatabaseUpgrade
 
         if (!$this->columnExists('prize', 'reward_id')) {
             return UpgradeStep::done($name, 'would fill in every slice (the column does not exist yet)');
+        }
+
+        /*
+         * F26 R7 dropped the label this step matches on, and dropPrizeName()
+         * runs after constrainPrizeReward() has made `reward_id` NOT NULL. So
+         * a database with no `prize.name` is one where this step has already
+         * finished: there can be no slice both missing a reward and missing
+         * the name that would find it one.
+         *
+         * Without this guard the second run of an upgraded database dies
+         * here, on a SELECT of a column that did its job and left.
+         */
+        if (!$this->columnExists('prize', 'name')) {
+            return UpgradeStep::skipped($name, 'every slice already has one');
         }
 
         /** @var list<array{id: int, name: string}> $prizes */
@@ -1109,6 +1267,18 @@ final class DatabaseUpgrade
         );
 
         return \is_string($type) ? strtolower($type) : null;
+    }
+
+    /** Null when the column is not a character type, or does not exist. */
+    private function columnLengthOf(string $table, string $column): ?int
+    {
+        $length = $this->connection->fetchOne(
+            'SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS '
+            .'WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table AND COLUMN_NAME = :column',
+            ['table' => $table, 'column' => $column],
+        );
+
+        return null === $length || false === $length ? null : (int) $length;
     }
 
     private function columnIsNullable(string $table, string $column): bool

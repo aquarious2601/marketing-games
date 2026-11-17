@@ -24,8 +24,21 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uniq_reward_name', columns: ['name'])]
 class Reward
 {
-    /** F13 R4 */
-    public const NAME_MAX_LENGTH = 60;
+    /**
+     * F13 R4, widened from 60 by F26 R25.
+     *
+     * It is the one name in the system now: the catalogue's, the wheel's, and
+     * the snapshot a spin keeps. 60 was chosen when a slice had a label of
+     * its own and this was only an admin's private word for a prize; with
+     * the two merged there is no reason for the cap to be tighter than the
+     * thing it has to hold. The wheel wraps and truncates what will not fit
+     * (WheelPreview), so the limit is about storage rather than drawing.
+     *
+     * 256 four-byte characters is a 1,024-byte unique index, inside InnoDB's
+     * 3,072-byte limit on a DYNAMIC table — which is MariaDB's default row
+     * format and what both the development and the deployed databases use.
+     */
+    public const NAME_MAX_LENGTH = 256;
 
     /** F13 R12: what the losing slice is called before the admin renames it. */
     public const DEFAULT_LOSING_KEY = 'reward.default_losing';

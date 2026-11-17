@@ -18,7 +18,11 @@ export interface Reward {
    * Names rather than a count, so the list can say *which* slice is in the
    * way before the admin presses delete and is told no.
    */
-  usedBy: string[]
+  /**
+   * Which slices give this reward, by their place on the wheel, counted from
+   * 1 (F26 R24). Labels until F26, when they became this reward's own name.
+   */
+  usedBy: number[]
 }
 
 export interface RewardTypeOption {

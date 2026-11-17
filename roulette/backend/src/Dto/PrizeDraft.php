@@ -17,7 +17,6 @@ final readonly class PrizeDraft
 {
     public function __construct(
         public ?int $id,
-        public string $name,
         public int $probability,
         public int $rewardId,
     ) {

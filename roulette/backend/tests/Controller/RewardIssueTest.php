@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\Reward;
 use App\Entity\Spin;
 use App\Reward\CodeGenerator;
 use App\Tests\Support\DatabaseWebTestCase;
@@ -139,6 +140,30 @@ final class RewardIssueTest extends DatabaseWebTestCase
 
         self::assertSame(10, $logged['rewardValue'], 'The log must say what was won, not what is current.');
         self::assertSame($code, $logged['code']);
+    }
+
+    /**
+     * F26 R25. The snapshot column was 40 characters, sized to the slice
+     * label it used to copy. A reward name may be 256, and a spin has to
+     * record the whole of it — on CI's strict MariaDB a narrow column fails
+     * the insert at the moment somebody presses the button, and on a lenient
+     * one it truncates the record of what they won.
+     */
+    public function testASpinRecordsAFullLengthPrizeNameWhole(): void
+    {
+        $name = str_repeat('é', Reward::NAME_MAX_LENGTH);
+        $this->givenAWheelOfOne($this->aDiscountRewardId($name, 10));
+        $this->identifyAsPlayer();
+
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+
+        self::assertSame($name, $this->decodeResponse()['prize']['name']);
+
+        $this->signInAsAdmin();
+        $this->client->request('GET', '/api/admin/spins');
+
+        self::assertSame($name, $this->decodeResponse()['spins'][0]['prizeName']);
     }
 
     // --------------------------------------------------------------- claiming

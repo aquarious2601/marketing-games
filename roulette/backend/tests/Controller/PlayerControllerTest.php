@@ -29,7 +29,9 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $prizes = $this->decodeResponse()['prizes'];
 
         self::assertCount(6, $prizes);
-        self::assertSame('Try again', $prizes[0]['name']);
+        // F26 R1, R5: the first slice is the losing one and reads the losing
+        // reward's name. Before F26 it had a label of its own, "Try again".
+        self::assertSame('Maybe next time', $prizes[0]['name']);
         self::assertSame([0, 1, 2, 3, 4, 5], array_column($prizes, 'position'));
     }
 

@@ -51,7 +51,16 @@ class Spin
     #[ORM\JoinColumn(name: 'player_id', nullable: true, onDelete: 'SET NULL')]
     private ?Player $player = null;
 
-    #[ORM\Column(name: 'prize_name', length: Prize::NAME_MAX_LENGTH)]
+    /**
+     * Sized to a reward name, not to the slice label it used to copy (F26).
+     *
+     * The slice's 40 characters went with F26, so this follows the
+     * catalogue's limit. Leaving it at 40 would be the fault
+     * widenRewardValue() already fixed for amounts, in the other direction:
+     * a long prize name would fail the insert on a strict database and
+     * truncate the record of what somebody won on a lenient one.
+     */
+    #[ORM\Column(name: 'prize_name', length: Reward::NAME_MAX_LENGTH)]
     private string $prizeName;
 
     #[ORM\Column(name: 'prize_probability', type: 'smallint')]
@@ -103,7 +112,10 @@ class Spin
     {
         $this->prize = $prize;
         $this->player = $player;
-        $this->prizeName = $prize->getName();
+        // F26 R6: still a snapshot. The label now comes from the reward, so
+        // renaming that reward tomorrow must not rewrite what this player was
+        // told they had won today.
+        $this->prizeName = $prize->getLabel();
         $this->prizeProbability = $prize->getProbability();
 
         $reward = $prize->getReward();

@@ -1,5 +1,5 @@
 import type { Reward } from '../api/rewards'
-import { NAME_MAX_LENGTH, type DraftPrize, type PrizeErrors } from '../wheel/editor'
+import { type DraftPrize, type PrizeErrors } from '../wheel/editor'
 import { useT } from '../i18n/I18nContext'
 import { colourFor } from '../wheel/palette'
 
@@ -13,7 +13,7 @@ interface PrizeRowProps {
   rewards: Reward[]
   /** Whether a losing slice is holding position one (F14 R5). */
   losingFirst: boolean
-  onChange: (change: Partial<Pick<DraftPrize, 'name' | 'probability' | 'rewardId'>>) => void
+  onChange: (change: Partial<Pick<DraftPrize, 'probability' | 'rewardId'>>) => void
   onMove: (offset: number) => void
   onRemove: () => void
 }
@@ -31,18 +31,22 @@ export function PrizeRow({
   onRemove,
 }: PrizeRowProps) {
   const t = useT()
-  const nameId = `prize-${prize.key}-name`
   const probabilityId = `prize-${prize.key}-probability`
   const rewardId = `prize-${prize.key}-reward`
   const position = index + 1
 
   /**
+   * F26 R1: the slice's reward is also its label, so one lookup answers both
+   * what it gives and what it is called.
+   *
    * F14 R1, section 13: which row is the losing one is read from the reward
    * it points at, never stored on the prize. A flag would be a second fact
    * about the same thing, and it would start disagreeing the moment an admin
    * pointed some other slice at the losing reward from the dropdown.
    */
-  const losing = rewards.some((reward) => reward.id === prize.rewardId && reward.type === 'nothing')
+  const reward = rewards.find((candidate) => candidate.id === prize.rewardId)
+  const label = reward?.name ?? ''
+  const losing = reward?.type === 'nothing'
 
   /**
    * F14 R5. The losing slice is pinned to the top, so neither arrow that
@@ -84,26 +88,66 @@ export function PrizeRow({
           data-colour={colourFor(index)}
         />
 
-        {/* F14 R7, R8: one flex row holding all three fields, each under a
-            label of the same size and position, so the controls share a
-            baseline. They stack in this order on a phone. */}
+        {/* F14 R7 with F26 R14, R15: one flex row holding the two fields a
+            slice has left, each under a label of the same size and position
+            so the controls share a baseline. The reward comes first, because
+            since F26 it is what identifies the row; they stack in that order
+            on a phone. */}
         <div className="min-w-0 flex-1 space-y-3 sm:flex sm:space-y-0 sm:gap-3">
           <div className="min-w-0 flex-1">
-            <FieldLabel htmlFor={nameId}>{t('game.prizeName')}</FieldLabel>
-            <input
-              id={nameId}
-              type="text"
-              value={prize.name}
-              maxLength={NAME_MAX_LENGTH}
-              placeholder={t('game.prizeName')}
-              aria-invalid={errors.name !== undefined}
-              aria-describedby={errors.name !== undefined ? `${nameId}-error` : undefined}
-              onChange={(event) => onChange({ name: event.target.value })}
-              className={fieldClass(errors.name !== undefined)}
-            />
-            {errors.name !== undefined && (
-              <p id={`${nameId}-error`} role="alert" className="mt-1 text-xs text-rose-600">
-                {errors.name}
+            {/* F14 R2, R3. The losing slice's reward is settled by the toggle
+                above (F13 R11), so a dropdown here could only be used to
+                contradict it. The sentence is there rather than a blank,
+                because a missing control reads as something failing to
+                render and a sentence reads as a decision. F26 R16 adds the
+                name under it: the admin should be able to read what the
+                player will read. */}
+            {losing ? (
+              <>
+                <FieldLabel>{t('game.reward')}</FieldLabel>
+                <p
+                  className="flex min-h-[2.375rem] flex-col justify-center text-sm text-slate-500"
+                  data-testid="prize-gives-nothing"
+                >
+                  <span>{t('game.losingGivesNothing')}</span>
+                  <span className="font-medium text-slate-700" data-testid="prize-label">
+                    {label}
+                  </span>
+                </p>
+              </>
+            ) : (
+              <>
+                {/* F13 R7 with F26 R1: what this slice gives away, which is
+                    now also what it is called. There is no second field to
+                    disagree with it. */}
+                <FieldLabel htmlFor={rewardId}>{t('game.reward')}</FieldLabel>
+                <select
+                  id={rewardId}
+                  value={prize.rewardId ?? ''}
+                  onChange={(event) =>
+                    onChange({
+                      rewardId: event.target.value === '' ? null : Number(event.target.value),
+                    })
+                  }
+                  aria-invalid={errors.rewardId !== undefined}
+                  data-testid="prize-reward"
+                  className={[
+                    'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900',
+                    'focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1',
+                  ].join(' ')}
+                >
+                  <option value="">—</option>
+                  {rewards.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {errors.rewardId !== undefined && (
+              <p role="alert" className="mt-1 text-xs text-rose-600">
+                {errors.rewardId}
               </p>
             )}
           </div>
@@ -141,78 +185,25 @@ export function PrizeRow({
             )}
           </div>
 
-          <div className="w-full sm:w-48">
-            {/* F14 R2, R3. The losing slice's reward is settled by the toggle
-                above (F13 R11), so a dropdown here could only be used to
-                contradict it. The sentence is there rather than a blank,
-                because a missing control reads as something failing to
-                render and a sentence reads as a decision. */}
-            {losing ? (
-              <>
-                <FieldLabel>{t('game.reward')}</FieldLabel>
-                <p
-                  className="flex min-h-[2.375rem] items-center text-sm text-slate-500"
-                  data-testid="prize-gives-nothing"
-                >
-                  {t('game.losingGivesNothing')}
-                </p>
-              </>
-            ) : (
-              <>
-                {/* F13 R7: what this slice gives away. Beside the label rather
-                    than replacing it, because the two are deliberately
-                    separate — the catalogue names the reward and the slice
-                    names what the player reads (F13 R8). */}
-                <FieldLabel htmlFor={rewardId}>{t('game.reward')}</FieldLabel>
-                <select
-                  id={rewardId}
-                  value={prize.rewardId ?? ''}
-                  onChange={(event) =>
-                    onChange({
-                      rewardId: event.target.value === '' ? null : Number(event.target.value),
-                    })
-                  }
-                  aria-invalid={errors.rewardId !== undefined}
-                  data-testid="prize-reward"
-                  className={[
-                    'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900',
-                    'focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1',
-                  ].join(' ')}
-                >
-                  <option value="">—</option>
-                  {rewards.map((reward) => (
-                    <option key={reward.id} value={reward.id}>
-                      {reward.name}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-            {errors.rewardId !== undefined && (
-              <p role="alert" className="mt-1 text-xs text-rose-600">
-                {errors.rewardId}
-              </p>
-            )}
-          </div>
         </div>
 
         <div className="mt-7 flex shrink-0 items-center gap-1">
           <IconButton
-            label={`${t('game.moveUp')}: ${describe(prize.name, position)}`}
+            label={`${t('game.moveUp')}: ${describe(label, position)}`}
             disabled={!canMoveUp}
             onClick={() => onMove(-1)}
           >
             ↑
           </IconButton>
           <IconButton
-            label={`${t('game.moveDown')}: ${describe(prize.name, position)}`}
+            label={`${t('game.moveDown')}: ${describe(label, position)}`}
             disabled={!canMoveDown}
             onClick={() => onMove(1)}
           >
             ↓
           </IconButton>
           <IconButton
-            label={`${t('game.remove')} ${describe(prize.name, position)}`}
+            label={`${t('game.remove')} ${describe(label, position)}`}
             disabled={!canRemove}
             danger
             onClick={onRemove}

@@ -147,6 +147,12 @@ Two series, so infrastructure never pushes the game features along:
   or an admin ever sees.
 - **F** — the game itself. Everything with a user interface or a business rule.
 
+A number belongs to a feature when its file is written, so the index can have
+a gap: **F25** is spoken for by [P04](./P04-many-shops-in-one-installation.md)
+and [`ROADMAP.md`](./ROADMAP.md) — the admin screens for shops and games —
+before anybody has written it. A gap is cheaper than renumbering a promise
+that is already committed.
+
 ## Status index
 
 | ID | Feature | Interface | Status |
@@ -180,6 +186,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F22](./F22-a-celebration-on-the-result.md) | A celebration on the result | Player | Agreed |
 | [F23](./F23-a-daily-spin-limit.md) | A daily spin limit | Both | Agreed |
 | [F24](./F24-the-campaigns-timezone.md) | The campaign's timezone | Admin | Withdrawn |
+| [F26](./F26-a-slice-takes-its-rewards-name.md) | A slice takes its reward's name | Both | Agreed |
 
 ## Running the tests
 

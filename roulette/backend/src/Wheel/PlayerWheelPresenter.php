@@ -45,7 +45,9 @@ final class PlayerWheelPresenter
     {
         return [
             'id' => $prize->getId(),
-            'name' => $prize->getName(),
+            // F26 R11: the shape is unchanged, the source is not — this is
+            // the reward's name now, so the player page needs no change.
+            'name' => $prize->getLabel(),
             'position' => $prize->getPosition(),
             'colour' => $this->palette->colourFor($prize->getPosition()),
         ];

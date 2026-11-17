@@ -10,8 +10,9 @@ import { DEFAULT_PRIZES, restoreDefaultWheel, rewardId, rewardIdsByName } from '
  * writer would make them flap.
  */
 
-function nameField(page: Page, index: number) {
-  return page.getByTestId('prize-row').nth(index).getByLabel(/name$/i)
+/** F26 R14: the reward selector is a row's identity now, and its first field. */
+function rewardField(page: Page, index: number) {
+  return page.getByTestId('prize-row').nth(index).getByTestId('prize-reward')
 }
 
 function probabilityField(page: Page, index: number) {
@@ -55,8 +56,11 @@ test.describe('the admin wheel page', () => {
   test('creates and shows the default wheel', async ({ page }) => {
     await expect(page.getByTestId('prize-row')).toHaveCount(DEFAULT_PRIZES.length)
 
-    for (const [index, { name, probability }] of DEFAULT_PRIZES.entries()) {
-      await expect(nameField(page, index)).toHaveValue(name)
+    for (const [index, { reward, probability }] of DEFAULT_PRIZES.entries()) {
+      // F26 R1: the row says what it gives, and that is what it is called.
+      // The losing row shows its reward's name as text (R16); the rest show
+      // it as the selected option.
+      await expect(page.getByTestId('prize-row').nth(index)).toContainText(reward)
       await expect(probabilityField(page, index)).toHaveValue(String(probability))
     }
 
@@ -94,12 +98,12 @@ test.describe('the admin wheel page', () => {
     )
   })
 
-  /** F01 R18 */
-  test('redraws the preview as a name is typed, before saving', async ({ page }) => {
-    await nameField(page, 0).fill('Nearly there')
+  /** F01 R18 with F26 R1: the label follows the reward, live. */
+  test('redraws the preview when a reward is chosen, before saving', async ({ page }) => {
+    await rewardField(page, 1).selectOption({ label: 'Free gift' })
 
     await expect(
-      page.locator('[data-testid="wheel-slice"] tspan', { hasText: 'Nearly there' }).first(),
+      page.locator('[data-testid="wheel-slice"] tspan', { hasText: 'Free gift' }).first(),
     ).toBeVisible()
   })
 
@@ -113,11 +117,14 @@ test.describe('the admin wheel page', () => {
     await expect(saveButton(page)).toBeDisabled()
   })
 
-  /** F01 R4 */
-  test('refuses a blank name', async ({ page }) => {
-    await nameField(page, 0).fill('')
+  /**
+   * F13 R7, in place of F01 R4's blank name that F26 R10 removed: the one
+   * thing a slice can still be missing is the reward it gives.
+   */
+  test('refuses a slice that gives nothing', async ({ page }) => {
+    await rewardField(page, 1).selectOption('')
 
-    await expect(page.getByText('A prize needs a name.')).toBeVisible()
+    await expect(page.getByText(/choose what this slice gives away/i)).toBeVisible()
     await expect(saveButton(page)).toBeDisabled()
   })
 
@@ -153,15 +160,12 @@ test.describe('the admin wheel page', () => {
     await expect(add).toBeDisabled()
   })
 
-  /** F01 R16 */
-  test('renders a name containing markup as text', async ({ page }) => {
-    await nameField(page, 0).fill('<b>bold</b>')
-
-    await expect(page.locator('[data-testid="wheel-slice"] b')).toHaveCount(0)
-    await expect(
-      page.locator('[data-testid="wheel-slice"] tspan', { hasText: '<b>bold' }).first(),
-    ).toBeVisible()
-  })
+  /*
+   * F01 R16 used to be proved here by typing markup into a prize name. F26
+   * R14 removed that field, and the rule now belongs to the reward's name,
+   * which this module cannot type: WheelControllerTest proves it instead, on
+   * the payload the wheel is drawn from.
+   */
 
   test('fits the viewport with no horizontal scroll', async ({ page }) => {
     const { scrollWidth, clientWidth } = await page.evaluate(() => ({
@@ -191,15 +195,18 @@ test.describe('saving', () => {
     await restoreDefaultWheel(request)
   })
 
-  test('persists a renamed prize across a reload', async ({ page }) => {
+  /** F26 R1: what a slice gives is the only thing on it left to change. */
+  test('persists a changed reward across a reload', async ({ page }) => {
     await page.goto('/admin')
-    await nameField(page, 0).fill('Better luck next time')
+    await rewardField(page, 1).selectOption({ label: 'Free gift' })
+    const chosen = await rewardField(page, 1).inputValue()
 
     await saveButton(page).click()
     await expect(page.getByText('Saved')).toBeVisible()
 
     await page.reload()
-    await expect(nameField(page, 0)).toHaveValue('Better luck next time')
+    await expect(rewardField(page, 1)).toHaveValue(chosen)
+    await expect(page.getByTestId('prize-row').nth(1)).toContainText('Free gift')
   })
 
   /** F01 R7 — order survives, and the reorder clears the unique constraint */
@@ -208,8 +215,8 @@ test.describe('saving', () => {
 
     // Rows 1 and 2, not 0 and 1: the losing slice holds position one and
     // cannot be moved off it (F14 R5), so its ↓ is deliberately disabled.
-    const secondName = await nameField(page, 1).inputValue()
-    const thirdName = await nameField(page, 2).inputValue()
+    const secondReward = await rewardField(page, 1).inputValue()
+    const thirdReward = await rewardField(page, 2).inputValue()
 
     await page
       .getByTestId('prize-row')
@@ -220,8 +227,8 @@ test.describe('saving', () => {
     await expect(page.getByText('Saved')).toBeVisible()
 
     await page.reload()
-    await expect(nameField(page, 1)).toHaveValue(thirdName)
-    await expect(nameField(page, 2)).toHaveValue(secondName)
+    await expect(rewardField(page, 1)).toHaveValue(thirdReward)
+    await expect(rewardField(page, 2)).toHaveValue(secondReward)
   })
 
   test('persists a removed prize', async ({ page }) => {
@@ -274,7 +281,7 @@ test.describe('the wheel API', () => {
     const before = await (await request.get('/api/admin/wheel')).json()
 
     await request.put('/api/admin/wheel', {
-      data: { prizes: [{ name: 'Only one', probability: 100 }] },
+      data: { prizes: [{ probability: 100 }] },
     })
 
     const after = await (await request.get('/api/admin/wheel')).json()

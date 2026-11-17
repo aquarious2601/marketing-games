@@ -100,7 +100,6 @@ export const fr: Record<MessageKey, string> = {
     'La configuration n’a pas pu être enregistrée. Vos modifications sont toujours là.',
   'game.rejected': 'Le serveur a refusé cette configuration.',
   'game.emptyWheel': 'Une roue vide',
-  'game.prizeName': 'Nom du lot',
   'game.prizePercentage': 'Pourcentage',
   'game.moveUp': 'Monter',
   'game.moveDown': 'Descendre',

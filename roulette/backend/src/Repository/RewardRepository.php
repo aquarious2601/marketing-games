@@ -47,20 +47,25 @@ final class RewardRepository extends ServiceEntityRepository
     }
 
     /**
-     * The slices using a reward (F13 R6).
+     * Which slices use a reward, by their place on the wheel (F13 R6).
      *
-     * Returned as the labels rather than a count, because the refusal has to
-     * name what is in the way — "it is on the wheel" leaves the admin
-     * hunting, "Lucky you! uses it" does not.
+     * Positions rather than a count, for the reason F13 R6 gave: the refusal
+     * has to name what is in the way, because "it is on the wheel" leaves the
+     * admin hunting. It used to name the slices' labels, which F26 took away
+     * — and a label would now be the reward's own name, so "Bon d'achat 10€
+     * is used by Bon d'achat 10€" would be the best it could do.
      *
-     * @return list<string>
+     * Counted from 1, because that is how an admin counts the rows in front
+     * of them. `prize.position` counts from 0.
+     *
+     * @return list<int>
      */
-    public function slicesUsing(Reward $reward): array
+    public function slicePositionsUsing(Reward $reward): array
     {
-        /** @var list<array{name: string}> $rows */
+        /** @var list<array{position: int}> $rows */
         $rows = $this->getEntityManager()
             ->createQueryBuilder()
-            ->select('p.name')
+            ->select('p.position')
             ->from(Prize::class, 'p')
             ->where('p.reward = :reward')
             ->setParameter('reward', $reward)
@@ -68,7 +73,10 @@ final class RewardRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
 
-        return array_column($rows, 'name');
+        return array_map(
+            static fn (array $row): int => $row['position'] + 1,
+            $rows,
+        );
     }
 
     /**

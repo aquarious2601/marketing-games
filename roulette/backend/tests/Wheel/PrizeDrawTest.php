@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Tests\Wheel;
 
 use App\Entity\Prize;
+use App\Entity\Reward;
 use App\Entity\Wheel;
+use App\Reward\RewardType;
 use App\Wheel\PrizeDraw;
 use PHPUnit\Framework\TestCase;
 
@@ -24,7 +26,14 @@ final class PrizeDrawTest extends TestCase
         $wheel = new Wheel();
 
         foreach ($prizes as $position => [$name, $probability]) {
-            $wheel->addPrize(new Prize($name, $probability, $position));
+            // F26 R1: the name a slice is known by lives on its reward now,
+            // so these tests hang one off each slice to draw with. Nothing
+            // here touches a database; they are throwaway objects.
+            $wheel->addPrize(new Prize(
+                $probability,
+                $position,
+                new Reward($name, RewardType::FreeProduct),
+            ));
         }
 
         return $wheel;
@@ -73,7 +82,7 @@ final class PrizeDrawTest extends TestCase
         foreach ($expectations as $pick => $expected) {
             self::assertSame(
                 $expected,
-                $this->drawPicking($pick)->draw($wheel)->getName(),
+                $this->drawPicking($pick)->draw($wheel)->getLabel(),
                 sprintf('A pick of %d should win %s.', $pick, $expected),
             );
         }
@@ -83,8 +92,8 @@ final class PrizeDrawTest extends TestCase
     {
         $wheel = $this->wheelOf([['First', 50], ['Last', 50]]);
 
-        self::assertSame('First', $this->drawPicking(1)->draw($wheel)->getName());
-        self::assertSame('Last', $this->drawPicking(100)->draw($wheel)->getName());
+        self::assertSame('First', $this->drawPicking(1)->draw($wheel)->getLabel());
+        self::assertSame('Last', $this->drawPicking(100)->draw($wheel)->getLabel());
     }
 
     /** F02 R7 */
@@ -104,7 +113,7 @@ final class PrizeDrawTest extends TestCase
             }
         };
 
-        self::assertSame('B', $draw->draw($wheel)->getName());
+        self::assertSame('B', $draw->draw($wheel)->getLabel());
         self::assertSame(50, $draw->seenTotal, 'The draw should be bounded by the stored total.');
     }
 
@@ -148,7 +157,7 @@ final class PrizeDrawTest extends TestCase
         $counts = array_fill_keys(array_keys($configured), 0);
 
         for ($i = 0; $i < $draws; ++$i) {
-            ++$counts[$draw->draw($wheel)->getName()];
+            ++$counts[$draw->draw($wheel)->getLabel()];
         }
 
         foreach ($configured as $name => $expectedPercent) {
@@ -172,7 +181,7 @@ final class PrizeDrawTest extends TestCase
         $results = [];
 
         for ($i = 0; $i < 40; ++$i) {
-            $results[] = $draw->draw($wheel)->getName();
+            $results[] = $draw->draw($wheel)->getLabel();
         }
 
         self::assertGreaterThan(

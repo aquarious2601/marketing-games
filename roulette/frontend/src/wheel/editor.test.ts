@@ -20,19 +20,22 @@ import {
 /**
  * A slice with a reward on it (F13 R7), because that is the normal case —
  * the tests about a *missing* reward say so explicitly.
+ *
+ * Identified by that reward, since F26 R1 left a slice nothing else of its
+ * own: the ids 1, 2, 3 stand where the labels "A", "B", "C" used to.
  */
-function draft(name: string, probability: string, id: number | null = null): DraftPrize {
-  return { ...createPrize(), id, name, probability, rewardId: 1 }
+function draft(rewardId: number, probability: string, id: number | null = null): DraftPrize {
+  return { ...createPrize(), id, probability, rewardId }
 }
 
 /** A valid two-prize wheel, the smallest thing that can be saved. */
 function validDrafts(): DraftPrize[] {
-  return [draft('Try again', '60', 1), draft('Free gift', '40', 2)]
+  return [draft(1, '60', 1), draft(2, '40', 2)]
 }
 
 function manyDrafts(count: number): DraftPrize[] {
   return Array.from({ length: count }, (_, index) =>
-    draft(`Prize ${index}`, index === 0 ? String(100 - (count - 1)) : '1'),
+    draft(index + 1, index === 0 ? String(100 - (count - 1)) : '1'),
   )
 }
 
@@ -44,16 +47,16 @@ describe('fromConfiguration', () => {
       totalProbability: 100,
       includesLosingSlice: false,
       prizes: [
-        { id: 7, name: 'Try again', probability: 60, position: 0, colour: '#475569', rewardId: 1 },
-        { id: 8, name: 'Free gift', probability: 40, position: 1, colour: '#E11D48', rewardId: 1 },
+        { id: 7, probability: 60, position: 0, colour: '#475569', rewardId: 4 },
+        { id: 8, probability: 40, position: 1, colour: '#E11D48', rewardId: 5 },
       ],
     }
 
     const drafts = fromConfiguration(configuration)
 
     expect(drafts).toHaveLength(2)
-    expect(drafts[0]).toMatchObject({ id: 7, name: 'Try again', probability: '60' })
-    expect(drafts[1]).toMatchObject({ id: 8, name: 'Free gift', probability: '40' })
+    expect(drafts[0]).toMatchObject({ id: 7, probability: '60', rewardId: 4 })
+    expect(drafts[1]).toMatchObject({ id: 8, probability: '40', rewardId: 5 })
   })
 
   it('gives every row a distinct key so reordering does not remount them', () => {
@@ -63,8 +66,8 @@ describe('fromConfiguration', () => {
       totalProbability: 100,
       includesLosingSlice: false,
       prizes: [
-        { id: 1, name: 'A', probability: 50, position: 0, colour: '#000000', rewardId: 1 },
-        { id: 2, name: 'A', probability: 50, position: 1, colour: '#000000', rewardId: 1 },
+        { id: 1, probability: 50, position: 0, colour: '#000000', rewardId: 1 },
+        { id: 2, probability: 50, position: 1, colour: '#000000', rewardId: 1 },
       ],
     })
 
@@ -73,10 +76,10 @@ describe('fromConfiguration', () => {
 })
 
 describe('toSubmission', () => {
-  it('trims names and converts probabilities to numbers', () => {
-    const submission = toSubmission([draft('  Free gift  ', '40', 3)])
+  it('converts probabilities to numbers and carries the reward', () => {
+    const submission = toSubmission([draft(1, '40', 3)])
 
-    expect(submission).toEqual([{ id: 3, name: 'Free gift', probability: 40, rewardId: 1 }])
+    expect(submission).toEqual([{ id: 3, probability: 40, rewardId: 1 }])
   })
 })
 
@@ -97,7 +100,7 @@ describe('adding and removing', () => {
   it('adds an empty row', () => {
     const added = addPrize(validDrafts())
 
-    expect(added[2]).toMatchObject({ id: null, name: '', probability: '' })
+    expect(added[2]).toMatchObject({ id: null, probability: '', rewardId: null })
   })
 
   it('allows removing above the minimum', () => {
@@ -116,9 +119,9 @@ describe('adding and removing', () => {
   })
 
   it('removes the row at the given index', () => {
-    const three = [draft('A', '34'), draft('B', '33'), draft('C', '33')]
+    const three = [draft(1, '34'), draft(2, '33'), draft(3, '33')]
 
-    expect(removePrize(three, 1).map((d) => d.name)).toEqual(['A', 'C'])
+    expect(removePrize(three, 1).map((d) => d.rewardId)).toEqual([1, 3])
   })
 
   it('ignores an index that does not exist', () => {
@@ -130,26 +133,26 @@ describe('adding and removing', () => {
 
 describe('reordering', () => {
   it('moves a prize down', () => {
-    const drafts = [draft('A', '34'), draft('B', '33'), draft('C', '33')]
+    const drafts = [draft(1, '34'), draft(2, '33'), draft(3, '33')]
 
-    expect(movePrize(drafts, 0, 1).map((d) => d.name)).toEqual(['B', 'A', 'C'])
+    expect(movePrize(drafts, 0, 1).map((d) => d.rewardId)).toEqual([2, 1, 3])
   })
 
   it('moves a prize up', () => {
-    const drafts = [draft('A', '34'), draft('B', '33'), draft('C', '33')]
+    const drafts = [draft(1, '34'), draft(2, '33'), draft(3, '33')]
 
-    expect(movePrize(drafts, 2, -1).map((d) => d.name)).toEqual(['A', 'C', 'B'])
+    expect(movePrize(drafts, 2, -1).map((d) => d.rewardId)).toEqual([1, 3, 2])
   })
 
   it('refuses to move the first prize up or the last one down', () => {
-    const drafts = [draft('A', '50'), draft('B', '50')]
+    const drafts = [draft(1, '50'), draft(2, '50')]
 
     expect(movePrize(drafts, 0, -1)).toBe(drafts)
     expect(movePrize(drafts, 1, 1)).toBe(drafts)
   })
 
   it('keeps row identity so inputs do not lose focus', () => {
-    const drafts = [draft('A', '50'), draft('B', '50')]
+    const drafts = [draft(1, '50'), draft(2, '50')]
     const moved = movePrize(drafts, 0, 1)
 
     expect(moved[1].key).toBe(drafts[0].key)
@@ -158,18 +161,18 @@ describe('reordering', () => {
 
 describe('updatePrize', () => {
   it('changes only the row addressed', () => {
-    const drafts = [draft('A', '50'), draft('B', '50')]
-    const updated = updatePrize(drafts, 1, { name: 'Changed' })
+    const drafts = [draft(1, '50'), draft(2, '50')]
+    const updated = updatePrize(drafts, 1, { rewardId: 9 })
 
-    expect(updated[0].name).toBe('A')
-    expect(updated[1].name).toBe('Changed')
+    expect(updated[0].rewardId).toBe(1)
+    expect(updated[1].rewardId).toBe(9)
   })
 
   it('does not mutate the array it was given', () => {
-    const drafts = [draft('A', '50'), draft('B', '50')]
-    updatePrize(drafts, 0, { name: 'Changed' })
+    const drafts = [draft(1, '50'), draft(2, '50')]
+    updatePrize(drafts, 0, { rewardId: 9 })
 
-    expect(drafts[0].name).toBe('A')
+    expect(drafts[0].rewardId).toBe(1)
   })
 })
 
@@ -184,7 +187,7 @@ describe('validate', () => {
 
   // F01 R8, R9
   it('reports a total that is not 100, naming the actual figure', () => {
-    const result = validate([draft('A', '60'), draft('B', '37')])
+    const result = validate([draft(1, '60'), draft(2, '37')])
 
     expect(result.isValid).toBe(false)
     expect(result.total).toBe(97)
@@ -192,25 +195,10 @@ describe('validate', () => {
     expect(result.totalError).toContain('100')
   })
 
-  // F01 R4
-  it('rejects a blank name', () => {
-    const result = validate([draft('   ', '60'), draft('B', '40')])
-
-    expect(result.prizeErrors[0].name).toBe('A prize needs a name.')
-    expect(result.isValid).toBe(false)
-  })
-
-  it('rejects a name longer than 40 characters', () => {
-    const result = validate([draft('a'.repeat(41), '60'), draft('B', '40')])
-
-    expect(result.prizeErrors[0].name).toContain('40 characters')
-  })
-
-  it('accepts a name of exactly 40 characters', () => {
-    const result = validate([draft('a'.repeat(40), '60'), draft('B', '40')])
-
-    expect(result.prizeErrors[0].name).toBeUndefined()
-  })
+  // F01 R4's three name rules — blank, too long, and the 40-character
+  // boundary — went with the field (F26 R10). A slice cannot fail to save
+  // over a label it does not have; the catalogue's name rules are the
+  // server's and are tested there.
 
   // F01 R5
   it.each([
@@ -221,7 +209,7 @@ describe('validate', () => {
     ['letters', 'fifty'],
     ['negative', '-5'],
   ])('rejects %s as a probability', (_label, probability) => {
-    const result = validate([draft('A', probability), draft('B', '40')])
+    const result = validate([draft(1, probability), draft(2, '40')])
 
     expect(result.prizeErrors[0].probability).toContain('whole number')
     expect(result.isValid).toBe(false)
@@ -231,28 +219,31 @@ describe('validate', () => {
     ['zero', '0'],
     ['over one hundred', '101'],
   ])('rejects %s as out of range', (_label, probability) => {
-    const result = validate([draft('A', probability), draft('B', '40')])
+    const result = validate([draft(1, probability), draft(2, '40')])
 
     expect(result.prizeErrors[0].probability).toContain('between 1 and 100')
   })
 
   it('gives no total when a probability cannot be read', () => {
-    const result = validate([draft('A', 'fifty'), draft('B', '40')])
+    const result = validate([draft(1, 'fifty'), draft(2, '40')])
 
     expect(result.total).toBeNull()
     expect(result.totalError).toBeNull()
   })
 
-  // F01 R6
-  it('allows duplicate names', () => {
-    const result = validate([draft('5 euro voucher', '50'), draft('5 euro voucher', '50')])
+  /**
+   * F01 R6 as F26 R4 restates it: two slices giving the same reward is how a
+   * wheel gives better odds on it. They now read alike, by design.
+   */
+  it('allows two slices on one reward', () => {
+    const result = validate([draft(1, '50'), draft(1, '50')])
 
     expect(result.isValid).toBe(true)
   })
 
   // F01 R1
   it('rejects fewer than two prizes', () => {
-    const result = validate([draft('Only one', '100')])
+    const result = validate([draft(1, '100')])
 
     expect(result.countError).toContain('at least 2')
     expect(result.isValid).toBe(false)
@@ -272,7 +263,7 @@ describe('validate', () => {
   })
 
   it('reports one error object per prize, in order', () => {
-    const result = validate([draft('', '60'), draft('B', '40')])
+    const result = validate([draft(1, '60'), draft(2, '40')])
 
     expect(result.prizeErrors).toHaveLength(2)
     expect(result.prizeErrors[1]).toEqual({})
@@ -284,7 +275,7 @@ describe('validate', () => {
    * that can be saved.
    */
   it('refuses a slice with no reward', () => {
-    const result = validate([{ ...draft('A', '60'), rewardId: null }, draft('B', '40')])
+    const result = validate([{ ...draft(1, '60'), rewardId: null }, draft(2, '40')])
 
     expect(result.prizeErrors[0].rewardId).toBeDefined()
     expect(result.prizeErrors[1].rewardId).toBeUndefined()
@@ -299,9 +290,13 @@ describe('isDirty', () => {
     expect(isDirty(drafts, drafts)).toBe(false)
   })
 
-  it('notices a changed name', () => {
+  /**
+   * F26: the label went, so the reward is the only thing a slice has besides
+   * its odds. A form that ignored it would call a changed wheel unchanged.
+   */
+  it('notices a changed reward', () => {
     const saved = validDrafts()
-    const edited = updatePrize(saved, 0, { name: 'Changed' })
+    const edited = updatePrize(saved, 0, { rewardId: 9 })
 
     expect(isDirty(edited, saved)).toBe(true)
   })
@@ -328,32 +323,24 @@ describe('isDirty', () => {
 
 /** F14 R5 */
 describe('pinLosingFirst', () => {
-  function withReward(name: string, rewardId: number | null): DraftPrize {
-    return { ...createPrize(), name, probability: '10', rewardId }
+  function withReward(rewardId: number | null): DraftPrize {
+    return { ...createPrize(), probability: '10', rewardId }
   }
 
   it('moves the losing slice to the front, keeping the rest in order', () => {
-    const drafts = [
-      withReward('Free gift', 1),
-      withReward('Free sample', 2),
-      withReward('Try again', 9),
-    ]
+    const drafts = [withReward(1), withReward(2), withReward(9)]
 
-    expect(pinLosingFirst(drafts, 9).map((draft) => draft.name)).toEqual([
-      'Try again',
-      'Free gift',
-      'Free sample',
-    ])
+    expect(pinLosingFirst(drafts, 9).map((draft) => draft.rewardId)).toEqual([9, 1, 2])
   })
 
   it('leaves a list that already starts with it exactly as it was', () => {
-    const drafts = [withReward('Try again', 9), withReward('Free gift', 1)]
+    const drafts = [withReward(9), withReward(1)]
 
     expect(pinLosingFirst(drafts, 9)).toBe(drafts)
   })
 
   it('leaves a list with no losing slice alone', () => {
-    const drafts = [withReward('Free gift', 1), withReward('Free sample', 2)]
+    const drafts = [withReward(1), withReward(2)]
 
     expect(pinLosingFirst(drafts, 9)).toBe(drafts)
   })
@@ -364,7 +351,7 @@ describe('pinLosingFirst', () => {
    * in the catalogue either.
    */
   it('matches nothing when there is no losing reward', () => {
-    const drafts = [withReward('Free gift', 1), withReward('Not chosen yet', null)]
+    const drafts = [withReward(1), withReward(null)]
 
     expect(pinLosingFirst(drafts, null)).toBe(drafts)
   })

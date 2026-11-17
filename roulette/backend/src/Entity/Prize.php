@@ -19,9 +19,6 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uniq_prize_wheel_position', columns: ['wheel_id', 'position'])]
 class Prize
 {
-    /** F01 R4 */
-    public const NAME_MAX_LENGTH = 40;
-
     /** F01 R5 */
     public const MIN_PROBABILITY = 1;
 
@@ -49,19 +46,14 @@ class Prize
     #[ORM\JoinColumn(name: 'reward_id', nullable: false, onDelete: 'RESTRICT')]
     private ?Reward $reward = null;
 
-    /** F13 R8: the slice's own words, not the reward's name. */
-    #[ORM\Column(length: self::NAME_MAX_LENGTH)]
-    private string $name;
-
     #[ORM\Column(type: 'smallint')]
     private int $probability;
 
     #[ORM\Column(type: 'smallint')]
     private int $position;
 
-    public function __construct(string $name, int $probability, int $position, ?Reward $reward = null)
+    public function __construct(int $probability, int $position, ?Reward $reward = null)
     {
-        $this->name = $name;
         $this->reward = $reward;
         $this->probability = $probability;
         $this->position = $position;
@@ -92,14 +84,21 @@ class Prize
         $this->reward = $reward;
     }
 
-    public function getName(): string
+    /**
+     * What this slice says, which is what it gives (F26 R1).
+     *
+     * Not stored. F13 R8 kept a label on the slice so that one reward could
+     * read differently on two of them; F26 took that away, so the only name
+     * is the reward's and the two cannot drift apart.
+     *
+     * The reward is `NOT NULL` in the database and `RESTRICT` on delete, so
+     * the throw is unreachable rather than defensive — it states F26 R3
+     * instead of handing a wheel an empty slice to draw.
+     */
+    public function getLabel(): string
     {
-        return $this->name;
-    }
-
-    public function setName(string $name): void
-    {
-        $this->name = $name;
+        return $this->reward?->getName()
+            ?? throw new \LogicException('A slice with no reward has no label (F26 R3).');
     }
 
     public function getProbability(): int

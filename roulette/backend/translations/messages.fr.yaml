@@ -33,8 +33,6 @@ wheel:
     prize_must_be_object: 'Chaque lot doit être un objet.'
     too_few_prizes: 'Une roue doit compter au moins %min% lots. Elle en a %count%.'
     too_many_prizes: 'Une roue peut compter au plus %max% lots. Elle en a %count%.'
-    prize_name_required: 'Un lot doit avoir un nom.'
-    prize_name_too_long: 'Un nom de lot ne peut pas dépasser %max% caractères.'
     prize_id_invalid: "L'identifiant d'un lot doit être un entier positif, ou absent pour un nouveau lot."
     probability_not_whole: 'Une probabilité doit être un nombre entier.'
     probability_out_of_range: 'Une probabilité doit être comprise entre %min% et %max%.'
@@ -43,6 +41,7 @@ wheel:
     prize_reward_required: 'Choisissez ce que donne cette part.'
     unknown_reward: "Cette récompense n'existe plus. Rechargez la page et réessayez."
     one_losing_slice: 'Une roue ne peut avoir qu’une seule part perdante.'
+    # Not rendered since F26; kept for the F13 upgrade step (see messages.en.yaml).
     default_losing_label: 'Pas de chance'
 
 branding:
@@ -95,7 +94,7 @@ reward:
     amount_too_small: 'Un montant doit valoir au moins %min%.'
     amount_too_large: 'Un montant ne peut pas dépasser %max%.'
     value_not_allowed: 'Ce type de récompense ne prend pas de valeur.'
-    in_use: 'Cette récompense est sur la roue, utilisée par : %slices%. Modifiez ces parts d’abord.'
+    in_use: 'Cette récompense est sur la roue : %slices%. Faites pointer ces parts ailleurs d’abord.'
     not_found: "Cette récompense n'existe pas."
 
 spin:

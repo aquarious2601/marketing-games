@@ -30,7 +30,6 @@ final class SpinLookupTest extends DatabaseWebTestCase
     /** The code the acceptance criteria talk about. */
     private const CODE = 'A7K3-M9PX';
 
-    private int $rewards = 0;
 
     /** F16 R7, R13 */
     public function testItFindsASpinByItsCode(): void
@@ -241,17 +240,23 @@ final class SpinLookupTest extends DatabaseWebTestCase
         string $phone = '0912345678',
         RewardType $type = RewardType::FreeProduct,
     ): Spin {
-        // Numbered, because reward names are unique (F13 R4) and a test that
-        // writes two spins of the same prize is not a test about that.
-        $reward = new Reward(
-            sprintf('%s reward %d', $prizeName, ++$this->rewards),
-            $type,
-            $type->needsValue() ? 10 : null,
-        );
-        $this->entityManager->persist($reward);
+        /*
+         * F26 R1: a spin's prize name is its reward's name, so the reward has
+         * to *be* the prize this fixture was asked for rather than something
+         * named after it. Reward names are unique (F13 R4), so two spins of
+         * one prize find the same reward and share it — which is what a real
+         * wheel does too.
+         */
+        $reward = $this->entityManager->getRepository(Reward::class)
+            ->findOneBy(['name' => $prizeName]);
+
+        if (!$reward instanceof Reward) {
+            $reward = new Reward($prizeName, $type, $type->needsValue() ? 10 : null);
+            $this->entityManager->persist($reward);
+        }
 
         $wheel = new Wheel();
-        $prize = new Prize($prizeName, 100, 0, $reward);
+        $prize = new Prize(100, 0, $reward);
         $wheel->addPrize($prize);
         $this->entityManager->persist($wheel);
         $this->entityManager->persist($prize);

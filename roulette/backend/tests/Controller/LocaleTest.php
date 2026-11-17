@@ -167,9 +167,11 @@ final class LocaleTest extends DatabaseWebTestCase
         $this->signInAsAdmin();
 
         $this->put('/api/admin/wheel', [
+            // F26 R1: the admin's words are the reward's name now, so that is
+            // where this test has to put them.
             'prizes' => [
-                ['name' => 'Free sample', 'probability' => 50, 'rewardId' => $this->aRewardId()],
-                ['name' => 'Try again', 'probability' => 50, 'rewardId' => $this->aRewardId()],
+                ['probability' => 50, 'rewardId' => $this->aRewardId('Free sample')],
+                ['probability' => 50, 'rewardId' => $this->aRewardId('Try again')],
             ],
         ]);
         self::assertResponseIsSuccessful();

@@ -123,7 +123,6 @@ export const en = {
   'game.saveFailed': 'The configuration could not be saved. Your changes are still here.',
   'game.rejected': 'The server rejected this configuration.',
   'game.emptyWheel': 'An empty wheel',
-  'game.prizeName': 'Prize name',
   'game.prizePercentage': 'Percentage',
   'game.moveUp': 'Move up',
   'game.moveDown': 'Move down',

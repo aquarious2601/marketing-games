@@ -91,7 +91,6 @@ final class WheelInputParser
             }
 
             $id = $this->parseId($rawPrize, $index, $violations);
-            $name = $this->parseName($rawPrize, $index, $violations);
             $probability = $this->parseProbability($rawPrize, $index, $violations);
             $rewardId = $this->parseRewardId($rawPrize, $index, $violations);
 
@@ -101,8 +100,9 @@ final class WheelInputParser
                 $total += $probability;
             }
 
-            if (null !== $name && null !== $probability && null !== $rewardId) {
-                $prizes[] = new PrizeDraft($id, $name, $probability, $rewardId);
+            // F26 R13: a `name` sent by an older page is simply not read.
+            if (null !== $probability && null !== $rewardId) {
+                $prizes[] = new PrizeDraft($id, $probability, $rewardId);
             }
         }
 
@@ -181,44 +181,6 @@ final class WheelInputParser
         }
 
         return $rewardId;
-    }
-
-    /**
-     * @param array<mixed>    $rawPrize
-     * @param list<Violation> $violations
-     */
-    private function parseName(array $rawPrize, int $index, array &$violations): ?string
-    {
-        $field = sprintf('prizes[%d].name', $index);
-        $name = $rawPrize['name'] ?? null;
-
-        if (!\is_string($name)) {
-            $violations[] = new Violation($field, $this->translator->trans('wheel.prize_name_required'));
-
-            return null;
-        }
-
-        // F01 R4
-        $name = trim($name);
-
-        if ('' === $name) {
-            $violations[] = new Violation($field, $this->translator->trans('wheel.prize_name_required'));
-
-            return null;
-        }
-
-        // Counted in characters, not bytes, so an accented name is not
-        // rejected for being one byte over.
-        if (mb_strlen($name) > Prize::NAME_MAX_LENGTH) {
-            $violations[] = new Violation(
-                $field,
-                $this->translator->trans('wheel.prize_name_too_long', ['%max%' => Prize::NAME_MAX_LENGTH]),
-            );
-
-            return null;
-        }
-
-        return $name;
     }
 
     /**

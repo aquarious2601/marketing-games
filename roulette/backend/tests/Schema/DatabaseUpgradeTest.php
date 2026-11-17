@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Schema;
 
+use App\Entity\Reward;
 use App\Player\PhoneMatch;
 use App\Reward\RewardType;
 use App\Schema\DatabaseUpgrade;
@@ -99,16 +100,19 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $this->upgrade()->run();
 
         $slices = $this->connection->fetchAllAssociative(
-            'SELECT p.name, p.position, r.name AS reward, r.type FROM prize p '
+            'SELECT p.position, r.name AS reward, r.type FROM prize p '
             .'INNER JOIN reward r ON r.id = p.reward_id ORDER BY p.position',
         );
 
         self::assertCount(6, $slices);
 
-        // R10: "Try again" is the slice's label and "Maybe next time" is the
-        // reward's name. Matching on the label alone would have invented a
-        // claimable free product for the one slice that must never be claimed.
-        self::assertSame('Try again', $slices[0]['name']);
+        // R10: the old database's first slice was labelled "Try again" while
+        // the reward it has to be matched to is called "Maybe next time".
+        // Matching on the label alone would have invented a claimable free
+        // product for the one slice that must never be claimed. F26 R7 then
+        // dropped the label, so what is left to assert is the match itself —
+        // and the reward's name is now what that slice reads.
+        self::assertSame('Maybe next time', $slices[0]['reward']);
         self::assertSame(RewardType::Nothing->value, $slices[0]['type']);
 
         self::assertSame(RewardType::PercentOff->value, $slices[1]['type']);
@@ -137,7 +141,7 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $this->upgrade()->run();
 
         $slices = $this->connection->fetchAllAssociative(
-            'SELECT p.name, r.type FROM prize p INNER JOIN reward r ON r.id = p.reward_id '
+            'SELECT r.type FROM prize p INNER JOIN reward r ON r.id = p.reward_id '
             .'ORDER BY p.position',
         );
 
@@ -880,6 +884,74 @@ final class DatabaseUpgradeTest extends KernelTestCase
         self::assertTrue($this->columnOf('prize', 'reward_id')?->getNotnull());
     }
 
+    // --------------------------------------------------------- F26
+
+    /** F26 R7, R9: the label column goes, and the step says whose label changed. */
+    public function testItDropsThePrizeNameAndNamesTheLabelsThatChange(): void
+    {
+        $this->givenTheDefaultWheel();
+
+        $steps = $this->upgrade()->run();
+
+        self::assertNull($this->columnOf('prize', 'name'));
+
+        // The default wheel's first slice says "Try again" while the losing
+        // reward it points at is called "Maybe next time" — two shipped
+        // strings for one thing, which is the seam F26 closed.
+        self::assertStringContainsString('"Try again" -> "Maybe next time"', $this->detailOf($steps, 'prize.name'));
+    }
+
+    /** F26 R8: and a second run has nothing to drop. */
+    public function testASecondRunLeavesThePrizeNameDropped(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->upgrade()->run();
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame('already applied', $this->detailOf($steps, 'prize.name'));
+        self::assertNull($this->columnOf('prize', 'name'));
+    }
+
+    /**
+     * F26 R25, with the reward table as a pre-F26 database actually has it.
+     *
+     * Hand-created at 60 characters, because createRewardTable() builds a
+     * missing one from the current mapping and so gets 256 for free. The
+     * widening step is for the databases that already have the table — the
+     * ones this whole class exists for.
+     */
+    public function testItWidensBothNameColumnsToHoldAFullRewardName(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->executeStatement(
+            'CREATE TABLE reward (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(60) NOT NULL, '
+            .'type VARCHAR(20) NOT NULL, value SMALLINT DEFAULT NULL, created_at DATETIME NOT NULL, '
+            .'UNIQUE INDEX uniq_reward_name (name), PRIMARY KEY (id)) '
+            .'DEFAULT CHARACTER SET utf8mb4 ENGINE = InnoDB',
+        );
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame(Reward::NAME_MAX_LENGTH, $this->columnOf('reward', 'name')?->getLength());
+        self::assertSame(Reward::NAME_MAX_LENGTH, $this->columnOf('spin', 'prize_name')?->getLength());
+        self::assertStringContainsString(
+            'reward.name and spin.prize_name',
+            $this->detailOf($steps, 'names hold a full reward name'),
+        );
+    }
+
+    /** F26 R25: and leaves them alone once they are wide enough. */
+    public function testASecondRunLeavesTheWidenedNamesAlone(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->upgrade()->run();
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame('already applied', $this->detailOf($steps, 'names hold a full reward name'));
+    }
+
     private function upgrade(): DatabaseUpgrade
     {
         $container = static::getContainer();
@@ -1010,7 +1082,10 @@ final class DatabaseUpgradeTest extends KernelTestCase
                 .' FROM wheel ORDER BY id',
             ),
             'prize' => $this->connection->fetchAllAssociative(
-                'SELECT id, name, probability, position, wheel_id'
+                'SELECT id, probability, position, wheel_id'
+                // F26 R7 drops it, so it is there before the upgrade and
+                // after a dry run, and gone after a real one.
+                .(null === $this->columnOf('prize', 'name') ? '' : ', name')
                 .(null === $this->columnOf('prize', 'reward_id') ? '' : ', reward_id')
                 .' FROM prize ORDER BY id',
             ),

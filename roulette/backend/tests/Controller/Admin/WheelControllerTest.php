@@ -39,8 +39,12 @@ final class WheelControllerTest extends DatabaseWebTestCase
 
         self::assertCount(6, $wheel['prizes']);
         self::assertSame(100, $wheel['totalProbability']);
-        self::assertSame('Try again', $wheel['prizes'][0]['name']);
         self::assertSame(40, $wheel['prizes'][0]['probability']);
+
+        // F26 R12: no label travels with a slice. The page resolves it from
+        // the reward it already lists, so sending one here would be a second
+        // copy that the PUT then has to ignore.
+        self::assertArrayNotHasKey('name', $wheel['prizes'][0]);
     }
 
     public function testTheDefaultWheelIsOrderedAndColoured(): void
@@ -74,7 +78,12 @@ final class WheelControllerTest extends DatabaseWebTestCase
 
     // ---------------------------------------------------------------- PUT
 
-    public function testItSavesAChangedName(): void
+    /**
+     * F26 R13. There is no name to change any more, and a page still sending
+     * one saves anyway rather than being refused — an admin holding the bundle
+     * they loaded this morning must not be locked out of saving.
+     */
+    public function testANameSentWithAPrizeIsIgnoredRatherThanRefused(): void
     {
         $prizes = $this->currentPrizes();
         $prizes[0]['name'] = 'Better luck next time';
@@ -84,7 +93,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         self::assertResponseIsSuccessful();
 
         $this->client->request('GET', self::URI);
-        self::assertSame('Better luck next time', $this->decodeResponse()['prizes'][0]['name']);
+        self::assertArrayNotHasKey('name', $this->decodeResponse()['prizes'][0]);
     }
 
     /** F01 R11 */
@@ -93,7 +102,6 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $before = $this->currentPrizes();
         $idsBefore = array_column($before, 'id');
 
-        $before[2]['name'] = 'Renamed';
         $this->put(self::URI, ['prizes' => $this->asPayload($before)]);
 
         self::assertResponseIsSuccessful();
@@ -114,9 +122,10 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $saved = $this->decodeResponse()['prizes'];
 
         self::assertSame([0, 1, 2, 3, 4, 5], array_column($saved, 'position'));
+        // By reward, since F26 left a slice with nothing else of its own.
         self::assertSame(
-            array_column($reversed, 'name'),
-            array_column($saved, 'name'),
+            array_column($reversed, 'rewardId'),
+            array_column($saved, 'rewardId'),
             'The saved order should be the order that was sent.',
         );
     }
@@ -126,13 +135,13 @@ final class WheelControllerTest extends DatabaseWebTestCase
     {
         $prizes = $this->currentPrizes();
         $firstColour = $prizes[0]['colour'];
-        $lastName = $prizes[5]['name'];
+        $lastReward = $prizes[5]['rewardId'];
 
         $this->put(self::URI, ['prizes' => $this->asPayload(array_reverse($prizes))]);
 
         $saved = $this->decodeResponse()['prizes'];
 
-        self::assertSame($lastName, $saved[0]['name']);
+        self::assertSame($lastReward, $saved[0]['rewardId']);
         self::assertSame($firstColour, $saved[0]['colour'], 'Position 0 keeps position 0\'s colour.');
     }
 
@@ -140,7 +149,8 @@ final class WheelControllerTest extends DatabaseWebTestCase
     {
         $prizes = $this->asPayload($this->currentPrizes());
         $prizes[0]['probability'] = 35;
-        $prizes[] = ['name' => 'Mystery box', 'probability' => 5, 'rewardId' => $this->aRewardId()];
+        $rewardId = $this->aRewardId('Mystery box');
+        $prizes[] = ['probability' => 5, 'rewardId' => $rewardId];
 
         $this->put(self::URI, ['prizes' => $prizes]);
 
@@ -148,7 +158,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
 
         $saved = $this->decodeResponse()['prizes'];
         self::assertCount(7, $saved);
-        self::assertSame('Mystery box', $saved[6]['name']);
+        self::assertSame($rewardId, $saved[6]['rewardId']);
         self::assertIsInt($saved[6]['id']);
     }
 
@@ -208,7 +218,6 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $original = $this->currentPrizes();
 
         $broken = $this->asPayload($original);
-        $broken[0]['name'] = 'Should never be stored';
         $broken[0]['probability'] = 37;
 
         $this->put(self::URI, ['prizes' => $broken]);
@@ -217,7 +226,11 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::URI);
         $after = $this->decodeResponse();
 
-        self::assertSame(array_column($original, 'name'), array_column($after['prizes'], 'name'));
+        self::assertSame(
+            array_column($original, 'rewardId'),
+            array_column($after['prizes'], 'rewardId'),
+        );
+        self::assertSame(array_column($original, 'probability'), array_column($after['prizes'], 'probability'));
         self::assertSame(100, $after['totalProbability']);
     }
 
@@ -227,7 +240,6 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $original = $this->currentPrizes();
 
         $payload = $this->asPayload($original);
-        $payload[1]['name'] = 'Should never be stored';
         $payload[1]['id'] = 99999;
 
         $this->put(self::URI, ['prizes' => $payload]);
@@ -290,26 +302,38 @@ final class WheelControllerTest extends DatabaseWebTestCase
     // ------------------------------------------------------------- content
 
     /** F01 R16 — stored verbatim; escaping is the renderer's job */
-    public function testItStoresANameContainingMarkupVerbatim(): void
+    /**
+     * F01 R16, F26 R18.
+     *
+     * Asserted against the player's wheel rather than the admin's, because
+     * since F26 the admin's payload has no label in it: what reaches a
+     * browser as text is the reward's name, so that is where the rule has to
+     * be proved. The second slice, not the first, which is the losing one.
+     */
+    public function testARewardNameContainingMarkupReachesTheWheelVerbatim(): void
     {
         $prizes = $this->asPayload($this->currentPrizes());
-        $prizes[0]['name'] = '<script>alert(1)</script>';
+        $prizes[1]['rewardId'] = $this->aRewardId('<script>alert(1)</script>');
 
         $this->put(self::URI, ['prizes' => $prizes]);
-
         self::assertResponseIsSuccessful();
-        self::assertSame('<script>alert(1)</script>', $this->decodeResponse()['prizes'][0]['name']);
+
+        $this->client->request('GET', '/api/wheel');
+
+        self::assertSame(
+            '<script>alert(1)</script>',
+            $this->decodeResponse()['prizes'][1]['name'],
+        );
     }
 
     public function testItAcceptsTheBoundaryValues(): void
     {
         $this->put(self::URI, ['prizes' => [
             [
-                'name' => str_repeat('x', Prize::NAME_MAX_LENGTH),
                 'probability' => Wheel::REQUIRED_TOTAL_PROBABILITY - 1,
                 'rewardId' => $this->aRewardId(),
             ],
-            ['name' => 'y', 'probability' => Prize::MIN_PROBABILITY, 'rewardId' => $this->aRewardId()],
+            ['probability' => Prize::MIN_PROBABILITY, 'rewardId' => $this->aRewardId()],
         ]]);
 
         self::assertResponseIsSuccessful();
@@ -340,7 +364,6 @@ final class WheelControllerTest extends DatabaseWebTestCase
         return array_map(
             static fn (array $prize): array => [
                 'id' => $prize['id'],
-                'name' => $prize['name'],
                 'probability' => $prize['probability'],
                 // F13 R7: a slice still has to say what it gives away when
                 // it is sent back unchanged.
