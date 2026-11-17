@@ -305,6 +305,10 @@ final class RewardIssueTest extends DatabaseWebTestCase
      * without pretending the draw is deterministic: at 99% a run of 40
      * failures is about 1 in 10^80.
      *
+     * Each retry identifies again (F20 R1). Without that, the second spin of
+     * the loop is refused rather than drawn, so the one run in a hundred
+     * where the first spin wins failed on a 409 instead of spinning on.
+     *
      * @return array{type: string, value: int|null, code: string|null}
      */
     private function givenAMostlyLosingWheel(): array
@@ -323,8 +327,12 @@ final class RewardIssueTest extends DatabaseWebTestCase
         $this->identifyAsPlayer();
 
         for ($attempt = 0; $attempt < 40; ++$attempt) {
-            $this->client->request('POST', self::SPIN_URI);
-            self::assertResponseIsSuccessful();
+            if (0 === $attempt) {
+                $this->client->request('POST', self::SPIN_URI);
+                self::assertResponseIsSuccessful();
+            } else {
+                $this->spinOnceMore();
+            }
 
             /** @var array{type: string, value: int|null, code: string|null} $reward */
             $reward = $this->decodeResponse()['reward'];
