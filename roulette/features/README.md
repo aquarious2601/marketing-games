@@ -149,6 +149,7 @@ Two series, so infrastructure never pushes the game features along:
 | [P01](./P01-end-to-end-tests.md) | End-to-end browser tests | Platform | Done |
 | [P02](./P02-database-upgrades.md) | Database upgrades | Platform | Done |
 | [P03](./P03-deployment.md) | Deployment | Platform | Agreed |
+| [P04](./P04-many-shops-in-one-installation.md) | Many shops in one installation | Platform | Draft |
 | [F01](./F01-wheel-prize-configuration.md) | Wheel prize configuration | Admin | Done |
 | [F02](./F02-player-spin.md) | The player's spin | Player | Done |
 | [F03](./F03-spin-animation.md) | A wheel that spins like a wheel | Player | Done |
@@ -172,6 +173,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F21](./F21-amounts-that-fit-the-currency.md) | Amounts that fit the currency | Admin | Agreed |
 | [F22](./F22-a-celebration-on-the-result.md) | A celebration on the result | Player | Agreed |
 | [F23](./F23-a-daily-spin-limit.md) | A daily spin limit | Both | Agreed |
+| [F24](./F24-the-campaigns-timezone.md) | The campaign's timezone | Admin | Withdrawn |
 
 ## Running the tests
 
