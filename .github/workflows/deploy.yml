@@ -136,7 +136,7 @@ jobs:
             --parameters commands="[
               \"set -eu\",
               \"release=/srv/roulette/releases/${sha}\",
-              \"rm -rf \\\"\$release\\\" && mkdir -p \\\"\$release\\\"\",
+              \"rm -rf \\\"\$release\\\" && mkdir -p \\\"\$release\\\" && chmod 755 \\\"\$release\\\"\",
               \"aws s3 cp s3://${{ vars.RELEASE_BUCKET }}/releases/release-${sha}.tar.gz /tmp/release-${sha}.tar.gz\",
               \"tar -C \\\"\$release\\\" -xzf /tmp/release-${sha}.tar.gz\",
               \"rm -f /tmp/release-${sha}.tar.gz\",
