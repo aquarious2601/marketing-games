@@ -13,6 +13,7 @@ import { ThemeScene } from '../branding/ThemeScene'
 import { useT } from '../i18n/I18nContext'
 import { LanguagePicker } from '../i18n/LanguagePicker'
 import { themeFor, themeStyle } from '../branding/themes'
+import { CELEBRATION_MS, Confetti } from './Confetti'
 import { IdentityStep } from './IdentityStep'
 import { PlayerHeader } from './PlayerHeader'
 import { WheelPreview, type PreviewSlice } from '../wheel/WheelPreview'
@@ -72,6 +73,9 @@ export function PlayerPage() {
   const [error, setError] = useState<string | null>(null)
   // F08 R12: what the *server* said, never something this page decided.
   const [player, setPlayer] = useState<PlayerIdentity | null>(null)
+  // F22 R1. Separate from `result` on purpose: a result stays until Next
+  // player, and the celebration is over long before that.
+  const [celebrating, setCelebrating] = useState(false)
 
   // F03 R13: disabled from the moment Spin is pressed until the wheel stops.
   const busy = awaitingSpin || isSpinning(animation)
@@ -80,6 +84,20 @@ export function PlayerPage() {
   // result rather than the one captured when the spin started.
   const pendingResult = useRef<string | null>(null)
   const pendingReward = useRef<SpinReward | null>(null)
+  const celebrationTimer = useRef<number | null>(null)
+
+  const stopCelebrating = useCallback(() => {
+    if (celebrationTimer.current !== null) {
+      window.clearTimeout(celebrationTimer.current)
+      celebrationTimer.current = null
+    }
+
+    setCelebrating(false)
+  }, [])
+
+  // A player who hands the phone over mid-celebration unmounts this with a
+  // timer still pending.
+  useEffect(() => stopCelebrating, [stopCelebrating])
 
   /**
    * The wheel and the identity are fetched together, not one after the other.
@@ -147,12 +165,40 @@ export function PlayerPage() {
   }, [loadWheel])
 
   const reveal = useCallback(() => {
-    if (pendingResult.current !== null) {
-      setResult(pendingResult.current)
-      setReward(pendingReward.current)
-      pendingResult.current = null
-      pendingReward.current = null
+    if (pendingResult.current === null) {
+      return
     }
+
+    const won = pendingReward.current
+
+    setResult(pendingResult.current)
+    setReward(won)
+    pendingResult.current = null
+    pendingReward.current = null
+
+    /*
+     * F22 R1, R2, R3. Here and nowhere else: this runs when the settle
+     * finishes (F03 R11), which is the moment the player learns what they
+     * won. Celebrating on mount instead would be one line shorter and would
+     * throw confetti every time somebody reloaded to re-read their code
+     * (F20 R6), which is F22 R4.
+     *
+     * A reward of `nothing` is the losing slice and gets none of this
+     * (F17 R1). An *absent* reward is read as a win, which is the same
+     * defensive reading F17 R7 takes.
+     *
+     * The system's reduced-motion preference is deliberately not consulted,
+     * exactly as F03 R12 does not consult it for the spin. See F22 R11.
+     */
+    if (won?.type === 'nothing') {
+      return
+    }
+
+    setCelebrating(true)
+    celebrationTimer.current = window.setTimeout(() => {
+      celebrationTimer.current = null
+      setCelebrating(false)
+    }, CELEBRATION_MS)
   }, [])
 
   /**
@@ -251,6 +297,8 @@ export function PlayerPage() {
     setReward(null)
     setError(null)
     setAnimation(atRest())
+    // F22 R5: the next person does not inherit the last one's confetti.
+    stopCelebrating()
 
     try {
       await forgetPlayer()
@@ -417,6 +465,10 @@ export function PlayerPage() {
               />
             </div>
           </div>
+
+          {/* Behind the panel and outside `wheel-stage`: nothing it does
+              may reach the spin's phase handler (F22 R9, F03 R1). */}
+          {celebrating && <Confetti />}
 
           {result !== null && <ResultPanel name={result} reward={reward} />}
         </div>

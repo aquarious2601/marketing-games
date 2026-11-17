@@ -125,15 +125,55 @@ describe('the theme scene', () => {
  * taken on trust. Ambient motion stops; the spin, which the player asked for
  * by pressing a button, does not (F03 §13).
  */
+/**
+ * These rules are about what the stylesheet *does*, so the prose is
+ * dropped first — a comment explaining that something no longer loops
+ * should not read as something that loops.
+ */
+function withoutComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '')
+}
+
 describe('ambient motion', () => {
-  it('declares every animation inside the reduced-motion guard', () => {
-    const { guarded, unguarded } = splitOnMotionGuard(STYLESHEET)
+  /**
+   * The rule is about motion that does not stop.
+   *
+   * It was "every animation sits inside the guard" until F22 put a
+   * five-second celebration outside it deliberately (F22 R11, and F03 R12
+   * before it). What actually matters is in the old message: an animation
+   * that *keeps running* for somebody who asked for less motion. A burst
+   * that ends, on an element the page then removes, is a different thing
+   * from a background that loops for as long as the tab is open.
+   *
+   * So the invariant is now the sharper one — nothing unguarded may loop —
+   * which still fails the case this was written for.
+   */
+  it('lets nothing outside the reduced-motion guard loop', () => {
+    const { guarded, unguarded } = splitOnMotionGuard(withoutComments(STYLESHEET))
 
     expect(guarded, 'index.css has no prefers-reduced-motion block at all').toContain('animation:')
+
+    const unguardedAnimations = unguarded.match(/\banimation\s*:[^;]+;/g) ?? []
+
     expect(
-      unguarded.match(/\banimation(-name)?\s*:/g),
-      'an animation is declared outside the prefers-reduced-motion: no-preference block, so it would keep running for a player who asked for less motion',
-    ).toBeNull()
+      unguardedAnimations.length,
+      'F22 puts the celebration outside the guard on purpose; if that is gone, tighten this back up',
+    ).toBeGreaterThan(0)
+
+    for (const declaration of unguardedAnimations) {
+      expect(
+        declaration,
+        'an animation outside the prefers-reduced-motion guard loops, so it would never stop for a player who asked for less motion',
+      ).not.toMatch(/\binfinite\b/)
+    }
+  })
+
+  /** Ambient scene motion stays guarded, which is what the rule was for. */
+  it('keeps every looping animation inside the guard', () => {
+    const { guarded, unguarded } = splitOnMotionGuard(withoutComments(STYLESHEET))
+
+    expect(guarded).toMatch(/\binfinite\b/)
+    expect(unguarded).not.toMatch(/\binfinite\b/)
   })
 
   it('defines an animation for every scene class the scenes use', () => {

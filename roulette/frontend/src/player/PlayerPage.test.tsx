@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiValidationError } from '../api/client'
@@ -15,6 +15,7 @@ import {
 } from '../api/player'
 import { THEMES, THEME_NAMES } from '../branding/themes'
 import { colourFor } from '../wheel/palette'
+import { CELEBRATION_MS } from './Confetti'
 import { PlayerPage } from './PlayerPage'
 import { sliceUnderPointer } from './rotation'
 
@@ -736,6 +737,147 @@ describe('the wheel at rest', () => {
  * reload actually does: mount the page again and let it ask the server what
  * it knows.
  */
+/**
+ * F22: the couple of seconds after the wheel stops on a prize.
+ *
+ * The rule worth guarding is the negative one. A celebration on a losing
+ * spin reads as mockery, and F17 exists because this page once told a
+ * losing player they had won.
+ */
+describe('the celebration', () => {
+  /** F22 R1, R3 */
+  it('throws confetti when the wheel stops on a prize', async () => {
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+
+    // F22 R3: not before the settle finishes. The wheel is still the story.
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+
+    expect(screen.getByTestId('confetti')).toBeInTheDocument()
+  })
+
+  /** F22 R2. The half of this feature that was asked for explicitly. */
+  it('throws none at all on the losing slice', async () => {
+    spinMock.mockResolvedValue(result(0, { type: 'nothing', code: null }))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+
+    const panel = await screen.findByTestId('spin-result')
+
+    expect(panel).toHaveTextContent('Thanks for playing')
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+  })
+
+  /** F22 R8: it clears itself rather than animating behind the result. */
+  it('removes itself once it is over', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+
+    try {
+      spinMock.mockResolvedValue(result(0))
+      const user = await renderPlayer()
+
+      await user.click(screen.getByTestId('spin-button'))
+      await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+      finishTheSpin()
+      await screen.findByTestId('spin-result')
+
+      expect(screen.getByTestId('confetti')).toBeInTheDocument()
+
+      await act(async () => {
+        vi.advanceTimersByTime(CELEBRATION_MS + 50)
+      })
+
+      expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+      // The result stays. Only the celebration is over (F10 R5).
+      expect(screen.getByTestId('spin-result')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  /**
+   * F22 R11, and the reason it reads that way.
+   *
+   * The first version of this feature suppressed the celebration under a
+   * reduced-motion preference, and it was invisible on the machine it was
+   * built for: Windows reports `reduce` whenever animation effects are off,
+   * as do most automated browsers. A celebration most players never see is
+   * not one. F03 R12 reached the same conclusion about the spin.
+   */
+  it('throws confetti even for somebody who asked for less motion', async () => {
+    stubMatchMedia(true)
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+
+    expect(screen.getByTestId('confetti')).toBeInTheDocument()
+  })
+
+  /**
+   * F22 R4. The rule most likely to be broken by a well-meaning
+   * simplification: celebrating when the panel mounts is shorter and looks
+   * identical the first time, and would then fire on every reload somebody
+   * makes to re-read their code (F20 R6).
+   */
+  it('does not celebrate a result that was already won', async () => {
+    fetchIdentityMock.mockResolvedValue(alreadySpun('Free gift'))
+
+    render(<PlayerPage />)
+
+    await screen.findByTestId('spin-result')
+
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+  })
+
+  /** F22 R5 */
+  it('is cleared by handing over to the next player', async () => {
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+    expect(screen.getByTestId('confetti')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('next-player-button'))
+
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+  })
+
+  /** F22 R9, R10: decoration, and silent to a screen reader. */
+  it('says nothing and intercepts nothing', async () => {
+    spinMock.mockResolvedValue(result(0))
+    const user = await renderPlayer()
+
+    await user.click(screen.getByTestId('spin-button'))
+    await waitFor(() => expect(spinMock).toHaveBeenCalledOnce())
+    finishTheSpin()
+    await screen.findByTestId('spin-result')
+
+    const confetti = screen.getByTestId('confetti')
+
+    expect(confetti).toHaveAttribute('aria-hidden', 'true')
+    expect(confetti.className).toContain('pointer-events-none')
+
+    // F03 R1: outside the box whose transitions drive the spin's phases.
+    expect(screen.getByTestId('wheel-stage')).not.toContainElement(confetti)
+  })
+})
+
 describe('a reload after the spin', () => {
   /**
    * F20 R15. The question "who is this?" is open until the server answers,

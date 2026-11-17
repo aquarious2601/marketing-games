@@ -17,6 +17,7 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 [F16](./F16-a-code-on-every-win.md) a code on every win,
 [F17](./F17-the-losing-panel.md) the losing panel,
 [F19](./F19-one-person-one-number.md) one person, one number,
+[F22](./F22-a-celebration-on-the-result.md) a celebration on the result,
 [F20](./F20-one-spin-per-identification.md) one spin per identification._
 
 | Candidate | Sketch |
@@ -31,9 +32,9 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 | **Native review of the translations** | [F12](./F12-multiple-languages.md) ships French, Chinese and Vietnamese written by a non-native speaker. A native reader should go over them before a real campaign. |
 | **Translating what the admin types** | Prize names, the campaign name and the tagline are shown as entered ([F12](./F12-multiple-languages.md) R10). Per-language content needs a translations table and four fields per prize — its own feature, and [F12 section 13](./F12-multiple-languages.md) is where it starts. |
 | **Share / referral** | An extra spin for sharing, or a referral link. |
-| **A motion control on the page** | A visible toggle to turn the spin animation off, defaulting to the system's reduced-motion preference. **The accessible answer to [F03](./F03-spin-animation.md) R12** — the preference is currently ignored outright. |
+| **A motion control on the page** | A visible toggle to turn the spin animation off, defaulting to the system's reduced-motion preference. **The accessible answer to [F03](./F03-spin-animation.md) R12 and now [F22](./F22-a-celebration-on-the-result.md) R11** — both ignore the preference outright, both for the same reason, and this is the honest way to give it back. It should cover the wheel as well as the confetti: six seconds of spinning is the part worth turning off first. |
 | **Pointer ticking** | The pointer flicks as each slice passes. Offered during F03 and not taken. |
-| **Celebration on the result** | The winning slice flashes, the result arrives with a flourish. Offered during F03 and not taken. |
+| ~~**Celebration on the result**~~ | Done: [F22](./F22-a-celebration-on-the-result.md), confetti on a win and nothing on the losing slice. The winning slice flashing is still open and still awkward — it animates inside `wheel-stage`, whose transitions drive the spin's phases. |
 | **Sound** | A tick per slice and a chime on the result, with a mute control. Offered during F03 and not taken. |
 | **Losing segments** | "Try again" outcomes, and how they feel fair rather than cheap. |
 
