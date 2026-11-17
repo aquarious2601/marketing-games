@@ -112,7 +112,7 @@ remembers them.
 
 | # | Rule |
 |---|---|
-| R17 | After the symlink moves, the deploy requests `/api/health` on localhost. A non-200 rolls the symlink back, reloads, and fails the job. |
+| R17 | After the symlink moves, the deploy requests `/api/health` over HTTPS, using the campaign's hostname resolved to this machine. A non-200 rolls the symlink back, reloads, and fails the job. **Not `http://127.0.0.1`** — certbot rewrites the port 80 block to `return 404` for any host but the domain, so a localhost check fails on a working release and rolls it back. |
 | R18 | The tests that gate a deploy are the four fast suites: PHPUnit, Vitest, TypeScript and the linter. A red suite means nothing is built and nothing is uploaded. They are defined once, in a reusable workflow, and run both on a pull request and again on main — a gate defined twice is a gate that eventually differs between the two. |
 | R19 | The deploy script is idempotent: running it twice with the same SHA produces the same live result. |
 
