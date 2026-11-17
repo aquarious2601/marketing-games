@@ -288,7 +288,15 @@ certbot — but it is the step people skip.
 ### 6. Provisioning the instance
 
 **The instance has no git and no GitHub credentials** (P03 R1), so the
-script reaches it the same way releases do: through the bucket.
+script reaches it through the bucket — but it cannot be fetched with
+`aws s3 cp`, because a fresh Ubuntu image has no AWS CLI and installing it
+is one of the things `provision.sh` does. A bootstrap cannot depend on the
+tool it bootstraps.
+
+So the two files are fetched with `curl`, which Ubuntu does ship, from
+presigned URLs generated on your machine. The URLs carry their own
+short-lived read permission, so the bucket stays private and the instance
+still needs no credentials of its own at this point.
 
 ```bash
 # From the repository, not from ~/roulette-setup: these two paths are
@@ -304,12 +312,17 @@ cd ~/marketing-games        # wherever this repository is checked out
 aws s3 cp roulette/deploy/provision.sh "s3://$BUCKET/bootstrap/provision.sh"
 aws s3 cp roulette/deploy/nginx.conf   "s3://$BUCKET/bootstrap/nginx.conf"
 
+# Generated here, where the credentials are. Thirty minutes is longer
+# than provisioning takes and short enough not to matter afterwards.
+export PROVISION_URL=$(aws s3 presign "s3://$BUCKET/bootstrap/provision.sh" --expires-in 1800)
+export NGINX_URL=$(aws s3 presign "s3://$BUCKET/bootstrap/nginx.conf" --expires-in 1800)
+
 aws ssm send-command --instance-ids "$INSTANCE" \
   --document-name AWS-RunShellScript \
   --timeout-seconds 900 \
   --parameters commands="[
-    \"aws s3 cp s3://$BUCKET/bootstrap/provision.sh /tmp/provision.sh\",
-    \"aws s3 cp s3://$BUCKET/bootstrap/nginx.conf /tmp/nginx.conf\",
+    \"curl -fsSL '$PROVISION_URL' -o /tmp/provision.sh\",
+    \"curl -fsSL '$NGINX_URL' -o /tmp/nginx.conf\",
     \"DOMAIN=$DOMAIN ADMIN_EMAIL=$EMAIL RELEASE_BUCKET=$BUCKET bash /tmp/provision.sh\"
   ]" --query 'Command.CommandId' --output text
 ```
