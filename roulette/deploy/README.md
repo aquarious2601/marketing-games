@@ -88,6 +88,14 @@ So `MSYS_NO_PATHCONV=1` is exported once below, for the whole session,
 rather than guessed at per command. It is an unused variable on Linux
 and macOS.
 
+It has one consequence worth knowing, because it looks like a new bug
+the first time: with rewriting off, a *local* path like
+`~/marketing-games/x.sh` is no longer translated either, and the
+Windows `aws.exe` cannot open `/c/Users/...`. So every local file below
+is given as a relative path, which needs no translation on any
+platform. If you ever need an absolute one here, write it Windows-style
+with forward slashes: `C:/Users/you/thing.sh`.
+
 Work from a directory of its own, because the steps below write small
 policy files and you do not want them in the repository:
 
@@ -283,6 +291,13 @@ certbot — but it is the step people skip.
 script reaches it the same way releases do: through the bucket.
 
 ```bash
+# From the repository, not from ~/roulette-setup: these two paths are
+# relative to the checkout. Relative is deliberate — with
+# MSYS_NO_PATHCONV=1 set, Git Bash no longer rewrites ~/... into a
+# Windows path either, so an absolute POSIX path is one the Windows
+# aws.exe cannot open. A relative path has nothing to rewrite.
+cd ~/marketing-games        # wherever this repository is checked out
+
 # Both files: provision.sh installs nginx.conf from beside itself, so a
 # bootstrap that carries only the script dies half way through, after
 # MariaDB and PHP are installed and before anything serves.
