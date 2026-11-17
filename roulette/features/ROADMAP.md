@@ -18,11 +18,12 @@ _Done: [F02](./F02-player-spin.md) the player's spin,
 [F17](./F17-the-losing-panel.md) the losing panel,
 [F19](./F19-one-person-one-number.md) one person, one number,
 [F22](./F22-a-celebration-on-the-result.md) a celebration on the result,
-[F20](./F20-one-spin-per-identification.md) one spin per identification._
+[F20](./F20-one-spin-per-identification.md) one spin per identification,
+[F23](./F23-a-daily-spin-limit.md) a daily spin limit._
 
 | Candidate | Sketch |
 |---|---|
-| **Spin eligibility** | How often someone may play: once ever, once a day, once per code, once per purchase. **Now possible for the first time** — [F08](./F08-player-identification.md) made a player a thing the system knows and left the limit out, and [F19](./F19-one-person-one-number.md) made one person one row, without which "once per person" could not be counted. The feature is mostly the screen the player who has already played sees. Note that neither [F10](./F10-hand-over-to-the-next-player.md) nor [F20](./F20-one-spin-per-identification.md) is this: one spin per *identification* is how a stall's device behaves, and anybody may identify again. This is the rule about people, and it is the one that needs a campaign's answer. |
+| ~~**Spin eligibility**~~ | Done as **once a day**: [F23](./F23-a-daily-spin-limit.md), a number on the campaign and a fourth screen for the person who has had their spins. The other shapes the sketch listed are still open and each is its own decision — *once ever* (no day boundary, so no timezone, but a campaign that never forgets), *once per receipt* and *once per code* (both need something to scan or type, which is a feature before it is a rule). What F23 settles for all of them is the counting: one person is one row ([F19](./F19-one-person-one-number.md)), the day is the shop's ([F23](./F23-a-daily-spin-limit.md) R6), and the refusal has a screen. |
 | **Verifying the number** | An SMS code, so the player list is contacts rather than what people typed. [F08 section 13](./F08-player-identification.md) explains why it was left out and what that costs. |
 | ~~**A country setting for phone numbers**~~ | The problem is solved; the setting was not the answer. [F19](./F19-one-person-one-number.md) makes two spellings of one number one player by comparing the numbers, so there is nothing to configure. [F18](./F18-the-campaigns-phone-country.md) was this entry taken literally — built, measured against real data, and thrown away. F19 section 2 is what it cost. |
 | **Deleting a player** | Served from the console today. Needs a decision about what it does to their spins — see [F08 section 14](./F08-player-identification.md). |

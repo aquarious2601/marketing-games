@@ -171,6 +171,7 @@ Two series, so infrastructure never pushes the game features along:
 | [F20](./F20-one-spin-per-identification.md) | One spin per identification | Both | Agreed |
 | [F21](./F21-amounts-that-fit-the-currency.md) | Amounts that fit the currency | Admin | Agreed |
 | [F22](./F22-a-celebration-on-the-result.md) | A celebration on the result | Player | Agreed |
+| [F23](./F23-a-daily-spin-limit.md) | A daily spin limit | Both | Agreed |
 
 ## Running the tests
 

@@ -42,6 +42,12 @@ export const en = {
   // admin typed would be shown as typed to readers of all four languages.
   'player.thanksForPlaying': 'Thanks for playing',
   'player.betterLuck': 'Good luck next time!',
+  // F23 R14, R15. What it does not say is the point: not the prize,
+  // not the code, not how many times. Anybody may type anybody's
+  // number into a stall phone, and this is what they would see.
+  'player.alreadyPlayedKicker': 'That was your go',
+  'player.alreadyPlayedToday': 'You have already played today.',
+  'player.comeBackTomorrow': 'Come back tomorrow for another spin.',
   'player.loadFailed': 'The game could not be loaded.',
   'player.spinFailed': 'The spin could not be completed. Please try again.',
   'player.identityLost': 'The game needs to know who is playing. Please enter your number again.',
@@ -134,6 +140,7 @@ export const en = {
   // F15 R10, R11. The hint says what changing it affects, because the
   // obvious guess — that the amounts convert — is the wrong one.
   'branding.currencyHint': 'What every amount-off reward is counted in. Changing it relabels the amounts; it does not convert them.',
+  'branding.dailySpinLimitHint': 'How many times one person may spin in a day. Leave blank for no limit. It counts the person, not the phone, so typing a number in again is not a way round it.',
   'branding.logo': 'Logo',
   'branding.currentLogo': 'Current logo',
   'branding.removeLogo': 'Remove logo',
@@ -241,6 +248,8 @@ export const en = {
 
   // -- Branding addition (F13 R27) ------------------------------------
   'branding.currency': 'Currency',
+  'branding.dailySpinLimit': 'Spins per person per day',
+  'branding.dailySpinLimitBlank': 'No limit',
 } as const
 
 export type MessageKey = keyof typeof en

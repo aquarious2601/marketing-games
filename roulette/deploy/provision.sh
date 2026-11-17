@@ -4,7 +4,8 @@
 # the roulette game. Run once, as root, on an instance that holds nothing:
 #
 #   sudo DOMAIN=roulette.example.com ADMIN_EMAIL=you@example.com \
-#        RELEASE_BUCKET=my-roulette-releases bash provision.sh
+#        RELEASE_BUCKET=my-roulette-releases TIMEZONE=Europe/Paris \
+#        bash provision.sh
 #
 # Idempotent on purpose: running it again on a working instance should change
 # nothing, so it can be re-run after an Ubuntu upgrade or to repair a box
@@ -18,6 +19,15 @@ set -Eeuo pipefail
 : "${DOMAIN:?set DOMAIN to the hostname this will serve, e.g. roulette.example.com}"
 : "${ADMIN_EMAIL:?set ADMIN_EMAIL to the address certbot should send expiry notices to}"
 : "${RELEASE_BUCKET:?set RELEASE_BUCKET to the S3 bucket holding releases}"
+
+# F23 R6, R7: where the shop is, which is what decides when a player's day
+# rolls over. Optional, because UTC is a working default and a campaign with
+# no limit never asks the question — but a campaign that does set one and
+# leaves this wrong will reset itself in the middle of the trading day. An
+# identifier PHP does not recognise stops the application rather than
+# falling back to UTC (F23 R8), so a typo here fails the health check and
+# rolls the release back instead of going quietly wrong.
+TIMEZONE="${TIMEZONE:-UTC}"
 
 APP_DIR=/srv/roulette
 PHP_VERSION=8.3
@@ -106,6 +116,7 @@ APP_DEBUG=0
 APP_SECRET=${app_secret}
 DEFAULT_URI=https://${DOMAIN}
 APP_SHARE_DIR=/srv/roulette/shared/var/share
+APP_TIMEZONE=${TIMEZONE}
 DATABASE_URL="mysql://roulette:${db_password}@127.0.0.1:3306/roulette?serverVersion=${server_version}-MariaDB&charset=utf8mb4"
 ENV
 

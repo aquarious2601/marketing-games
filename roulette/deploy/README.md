@@ -335,9 +335,40 @@ aws ssm send-command --instance-ids "$INSTANCE" \
   --parameters commands="[
     \"curl -fsSL '$PROVISION_URL' -o /tmp/provision.sh\",
     \"curl -fsSL '$NGINX_URL' -o /tmp/nginx.conf\",
-    \"DOMAIN=$DOMAIN ADMIN_EMAIL=$EMAIL RELEASE_BUCKET=$BUCKET bash /tmp/provision.sh\"
+    \"DOMAIN=$DOMAIN ADMIN_EMAIL=$EMAIL RELEASE_BUCKET=$BUCKET TIMEZONE=$TIMEZONE bash /tmp/provision.sh\"
   ]" --query 'Command.CommandId' --output text
 ```
+
+`TIMEZONE` is where the shop is, and it is what decides when a player's day
+rolls over for [F23](../features/F23-a-daily-spin-limit.md)'s spin limit.
+Set it before you provision — `export TIMEZONE=Europe/Paris`, or
+`Asia/Ho_Chi_Minh` — because UTC midnight is 1am in Paris and 7am in Ho Chi
+Minh City, and a campaign with a daily limit would hand out its next round
+of spins at those hours. It defaults to `UTC`, which is right only for a
+shop that is actually in it.
+
+An identifier PHP does not recognise stops the application rather than
+quietly becoming UTC (F23 R8), so a typo fails the health check and rolls
+the release back. That is the intended failure: a timezone that is silently
+wrong is one nobody notices for a week.
+
+To change it on an instance that is already running, edit
+`/srv/roulette/shared/.env.local` and reload PHP — nothing needs
+redeploying, because no stored data depends on it:
+
+```bash
+aws ssm send-command --instance-ids "$INSTANCE" \
+  --document-name AWS-RunShellScript \
+  --parameters commands="[
+    \"sed -i 's|^APP_TIMEZONE=.*|APP_TIMEZONE=Europe/Paris|' /srv/roulette/shared/.env.local\",
+    \"grep -q '^APP_TIMEZONE=' /srv/roulette/shared/.env.local || echo 'APP_TIMEZONE=Europe/Paris' >> /srv/roulette/shared/.env.local\",
+    \"systemctl reload php8.3-fpm\",
+    \"curl -fsS -o /dev/null -w '%{http_code}' https://$DOMAIN/api/health\"
+  ]" --query 'Command.CommandId' --output text
+```
+
+The `grep ... ||` line is there for an instance provisioned before F23,
+whose `.env.local` has no such line for `sed` to find.
 
 Take the command id it prints and read what happened — this is the one step
 worth watching line by line the first time:

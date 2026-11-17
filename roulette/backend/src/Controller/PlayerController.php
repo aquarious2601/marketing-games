@@ -8,6 +8,7 @@ use App\Branding\BrandingPresenter;
 use App\Branding\BrandingProvider;
 use App\Player\PlayerPresenter;
 use App\Player\PlayerSession;
+use App\Player\SpinAllowance;
 use App\Wheel\PlayerWheelPresenter;
 use App\Wheel\SpinRecorder;
 use App\Wheel\WheelProvider;
@@ -25,9 +26,10 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * the wheel itself stays open, because the page has to be able to draw before
  * it knows who is looking at it.
  *
- * One identification buys one spin (F20 R1). How often a *person* may play
- * is still unlimited — they may type their number in again — which is left to
- * the eligibility feature for the reasons in F08 section 13.
+ * One identification buys one spin (F20 R1), and a campaign may cap how
+ * often a *person* may play in a day (F23 R1). The two are separate limits
+ * and both are checked here: F20 is about this session, F23 is about the
+ * person, and only the second one survives typing the number in again.
  */
 final class PlayerController extends AbstractController
 {
@@ -39,6 +41,7 @@ final class PlayerController extends AbstractController
         private readonly BrandingPresenter $brandingPresenter,
         private readonly PlayerSession $session,
         private readonly PlayerPresenter $playerPresenter,
+        private readonly SpinAllowance $allowance,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -100,6 +103,31 @@ final class PlayerController extends AbstractController
                     ],
                 ],
                 Response::HTTP_CONFLICT,
+            );
+        }
+
+        /*
+         * F23 R10. Checked after F20's conflict, because the two answer
+         * different questions and the page draws a different screen for
+         * each: a session that has spun should be shown what it won, even
+         * when the day is also used up.
+         *
+         * A 429 rather than a 409 for the same reason F20 chose a 409 over
+         * a 403 — the status is how the page tells the refusals apart
+         * (F23 R11).
+         *
+         * Before the draw, so a refused request costs the shop no prize and
+         * mints no code (F16 R1).
+         */
+        if ($this->allowance->isExhausted($player)) {
+            return new JsonResponse(
+                [
+                    'error' => [
+                        'status' => Response::HTTP_TOO_MANY_REQUESTS,
+                        'message' => $this->translator->trans('player.spin_limit_reached'),
+                    ],
+                ],
+                Response::HTTP_TOO_MANY_REQUESTS,
             );
         }
 

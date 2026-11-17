@@ -63,6 +63,29 @@ final class SpinRepository extends ServiceEntityRepository
     }
 
     /**
+     * How many spins this player has made since a given instant (F23 R3).
+     *
+     * A count rather than a list: the caller wants a number, and a stall
+     * that has been busy all day should not load a hundred entities to
+     * reach it. `spun_at` is indexed, and the player column is the other
+     * half of the condition, so this is the cheap query it looks like.
+     *
+     * `>=` and no upper bound: the window is "since the day began", and
+     * there is no such thing as a spin recorded in the future.
+     */
+    public function countForPlayerSince(Player $player, \DateTimeImmutable $since): int
+    {
+        return (int) $this->createQueryBuilder('s')
+            ->select('COUNT(s.id)')
+            ->where('s.player = :player')
+            ->andWhere('s.spunAt >= :since')
+            ->setParameter('player', $player)
+            ->setParameter('since', $since)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
      * Every spin, newest first, whoever made it (F09 R13).
      *
      * The player is join-fetched rather than lazily loaded: the log shows a
