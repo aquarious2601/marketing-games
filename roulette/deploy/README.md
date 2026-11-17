@@ -455,17 +455,29 @@ the instance to install it.
 
 The database is still empty at this point, and `app:upgrade-database`
 refuses an empty database by design (P02 R20), so the first deploy's schema
-step will say so and stop. That is expected. Once the release is on the
-instance, create the schema and an admin, once:
+step will say so and stop. That is expected, and it is the deploy script
+working: the schema step runs before the symlink moves (R14), so a failure
+there leaves the previous release serving.
+
+Which means `current` still points at the placeholder, and the placeholder
+has no `backend/`. The release is on disk, but only under its own
+directory — so the one-off commands below go to the newest release rather
+than to `current`:
 
 ```bash
-cd /srv/roulette/current/backend
+cd "$(ls -dt /srv/roulette/releases/*/ | grep -v placeholder | head -1)backend"
+pwd        # should be /srv/roulette/releases/<sha>/backend
+
 sudo -u www-data php bin/console doctrine:schema:update --force --complete
 sudo -u www-data php bin/console app:upgrade-database
 sudo -u www-data php bin/console app:create-admin
 ```
 
-Then push again, or re-run the workflow, and the deploy completes cleanly.
+Then re-run the workflow, and the deploy completes: the schema step finds
+nothing to do, the symlink moves, and `current` becomes the release.
+
+From the second deploy onwards none of this applies — `current` is always a
+real release and the schema step is routine.
 
 ## When a release is bad
 
