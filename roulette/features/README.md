@@ -153,6 +153,10 @@ and [`ROADMAP.md`](./ROADMAP.md) — the admin screens for shops and games —
 before anybody has written it. A gap is cheaper than renumbering a promise
 that is already committed.
 
+F25 stays P04's. [F27](./F27-the-store-and-its-games.md) builds the store and
+its games for **one** store, which is the level a second game needed; F25 is
+what those screens become once several owners share an installation.
+
 ## Status index
 
 | ID | Feature | Interface | Status |
@@ -162,6 +166,7 @@ that is already committed.
 | [P02](./P02-database-upgrades.md) | Database upgrades | Platform | Done |
 | [P03](./P03-deployment.md) | Deployment | Platform | Agreed |
 | [P04](./P04-many-shops-in-one-installation.md) | Many shops in one installation | Platform | Draft |
+| [P05](./P05-one-app-a-folder-per-game.md) | One app, a folder per game | Platform | Agreed |
 | [F01](./F01-wheel-prize-configuration.md) | Wheel prize configuration | Admin | Done |
 | [F02](./F02-player-spin.md) | The player's spin | Player | Done |
 | [F03](./F03-spin-animation.md) | A wheel that spins like a wheel | Player | Done |
@@ -187,6 +192,8 @@ that is already committed.
 | [F23](./F23-a-daily-spin-limit.md) | A daily spin limit | Both | Agreed |
 | [F24](./F24-the-campaigns-timezone.md) | The campaign's timezone | Admin | Withdrawn |
 | [F26](./F26-a-slice-takes-its-rewards-name.md) | A slice takes its reward's name | Both | Agreed |
+| [F27](./F27-the-store-and-its-games.md) | The store and its games | Both | Agreed |
+| [F28](./F28-the-gift-sheet.md) | The gift sheet | Both | Agreed |
 
 ## Running the tests
 
