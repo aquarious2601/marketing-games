@@ -3,20 +3,21 @@
     Runs every test suite in this repository and fails if any of them fail.
 
 .DESCRIPTION
-    Walks each game folder and runs whatever suites it finds:
+    Walks each application folder and runs whatever suites it finds:
       backend/   -> PHPUnit
       frontend/  -> TypeScript typecheck, then Vitest
 
     The Playwright end-to-end suite is NOT part of a normal run. It takes
     minutes rather than seconds, so it is opt-in: pass -E2E.
 
-    Adding a second game needs no change here, as long as it keeps the same
-    backend/ and frontend/ shape.
+    A second game needs no change here either: games live inside one
+    application (P05), so this still finds one backend/ and one frontend/.
 
     Exits 0 only when every suite passed (F00 R12).
 
-.PARAMETER Game
-    Limit the run to one game folder, e.g. -Game roulette.
+.PARAMETER App
+    Limit the run to one application folder, e.g. -App app. -Game still
+    works as an alias.
 
 .PARAMETER SkipBackend
     Skip PHP suites.
@@ -30,11 +31,12 @@
 
 .EXAMPLE
     .\test-all.ps1
-    .\test-all.ps1 -Game roulette -SkipBackend
+    .\test-all.ps1 -SkipBackend
 #>
 [CmdletBinding()]
 param(
-    [string] $Game,
+    [Alias('Game')]
+    [string] $App,
     [switch] $SkipBackend,
     [switch] $SkipFrontend,
     [switch] $E2E
@@ -85,17 +87,17 @@ $games = Get-ChildItem -Path $repoRoot -Directory |
         (Test-Path (Join-Path $_.FullName 'frontend'))
     }
 
-if ($Game) {
-    $games = $games | Where-Object { $_.Name -eq $Game }
+if ($App) {
+    $games = $games | Where-Object { $_.Name -eq $App }
 
     if (-not $games) {
-        Write-Host ("No game folder named '{0}'." -f $Game) -ForegroundColor Red
+        Write-Host ("No application folder named '{0}'." -f $App) -ForegroundColor Red
         exit 1
     }
 }
 
 if (-not $games) {
-    Write-Host 'No game folders with a backend/ or frontend/ were found.' -ForegroundColor Yellow
+    Write-Host 'No application folder with a backend/ or frontend/ was found.' -ForegroundColor Yellow
     exit 1
 }
 
