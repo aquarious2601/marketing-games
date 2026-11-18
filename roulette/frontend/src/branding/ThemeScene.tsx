@@ -661,6 +661,13 @@ function PlainScene() {
       {/* The studio light. Everything below is lit from here, up and left. */}
       <Glow colour="#FFFFFF" at="42% -4%" size="120% 62%" opacity={0.85} reach="62%" />
 
+      {/* A warm note in the key light and a cool one in the shadow. Neither is
+          a colour anybody would name looking at the page — on paper this
+          white, two degrees of temperature is the entire difference between
+          photographed and printed. */}
+      <Glow colour="rgb(255 243 224 / 0.6)" at="22% 4%" size="70% 44%" opacity={0.8} reach="64%" />
+      <Glow colour="rgb(120 150 190 / 0.14)" at="86% 88%" size="62% 46%" opacity={0.9} reach="74%" />
+
       {/* Slate first, white over it. On a page this light the only bokeh that
           can read is the kind that is *darker* than the field, and the only
           thing that makes the white pass visible is having it to sit on. */}
@@ -732,6 +739,9 @@ const LACQUER: Skin = {
 
 const AMBER: Rgb = '245 158 11'
 
+/** The cold counter-light. Dim enough to be felt rather than seen as blue. */
+const STEEL = 'rgb(56 104 168 / 0.5)'
+
 const BLACK_FRIDAY_BOKEH: readonly Disc[] = [
   [10, 8, 120, 0.3],
   [26, 3, 70, 0.22, 1],
@@ -753,15 +763,23 @@ function BlackFridayScene() {
         className={FILL}
         style={{
           background:
-            'linear-gradient(180deg, #000000 0%, var(--bg) 26%, #14110D 46%, var(--bg) 70%, #000000 100%)',
+            'linear-gradient(180deg, #000000 0%, var(--bg) 22%, #1C150A 44%, var(--bg) 72%, #000000 100%)',
         }}
       />
+
+      {/* The second light. A single warm source in a black room is correct and
+          flat; what makes a product shot read as photographed is a cold rim
+          light opposite it, far dimmer than the key, which separates the dark
+          objects from the dark ground. Steel blue, never a saturated one — the
+          chroma budget still belongs to the amber. */}
+      <Glow colour={STEEL} at="4% 76%" size="70% 60%" opacity={0.5} reach="72%" />
+      <Glow colour={STEEL} at="98% 18%" size="52% 44%" opacity={0.38} reach="68%" />
 
       {/* Rays converging on the wheel. This replaced a pair of clipped light
           cones: a `clip-path` edge is a hard edge, and a hard-edged beam in a
           dark room is the one thing that reads as a mistake rather than as
           lighting. The rays have no edge at all. */}
-      <Sunburst colour={AMBER} alpha={0.055} at="50% 44%" wedges={28} opacity={0.9} />
+      <Sunburst colour={AMBER} alpha={0.085} at="50% 44%" wedges={28} opacity={0.95} />
 
       {/* Hazard stripes, confined to a band across the top. Rotated wrapper,
           translated child: the stripes are drawn vertically and slid by
@@ -802,6 +820,21 @@ function BlackFridayScene() {
       <Orb at={{ right: '14%', bottom: '-4%' }} size={120} skin={LACQUER} opacity={0.6} />
       <Orb at={{ left: '18%', bottom: '10%' }} size={54} skin={LACQUER} opacity={0.45} />
 
+      {/* The stage light itself: a hot bar on the horizon, right where the
+          floor's crest is. It is what the rays are converging *on*, and
+          without it they converge on nothing — the difference between a room
+          with a light in it and a room with a gradient in it. */}
+      <div
+        className="pointer-events-none absolute inset-x-0"
+        style={{
+          bottom: scaled(84),
+          height: scaled(2),
+          background:
+            'linear-gradient(90deg, transparent 4%, rgb(245 158 11 / 0.35) 24%, rgb(255 237 186 / 0.95) 50%, rgb(245 158 11 / 0.35) 76%, transparent 96%)',
+        }}
+      />
+      <Glow colour="rgb(245 158 11 / 0.55)" at="50% 90%" size="78% 26%" opacity={0.55} reach="76%" />
+
       {/* The polished surface it is all standing on. */}
       <FacetedFloor
         height={92}
@@ -812,8 +845,8 @@ function BlackFridayScene() {
 
       {/* The light the wheel is standing in, drawn after the rays so the
           middle of the page comes back to a calm flat dark. */}
-      <Glow colour="var(--accent)" at="50% 48%" size="95% 70%" opacity={0.13} reach="62%" />
-      <Glow colour="var(--accent-soft)" at="50% 46%" size="42% 32%" opacity={0.1} reach="70%" />
+      <Glow colour="var(--accent)" at="50% 48%" size="95% 70%" opacity={0.2} reach="62%" />
+      <Glow colour="var(--accent-soft)" at="50% 46%" size="42% 32%" opacity={0.16} reach="70%" />
 
       <Glints
         points={[
@@ -880,12 +913,28 @@ function ChristmasScene() {
         className={FILL}
         style={{
           background:
-            'linear-gradient(180deg, var(--bg-deep) 0%, #0A4433 34%, var(--bg) 62%, #06281E 100%)',
+            /* The last stop is the card's own deepest green, so the ground
+               ends on the tone the card is cut from. It tracks stageEdge in
+               themes.ts by hand — a scene literal cannot read a token. */
+            'linear-gradient(180deg, var(--bg-deep) 0%, #0A4433 34%, var(--bg) 62%, #05271D 100%)',
         }}
       />
 
+      {/* Light shafts from the lamp below, thrown up through the falling snow.
+          Anchored at the source rather than at the middle of the page, so the
+          rays spread the way light actually leaves a lamp — and kept to a
+          handful of wide wedges, because a shaft is something you notice one
+          of, not twenty. */}
+      <Sunburst colour="255 214 150" alpha={0.07} at="50% 104%" wedges={11} opacity={0.85} />
+
       {/* Lamplight from below the wheel — the warm note the deep green needs. */}
-      <Glow colour="var(--accent-soft)" at="50% 97%" size="125% 52%" opacity={0.34} />
+      <Glow colour="var(--accent-soft)" at="50% 97%" size="125% 52%" opacity={0.5} />
+      <Glow colour="rgb(255 226 176 / 0.8)" at="50% 99%" size="52% 24%" opacity={0.5} reach="74%" />
+
+      {/* Moonlight from the other corner, cold and weak. Without it the whole
+          page is one temperature and the treeline has nothing to stand out
+          against. */}
+      <Glow colour="rgb(150 214 255 / 0.38)" at="88% 6%" size="60% 40%" opacity={0.5} />
       <Glow colour="#2BA36A" at="16% 8%" size="58% 44%" opacity={0.16} />
 
       <Bokeh discs={CHRISTMAS_BOKEH} colour={WHITE} drift={42} />
@@ -1131,10 +1180,10 @@ function NewYearScene() {
       {/* A paler blue high up, so the sky has a top. */}
       <Glow colour="var(--stage-border)" at="50% -8%" size="120% 70%" opacity={0.45} reach="70%" />
 
-      {/* Gold rays off the wheel, barely there: the same device as Black
-          Friday at a third of the strength, because this sky already has
-          stars and fireworks competing for the same attention. */}
-      <Sunburst colour={GOLD} alpha={0.05} at="50% 50%" wedges={36} opacity={0.75} />
+      {/* Gold rays off the wheel. Still the quietest sunburst in the file —
+          this sky has stars and fireworks competing for the same attention —
+          but no longer so quiet that it might as well not be drawn. */}
+      <Sunburst colour={GOLD} alpha={0.075} at="50% 50%" wedges={36} opacity={0.85} />
 
       <div
         className="scene-twinkle pointer-events-none absolute inset-0"
@@ -1155,13 +1204,27 @@ function NewYearScene() {
       {/* High and spread wide. On a phone the card fills the width, so the
           strip above it is the only sky the player sees — a firework at 30%
           down the page would spend its life behind the card. */}
-      <Firework id="ny-a" at={{ left: '2%', top: '0%' }} scale={1.15} delay={0} />
-      <Firework id="ny-b" at={{ right: '1%', top: '3%' }} scale={0.85} delay={2.4} />
-      <Firework id="ny-c" at={{ left: '37%', top: '6%' }} scale={0.55} delay={4.6} />
+      <Firework id="ny-a" at={{ left: '0%', top: '-1%' }} scale={1.35} delay={0} />
+      <Firework id="ny-b" at={{ right: '1%', top: '3%' }} scale={0.95} delay={2.4} />
+      <Firework id="ny-c" at={{ left: '37%', top: '6%' }} scale={0.6} delay={4.6} />
 
       {/* Gold on the wheel, and a last catch of it along the bottom. */}
-      <Glow colour="var(--accent)" at="50% 50%" size="80% 60%" opacity={0.12} reach="60%" />
-      <Glow colour="var(--accent)" at="50% 104%" size="120% 32%" opacity={0.26} />
+      <Glow colour="var(--accent)" at="50% 50%" size="80% 60%" opacity={0.2} reach="60%" />
+      <Glow colour="var(--accent)" at="50% 104%" size="120% 32%" opacity={0.36} />
+
+      {/* The city the fireworks are going off over: a lit horizon, a hairline
+          of gold along it, and nothing else. Any actual skyline here would be
+          a second subject — this is the light a skyline throws, which is the
+          part that reads at 375px. */}
+      <div
+        className="pointer-events-none absolute inset-x-0"
+        style={{
+          bottom: 0,
+          height: scaled(120),
+          background:
+            'linear-gradient(180deg, transparent 0%, rgb(212 175 55 / 0.1) 46%, rgb(245 215 122 / 0.22) 86%, rgb(255 244 207 / 0.38) 100%)',
+        }}
+      />
 
       <Glints
         points={[
@@ -1286,7 +1349,7 @@ function HalloweenScene() {
         className={FILL}
         style={{
           background:
-            'linear-gradient(168deg, #2A1150 0%, var(--bg) 36%, #150926 74%, var(--bg-deep) 100%)',
+            'linear-gradient(168deg, #341264 0%, var(--bg) 36%, #150926 74%, var(--bg-deep) 100%)',
         }}
       />
 
@@ -1315,6 +1378,12 @@ function HalloweenScene() {
         }}
       />
 
+      {/* Moonlight proper: cold wedges thrown down and left from the moon
+          itself, so the page has a direction of light instead of two glows
+          that happen to be in it. Few and wide — moonlight through cloud is
+          a handful of shafts, never a fan. */}
+      <Sunburst colour="226 232 255" alpha={0.05} at="80% 11%" wedges={9} opacity={0.8} />
+
       <Moon />
 
       {/* And one thin one drifting across its face, which is the shot. */}
@@ -1338,9 +1407,20 @@ function HalloweenScene() {
 
       <Cobweb />
 
-      {/* Something carved and lit, just off the bottom of the page. */}
-      <Glow colour="var(--accent)" at="50% 106%" size="115% 48%" opacity={0.46} />
-      <Glow colour="#FDBA74" at="50% 110%" size="58% 24%" opacity={0.4} />
+      {/* Something carved and lit, just off the bottom of the page. The
+          candle in it is the warmest thing in a cold scene, so it is allowed
+          to be the brightest as well — the orange rising into the violet is
+          the whole composition. */}
+      <Glow colour="var(--accent)" at="50% 106%" size="115% 48%" opacity={0.62} />
+      <Glow colour="#FDBA74" at="50% 110%" size="58% 24%" opacity={0.55} />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0"
+        style={{
+          height: scaled(3),
+          background:
+            'linear-gradient(90deg, transparent 10%, rgb(249 115 22 / 0.5) 34%, rgb(255 214 170 / 0.85) 50%, rgb(249 115 22 / 0.5) 66%, transparent 90%)',
+        }}
+      />
 
       <Glints
         points={[
@@ -1490,7 +1570,11 @@ const ROSE: Rgb = '249 168 212'
 const CREAM: Rgb = '255 252 254'
 const DEEP_ROSE: Rgb = '227 134 180'
 
-const CONFETTI = ['#F9A8D4', '#F3D9A4', '#FBCFE8', '#E879A8'] as const
+/* Rose, champagne, blush, deep rose, and one gold. Five is the most a
+   confetti palette can hold before it stops being a colour scheme and starts
+   being a bag of sweets; the gold is there because a party without a warm
+   metal in it reads as a children's one. */
+const CONFETTI = ['#F9A8D4', '#F3D9A4', '#FBCFE8', '#E879A8', '#E8B64C'] as const
 
 /** Front to back: pearl and champagne catch the light, deep rose recedes. */
 const BALLOON_PEARL: Skin = {
@@ -1548,9 +1632,20 @@ function BirthdayScene() {
         className={FILL}
         style={{
           background:
-            'linear-gradient(180deg, #F9CCE0 0%, #FBDDEC 16%, var(--bg) 46%, #FBDDEC 76%, var(--bg-deep) 100%)',
+            'linear-gradient(180deg, #F8C4DD 0%, #FEEAF3 18%, var(--bg) 46%, #F9CBE0 76%, var(--bg-deep) 100%)',
         }}
       />
+
+      {/* Afternoon light from the top left, and the deeper rose it leaves in
+          the opposite corner. A light theme has one honest way to look lit
+          rather than tinted, and this is it: a warm source, a cool shadow,
+          and the page colour between them. */}
+      <Glow colour="rgb(255 246 226 / 0.95)" at="14% -6%" size="86% 52%" opacity={0.9} reach="66%" />
+      <Glow colour="rgb(219 39 119 / 0.16)" at="96% 96%" size="58% 44%" opacity={0.9} reach="72%" />
+
+      {/* Party light through the top of the frame. Almost nothing — on a page
+          this bright anything more becomes a stripe. */}
+      <Sunburst colour="255 214 170" alpha={0.05} at="50% -6%" wedges={13} opacity={0.7} />
 
       {/* Two passes, and the order is the point: a deep rose field first, so
           the near-white one has something to be lighter than. A single pale
