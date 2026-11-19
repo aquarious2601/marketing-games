@@ -285,6 +285,8 @@ export const zh: Record<MessageKey, string> = {
   'sheet.getting': '请稍候…',
   'sheet.yours': '这些都是您的',
   'sheet.showAtCounter': '请在柜台出示此页。',
+  'sheet.showCode': '显示 %name% 的代码',
+  'sheet.allGifts': '我的全部礼品',
   'sheet.failed': '礼品未能送出，未消耗任何次数——请重试。',
 
   'stats.title': '数据',

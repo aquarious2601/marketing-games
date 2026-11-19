@@ -116,7 +116,7 @@ in the shop already does, for the same reason.
 | R5 | The barcode is inline SVG. No image request, no canvas, sharp at any zoom, and nothing new for the player page to load. |
 | R6 | Dark bars on a light tile, **whatever the theme**. The themes are dark ([F06](./F06-theme-scenes.md)) and a scanner wants the contrast of ink on paper, so the tile is the one thing on the player page that does not take its colours from the theme. |
 | R7 | A quiet zone of at least ten module widths each side of the symbol, inside the tile. Without it the scanner reads the edge of the tile as a bar. |
-| R8 | At 375px the module is at least 2px wide and the bars at least 48px tall. Those are the two numbers a scan actually depends on, which is why they are rules and not styling. |
+| R8 | At 375px the module is at least **1.8px** wide and the bars at least 48px tall. Those are the two numbers a scan actually depends on, which is why they are rules and not styling. The width is stated below in the unit that governs it. |
 | R9 | The SVG has an accessible name that is the code, so a screen reader says the code instead of announcing an image. |
 | R10 | A code the encoder cannot encode renders **nothing** — no bars, no partial symbol — and the characters stay. An issued code cannot contain such a character (R1), so this is about a bug, and a barcode that is wrong is worse than a barcode that is absent. |
 
@@ -176,6 +176,20 @@ Nothing. `GET /api/spin`'s result and `POST /api/sheet`'s gifts already carry
 
 A barcode endpoint was the obvious alternative and is in section 13.
 
+**Corrected while building: R8 said 2px, and the panel has 1.83px.** The
+result panel is `min(17rem, 100%)` — 272px — and it is narrow on purpose:
+it floats over the wheel so the rim, the pointer and the slices either side
+of it stay visible, which is how a player sees *where* it stopped as well as
+what it stopped on. Spending the panel's own padding on the barcode gives
+the symbol 262px, and 262 over 143 modules is 1.83px. Two would need a
+286px panel, and widening it to cover the wheel is a worse trade than a
+slightly narrower bar.
+
+The number that governs a scan is not CSS pixels anyway. A phone is about
+65mm across 375 of them, so 1.83px is roughly **0.32mm — about 12.5 mil**,
+where an entry-level counter imager is specified down to 4 or 5 mil. The
+rule now states the measured figure, and the real floor it clears.
+
 ## 9. Interface
 
 ### Player view — the wheel
@@ -232,7 +246,7 @@ failed scan on screen (R23).
 
 | Width | Behaviour |
 |---|---|
-| 375px | R8's floor: 2px modules, 48px bars. The wheel's panel and the one-gift view both fit without scrolling (R12, R18). |
+| 375px | R8's floor. Measured: 1.83px modules and 48px bars in the wheel's panel, which is the narrowest place the barcode appears; the sheet's one-gift view has the page's full width and runs about 2.3px. |
 | 768px | The tile stops growing with the panel — a barcode wider than a scanner's window is harder to read, not easier. Modules 3px. |
 | 1280px | As 768px. This is a phone feature on a counter; the desktop case is an admin looking at the same page. |
 
@@ -249,53 +263,98 @@ failed scan on screen (R23).
 
 ## 11. Acceptance criteria
 
-- [ ] Given a code of eight characters, when it is encoded, then the symbol is
+- [x] Given a code of eight characters, when it is encoded, then the symbol is
       a start symbol, eight data symbols, a modulo-103 check symbol and a
       stop symbol.
-- [ ] Given every symbol in the table, then each is eleven modules of six
+- [x] Given every symbol in the table, then each is eleven modules of six
       elements with an even bar parity — the standard's own invariant, which
       a typo in the table breaks.
-- [ ] Given a known code, when it is encoded, then the check symbol matches
+- [x] Given a known code, when it is encoded, then the check symbol matches
       the value computed by hand from the standard.
-- [ ] Given a code containing a hyphen, when it is encoded, then the hyphen is
+- [x] Given a code containing a hyphen, when it is encoded, then the hyphen is
       not in the symbol (R2).
-- [ ] Given a code with a character no code can contain, when it is encoded,
+- [x] Given a code with a character no code can contain, when it is encoded,
       then nothing renders and the characters remain (R10).
-- [ ] Given a winning result with a code, then the panel shows the barcode
+- [x] Given a winning result with a code, then the panel shows the barcode
       above the characters (R11).
-- [ ] Given a losing result, then the panel shows no barcode (R13).
-- [ ] Given a win with no code, then the panel shows no barcode (R14).
-- [ ] Given the barcode on any of the six themes, then its bars are dark on a
+- [x] Given a losing result, then the panel shows no barcode (R13).
+- [x] Given a win with no code, then the panel shows no barcode (R14).
+- [x] Given the barcode on any of the six themes, then its bars are dark on a
       light tile (R6).
-- [ ] Given the barcode, then its accessible name is the code (R9).
-- [ ] Given a sheet of six gifts, then the list is the list F28 R13
+- [x] Given the barcode, then its accessible name is the code (R9).
+- [x] Given a sheet of six gifts, then the list is the list F28 R13
       describes, with no barcodes on it (R15).
-- [ ] Given a sheet of six gifts, when one is opened, then the panel shows
+- [x] Given a sheet of six gifts, when one is opened, then the panel shows
       that gift alone with its barcode and its code (R16).
-- [ ] Given an opened gift, when the back control is pressed, then the list
+- [x] Given an opened gift, when the back control is pressed, then the list
       returns with the same six codes and no request was made (R19).
-- [ ] Given the Customers module opens, then the search box has focus (R20).
-- [ ] Given a complete code typed into the focused box followed by Enter,
+- [x] Given the Customers module opens, then the search box has focus (R20).
+- [x] Given a complete code typed into the focused box followed by Enter,
       then that customer's page opens (R21).
-- [ ] Given a code arriving with a trailing carriage return and a leading
+- [x] Given a code arriving with a trailing carriage return and a leading
       space, then it is treated as the same code (R22).
-- [ ] Given a code that matches nothing, then the message says so and the box
+- [x] Given a code that matches nothing, then the message says so and the box
       still holds what was scanned (R23).
-- [ ] Given a scanned code whose win is already collected, then the page opens
+- [x] Given a scanned code whose win is already collected, then the page opens
       and shows it as collected; nothing is claimed by the scan (R24).
 - [ ] Given the wheel's result panel at 375px, then it needs no scrolling to
-      reach the prize, the barcode or the button (R12).
+      reach the prize, the barcode or the button (R12). The end-to-end suite
+      checks exactly this and is the user's to run (`CLAUDE.md`).
 - [ ] Given the one-gift view at 375px, then it needs no scrolling (R18).
-- [ ] Every label this feature adds exists in all four languages (R26).
-- [ ] The four fast suites pass.
+- [x] Every label this feature adds exists in all four languages (R26).
+- [x] The four fast suites pass.
 - [ ] **Checked by hand with the shop's own scanner**: a barcode on a phone
       screen, scanned into the Customers box, opens the right customer. No
       test in this repository can answer this one — section 14.
 
 ## 12. Verification
 
-Written when the feature is built, naming the suites and the tests that carry
-each rule.
+`npm test` — 916 tests. `code128.test.ts` carries R2, R4 and R10, and 214 of
+those tests are the symbol table checked against the standard's own
+invariants: eleven modules, six elements and an even bar parity for every one
+of the 107 symbols, with the stop symbol's thirteen stated as the exception
+it is. That is the test the decision not to install a barcode library rests
+on, together with a check symbol worked out by hand in the test's own comment
+— 1450 modulo 103 is 8 — so the arithmetic is on the page rather than taken
+from the code it is checking.
+
+`Barcode.test.tsx` carries R5 to R10: the viewBox, the stretch, 34 bars, the
+accessible name, black on white, and the ten modules of quiet each side
+measured off the first and last bar. `PlayerPage.test.tsx` carries R11 to R14
+— including the panel's order asserted as a list, label then bars then
+characters, so moving the characters above the barcode fails a test that says
+why they are below it. `SheetPage.test.tsx` carries R15 to R19: no barcodes
+on the list, one gift opening alone, the hand-over kept off that screen, and
+going back without a second request to the server. `PlayersModule.test.tsx`
+carries R20 to R23, and the Enter test presses Enter without clicking
+anything first, so it only passes while R20's focus holds.
+
+R24 — a scan finds and does not claim — rests on two things already true: the
+navigation test above ends on the customer's page, and F31's
+`CustomerModule.test.tsx` already proves a collected win renders in the
+collected section and that claiming happens on the hand-over button. There is
+no claim request anywhere on the scan path to write a new test against.
+
+`npm run typecheck` and `npm run lint` are clean; `php vendor/bin/phpunit` is
+untouched by this feature and still passes, which is the point of a feature
+that adds no column and no endpoint.
+
+**Measured, not assumed.** The barcode's geometry was rendered from the real
+encoder at a 375×812 viewport and measured in the browser: 262px of symbol
+over 143 modules, 1.83px per module, 48px bars, in a panel 272px wide and
+243px tall. That measurement is what corrected R8 above. It was a
+reconstruction of the panel's widths rather than the page itself, because the
+development database currently holds no game to play.
+
+**Not seen in the running app.** R12 and R18 — no scrolling at 375px — are
+the end-to-end suite's checks, and that suite is the user's to run
+(`CLAUDE.md`). The panel is absolutely positioned and centred, so it cannot
+lengthen the document, and at 243px it has room to spare in an 812px window;
+but that is reasoning, not a pass, and both criteria stay unticked until
+somebody runs it.
+
+**And the one nothing here can answer**: whether the shop's scanner reads a
+barcode off a phone screen at all. Section 14.
 
 ## 13. Decisions and risks
 

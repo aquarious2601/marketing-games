@@ -12,6 +12,7 @@ import {
   type SpinReward,
 } from '../api/player'
 import { ThemeScene } from '../branding/ThemeScene'
+import { Barcode } from '../reward/Barcode'
 import { useT } from '../i18n/I18nContext'
 import { LanguagePicker } from '../i18n/LanguagePicker'
 import { themeFor, themeStyle } from '../branding/themes'
@@ -795,7 +796,21 @@ function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null
           <span className="player-kicker block" style={{ color: 'var(--panel-heading)' }}>
             {t('player.yourCode')}
           </span>
-          <span className="mt-0.5 block font-mono text-lg font-bold tracking-[0.12em]">
+          {/*
+            F33 R11: the label, the bars, then the characters. The characters
+            are not a leftover — a scan that will not take has to leave staff
+            something to type (R3), which is what every barcode in the shop
+            already does.
+
+            `-mx-4` spends the panel's own padding on the barcode and nothing
+            else on the page, because the one number a scan depends on is how
+            wide a module ends up (R8) and this panel is deliberately narrow:
+            it floats over the wheel so the rim and the slices either side
+            stay visible. Flush with the padding edge rather than past it, so
+            the panel's `overflow-hidden` has nothing to clip.
+          */}
+          <Barcode code={reward.code} className="mt-1.5 h-12" tile="-mx-4 px-1" />
+          <span className="mt-1 block font-mono text-lg font-bold tracking-[0.12em]">
             {reward.code}
           </span>
         </p>

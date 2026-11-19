@@ -139,6 +139,68 @@ describe('once they are given', () => {
     ])
   })
 
+  /** F33 R15. Six barcodes do not fit a phone, so the list has none. */
+  it('shows no barcodes on the list itself', async () => {
+    const user = await renderSheet()
+
+    await user.click(screen.getByTestId('get-gifts'))
+    await screen.findByTestId('issued-sheet')
+
+    expect(screen.queryByTestId('reward-barcode')).not.toBeInTheDocument()
+  })
+
+  /** F33 R16, R18. One gift, the full width of the panel. */
+  it('opens one gift as a barcode', async () => {
+    const user = await renderSheet()
+
+    await user.click(screen.getByTestId('get-gifts'))
+    await screen.findByTestId('issued-sheet')
+
+    await user.click(screen.getAllByTestId('open-gift')[1])
+
+    expect(screen.getByTestId('opened-gift')).toHaveTextContent('Ten off')
+    expect(screen.getByTestId('opened-code')).toHaveTextContent('C6HE5678')
+    expect(screen.getByRole('img')).toHaveAccessibleName('C6HE5678')
+    // R17: the list is gone while one is open, so there is one barcode on
+    // screen and it is as wide as the panel.
+    expect(screen.queryByTestId('issued-sheet')).not.toBeInTheDocument()
+  })
+
+  /*
+   * The hand-over button wipes the sheet for the next customer (F28 R14),
+   * and the one screen held out across a counter is the worst place to keep
+   * it. The way back to it is the way back to the list.
+   */
+  it('keeps the hand-over off the opened gift', async () => {
+    const user = await renderSheet()
+
+    await user.click(screen.getByTestId('get-gifts'))
+    await screen.findByTestId('issued-sheet')
+
+    await user.click(screen.getAllByTestId('open-gift')[0])
+
+    expect(screen.queryByTestId('next-player')).not.toBeInTheDocument()
+  })
+
+  /** F33 R19. Nothing is re-issued, re-fetched or changed by looking. */
+  it('goes back to the same sheet without asking for it again', async () => {
+    const user = await renderSheet()
+
+    await user.click(screen.getByTestId('get-gifts'))
+    await screen.findByTestId('issued-sheet')
+
+    await user.click(screen.getAllByTestId('open-gift')[0])
+    await user.click(screen.getByTestId('close-gift'))
+
+    expect(await screen.findByTestId('issued-sheet')).toBeInTheDocument()
+    expect(screen.getAllByTestId('issued-code').map((code) => code.textContent)).toEqual([
+      'BC5W1234',
+      'C6HE5678',
+    ])
+    expect(issueSheetMock).toHaveBeenCalledOnce()
+    expect(fetchSheetMock).toHaveBeenCalledOnce()
+  })
+
   /** F28 R13: and says what to do with them. */
   it('tells them to show it at the counter', async () => {
     const user = await renderSheet()

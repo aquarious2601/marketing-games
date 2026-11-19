@@ -372,6 +372,79 @@ describe('opening a customer', () => {
   })
 })
 
+/** F33 R20 to R23: the counter's half of a scan. */
+describe('a scanned code', () => {
+  /*
+   * R20. A scanner types into whatever is focused, and a scan that lands
+   * nowhere is lost without a sound: no beep to say it went missing, nothing
+   * on screen, and a customer waiting.
+   */
+  it('has somewhere to land when the module opens', async () => {
+    renderList()
+
+    await screen.findByTestId('player-list')
+
+    expect(screen.getByTestId('player-filter')).toHaveFocus()
+  })
+
+  /**
+   * R21, on R20's focus: nothing is clicked here, so this only passes while
+   * the box is the thing a scanner would have typed into.
+   */
+  it('opens the one customer on Enter', async () => {
+    const user = userEvent.setup()
+    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
+
+    renderList('/admin/players?search=5678')
+    await screen.findByTestId('player-list')
+
+    await user.keyboard('{Enter}')
+
+    expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
+  })
+
+  it('does nothing on Enter while several customers match', async () => {
+    const user = userEvent.setup()
+
+    renderList('/admin/players?search=09')
+    await screen.findByTestId('player-list')
+
+    await user.keyboard('{Enter}')
+
+    expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
+  })
+
+  /*
+   * R22. Scanners ship configured differently and the shop that buys one is
+   * not the shop that configures it: a space either side, a tab, a carriage
+   * return. None of it is the code.
+   */
+  it.each([' A7K3-M9PX ', 'A7K3M9PX', 'a7k3-m9px', 'A7K3-M9PX\r'])(
+    'reads %j as the same code',
+    async (scanned) => {
+      fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
+
+      renderList(`/admin/players?search=${encodeURIComponent(scanned)}`)
+
+      expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
+    },
+  )
+
+  /*
+   * R23. A field that blanks itself on a bad scan throws away the one clue
+   * there was — what the scanner actually made of the label.
+   */
+  it('keeps what was scanned when it matches nobody', async () => {
+    fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: false })
+
+    renderList('/admin/players?search=A7K3-M9PX')
+
+    expect(await screen.findByTestId('players-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('player-filter')).toHaveValue('A7K3-M9PX')
+    expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
+  })
+})
+
 /** F31 R7: a prize the shop owes somebody nobody can name. */
 describe('a code whose win has no customer', () => {
   it('says where it can still be handed over', async () => {

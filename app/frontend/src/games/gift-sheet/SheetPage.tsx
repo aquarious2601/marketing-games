@@ -7,6 +7,7 @@ import { LanguagePicker } from '../../i18n/LanguagePicker'
 import { CELEBRATION_MS, Confetti } from '../../player/Confetti'
 import { IdentityStep } from '../../player/IdentityStep'
 import { PlayerHeader } from '../../player/PlayerHeader'
+import { Barcode } from '../../reward/Barcode'
 import { fetchSheet, issueSheet, type IssuedSheet, type Sheet } from './api'
 
 type Phase = 'loading' | 'ready' | 'failed' | 'spent'
@@ -28,6 +29,13 @@ export function SheetPage() {
   const [issued, setIssued] = useState<IssuedSheet | null>(null)
   const [giving, setGiving] = useState(false)
   const [celebrating, setCelebrating] = useState(false)
+  /*
+   * F33 R16. Which gift is open as a barcode, by its position on the sheet.
+   * Nothing is fetched or re-issued to open one (R19) — the codes were
+   * minted once, by the request that gave them out (F28 R9), and this is
+   * only which of them is being shown big enough to scan.
+   */
+  const [opened, setOpened] = useState<number | null>(null)
   const celebrationTimer = useRef<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -210,6 +218,59 @@ export function SheetPage() {
   }
 
   if (issued !== null) {
+    const open = opened === null ? null : (issued.gifts[opened] ?? null)
+
+    /*
+     * F33 R16 to R18: one gift, the full width of the panel. Six barcodes do
+     * not fit a phone and six shrunk to fit are six that will not scan
+     * (R17), and the counter claims them one at a time anyway (F28 §3).
+     *
+     * The hand-over button is deliberately not on this screen. It is how the
+     * sheet is wiped for the next customer (F28 R14), and a screen whose
+     * whole job is to be held out across a counter is the worst place to put
+     * it: the way back is the way back to it.
+     */
+    if (open !== null && open.code !== null) {
+      return (
+        <Screen theme={sheet.branding.theme}>
+          <PlayerHeader branding={sheet.branding} />
+
+          <h2
+            className="mt-6 text-center text-lg font-semibold"
+            style={{ color: 'var(--heading)' }}
+            data-testid="opened-gift"
+          >
+            {open.name}
+          </h2>
+
+          <div className="mt-4 w-full">
+            <Barcode code={open.code} className="h-16" />
+          </div>
+
+          <p
+            data-testid="opened-code"
+            className="mt-2 text-center font-mono text-lg font-bold tracking-[0.12em]"
+            style={{ color: 'var(--heading)' }}
+          >
+            {open.code}
+          </p>
+
+          <p className="mt-2 text-center text-xs" style={{ color: 'var(--body)' }}>
+            {t('sheet.showAtCounter')}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setOpened(null)}
+            data-testid="close-gift"
+            className={`${buttonClass} mt-6`}
+          >
+            {t('sheet.allGifts')}
+          </button>
+        </Screen>
+      )
+    }
+
     return (
       <Screen theme={sheet.branding.theme}>
         <PlayerHeader branding={sheet.branding} />
@@ -219,27 +280,44 @@ export function SheetPage() {
         </h2>
 
         {/* F28 R13, R3: every gift with its code, and short enough that six
-            of them fit a phone without scrolling. */}
+            of them fit a phone without scrolling. F33 R15 leaves the list
+            exactly that — the barcode is a press away, not on it. */}
         <ul className="mt-4 w-full space-y-2" data-testid="issued-sheet">
           {issued.gifts.map((gift, index) => (
             <li
               key={`${gift.name}-${index}`}
               data-testid="issued-gift"
-              className="flex items-baseline justify-between gap-3 border-b pb-1"
+              className="border-b pb-1"
               style={{ borderColor: 'var(--rim)' }}
             >
-              <span className="text-sm" style={{ color: 'var(--body)' }}>
-                {gift.name}
-              </span>
-              {gift.code !== null && (
-                <span
-                  data-testid="issued-code"
-                  className="font-mono text-sm tracking-wider"
-                  style={{ color: 'var(--heading)' }}
-                >
-                  {gift.code}
+              {/*
+                F33 R16. The whole row is the control, so a thumb aiming at
+                either the name or the code opens the same gift. A gift
+                without a code cannot be opened, because there is nothing to
+                encode — F28 R10 gives every gift one, so this is the type
+                being honest rather than a case staff will meet.
+              */}
+              <button
+                type="button"
+                onClick={() => setOpened(index)}
+                disabled={gift.code === null}
+                data-testid="open-gift"
+                aria-label={t('sheet.showCode', { name: gift.name })}
+                className="flex w-full items-baseline justify-between gap-3 text-left disabled:cursor-default"
+              >
+                <span className="text-sm" style={{ color: 'var(--body)' }}>
+                  {gift.name}
                 </span>
-              )}
+                {gift.code !== null && (
+                  <span
+                    data-testid="issued-code"
+                    className="font-mono text-sm tracking-wider"
+                    style={{ color: 'var(--heading)' }}
+                  >
+                    {gift.code}
+                  </span>
+                )}
+              </button>
             </li>
           ))}
         </ul>

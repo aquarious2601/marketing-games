@@ -1371,6 +1371,45 @@ describe('the code on the result', () => {
     expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
   })
 
+  /** F33 R11. The label, the bars, then the characters. */
+  it('shows the code as a barcode above the characters', async () => {
+    await spinTo({ type: 'percent_off', value: 10, code: 'A7K3-M9PX' })
+
+    const panel = screen.getByTestId('reward-code')
+    const order = [...panel.children].map(
+      (child) => child.getAttribute('data-testid') ?? child.textContent,
+    )
+
+    expect(order).toEqual(['Your code', 'reward-barcode', 'A7K3-M9PX'])
+  })
+
+  /*
+   * R3. The characters are not decoration under the bars: they are what the
+   * counter types when the scan will not take, which is the whole reason
+   * this feature keeps them. Asserted apart from the order above so that
+   * removing them later fails a test that says why.
+   */
+  it('keeps the characters readable under the barcode', async () => {
+    await spinTo({ type: 'free_product', value: null, code: 'B4C5-D6F7' })
+
+    expect(screen.getByTestId('reward-barcode')).toBeInTheDocument()
+    expect(screen.getByTestId('reward-code')).toHaveTextContent('B4C5-D6F7')
+  })
+
+  /** R13. Nothing to claim, so nothing to scan. */
+  it('shows no barcode for a losing item', async () => {
+    await spinTo({ type: 'nothing', value: null, code: null })
+
+    expect(screen.queryByTestId('reward-barcode')).not.toBeInTheDocument()
+  })
+
+  /** R14. A win from before F16 has no code to encode. */
+  it('shows no barcode for a win that has no code', async () => {
+    await spinTo({ type: 'free_product', value: null, code: null })
+
+    expect(screen.queryByTestId('reward-barcode')).not.toBeInTheDocument()
+  })
+
   /** F17: the panel a player reads when the wheel gave nothing. */
   describe('losing', () => {
     it('neither congratulates them nor sends them to a counter', async () => {
