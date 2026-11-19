@@ -53,6 +53,16 @@ export interface ResolvedGame {
  * answer 404 with the same body, so the page shows one screen for both and
  * cannot leak which it was.
  */
+/**
+ * F27 R26. The game `/` serves, when exactly one is live.
+ *
+ * The same shape `resolvePlay` answers, so the page has one question and two
+ * ways of asking it. 409 when there is no single live game.
+ */
+export async function fetchGameType(options?: RequestOptions): Promise<ResolvedGame> {
+  return apiGet<ResolvedGame>('/game', options)
+}
+
 export async function resolvePlay(key: string, options?: RequestOptions): Promise<ResolvedGame> {
   return apiGet<ResolvedGame>(`/play/${encodeURIComponent(key)}`, options)
 }

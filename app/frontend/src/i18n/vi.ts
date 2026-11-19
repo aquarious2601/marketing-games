@@ -248,4 +248,23 @@ export const vi: Record<MessageKey, string> = {
   'player.promotionEndedHint': 'Hãy hỏi tại quầy xem có chương trình nào khác không.',
   'player.needsLink': 'Cần có liên kết',
   'player.needsLinkHint': 'Hãy quét mã tại quầy, hoặc hỏi nhân viên.',
+
+  // -- F28: the gift sheet -------------------------------------------
+  'sheet.gifts': 'Quà tặng',
+  'sheet.giftsLead': 'Mọi người chơi đều nhận tất cả quà trong danh sách này. Không cần đặt tỉ lệ.',
+  'sheet.gift': 'Quà',
+  'sheet.noRewards': 'Hãy thêm phần thưởng trước — một món quà phải tặng được gì đó.',
+  'sheet.empty': 'Chưa có quà nào. Hãy thêm bên dưới.',
+  'sheet.add': 'Thêm quà',
+  'sheet.atMost': 'Một danh sách chứa tối đa %max% món quà, để vừa màn hình điện thoại.',
+  'sheet.preview': 'Người chơi sẽ thấy',
+  'sheet.loading': 'Đang tải quà tặng…',
+  'sheet.loadFailed': 'Không tải được danh sách quà.',
+  'sheet.saveFailed': 'Không lưu được danh sách quà. Thay đổi của bạn vẫn còn.',
+  'sheet.ready': 'Quà của bạn đang chờ',
+  'sheet.get': 'Nhận quà của tôi',
+  'sheet.getting': 'Chờ một chút…',
+  'sheet.yours': 'Đây là quà của bạn',
+  'sheet.showAtCounter': 'Hãy xuất trình tại quầy.',
+  'sheet.failed': 'Không thể trao quà. Chưa dùng mất lượt nào — hãy thử lại.',
 }

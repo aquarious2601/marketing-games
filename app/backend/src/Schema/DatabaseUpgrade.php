@@ -50,6 +50,12 @@ final class DatabaseUpgrade
     private const SPIN_GAME_FK = 'FK_120A248FE48FD905';
     private const SPIN_GAME_INDEX = 'IDX_120A248FE48FD905';
 
+    /** F28's keys, likewise taken from what the schema diff asks for. */
+    private const GIFT_GAME_FK = 'FK_A47C990DE48FD905';
+    private const GIFT_GAME_INDEX = 'IDX_A47C990DE48FD905';
+    private const GIFT_REWARD_FK = 'FK_A47C990DE466ACA1';
+    private const GIFT_REWARD_INDEX = 'IDX_A47C990DE466ACA1';
+
     /**
      * Named in the mapping rather than generated, like `uniq_player_phone`
      * beside it, so this is the name the entity asks for and not a hash
@@ -113,6 +119,8 @@ final class DatabaseUpgrade
             $this->addWheelGame($dryRun),
             $this->addSpinGame($dryRun),
             $this->dropWhatMovedToTheGame($dryRun),
+            $this->createGiftTable($dryRun),
+            $this->addSheetToSpins($dryRun),
         ];
     }
 
@@ -1238,6 +1246,122 @@ final class DatabaseUpgrade
         ]);
 
         return (int) $this->connection->lastInsertId();
+    }
+
+    /** F28 R1. */
+    private function createGiftTable(bool $dryRun): UpgradeStep
+    {
+        $name = 'gift table';
+
+        if ($this->tableExists('gift')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$this->tableExists('game') || !$this->tableExists('reward')) {
+            return UpgradeStep::done($name, 'would create it (the tables it points at do not exist yet)');
+        }
+
+        if (!$dryRun) {
+            // Exactly what doctrine:schema:update asks for, generated names
+            // included, so an upgraded database reports no difference after.
+            $this->connection->executeStatement(
+                'CREATE TABLE gift ('
+                .'id INT AUTO_INCREMENT NOT NULL, '
+                .'position SMALLINT NOT NULL, '
+                .'game_id INT NOT NULL, '
+                .'reward_id INT NOT NULL, '
+                // R2 and R6 held by the database rather than only by a form.
+                .'UNIQUE INDEX uniq_gift_game_reward (game_id, reward_id), '
+                .'UNIQUE INDEX uniq_gift_game_position (game_id, position), '
+                .'INDEX '.self::GIFT_GAME_INDEX.' (game_id), '
+                .'INDEX '.self::GIFT_REWARD_INDEX.' (reward_id), '
+                .'PRIMARY KEY (id)'
+                .') DEFAULT CHARACTER SET utf8mb4 ENGINE = InnoDB',
+            );
+            $this->connection->executeStatement(
+                'ALTER TABLE gift ADD CONSTRAINT '.self::GIFT_GAME_FK
+                .' FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE',
+            );
+            /*
+             * No ON DELETE on the reward, unlike the game: F13 decides what
+             * deleting a reward does, and a cascade here would quietly take
+             * gifts with it and change a sheet nobody edited.
+             */
+            $this->connection->executeStatement(
+                'ALTER TABLE gift ADD CONSTRAINT '.self::GIFT_REWARD_FK
+                .' FOREIGN KEY (reward_id) REFERENCES reward (id)',
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'create it', 'created'));
+    }
+
+    /**
+     * F28 R19 and section 7: a spin learns which sheet it was part of, and
+     * its probability learns to be absent.
+     *
+     * The probability is the interesting half. Every row until now was drawn
+     * and had one; a gift is handed over and has none, and the column has to
+     * allow that before the first sheet is issued — on this machine MariaDB
+     * would quietly write a 0 and nobody would notice, and in production it
+     * would refuse the insert (see the ROADMAP's strict-database entry).
+     */
+    private function addSheetToSpins(bool $dryRun): UpgradeStep
+    {
+        $name = 'a spin can be a gift';
+
+        if (!$this->tableExists('spin')) {
+            return UpgradeStep::skipped($name, 'there is no spin table');
+        }
+
+        $sheet = !$this->columnExists('spin', 'sheet_id');
+        $probability = 'NO' === $this->nullabilityOf('spin', 'prize_probability');
+
+        if (!$sheet && !$probability) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            if ($sheet) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE spin ADD sheet_id VARCHAR(12) DEFAULT NULL',
+                );
+            }
+
+            if ($probability) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE spin CHANGE prize_probability prize_probability SMALLINT DEFAULT NULL',
+                );
+            }
+        }
+
+        $what = [];
+
+        if ($sheet) {
+            $what[] = 'sheet_id';
+        }
+
+        if ($probability) {
+            $what[] = 'a probability that may be absent';
+        }
+
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            'add '.implode(' and ', $what),
+            'added '.implode(' and ', $what),
+        ));
+    }
+
+    /** 'YES', 'NO', or null when there is no such column. */
+    private function nullabilityOf(string $table, string $column): ?string
+    {
+        $answer = $this->connection->fetchOne(
+            'SELECT is_nullable FROM information_schema.columns '
+            .'WHERE table_schema = DATABASE() AND table_name = :table AND column_name = :column',
+            ['table' => $table, 'column' => $column],
+        );
+
+        return \is_string($answer) ? $answer : null;
     }
 
     /**

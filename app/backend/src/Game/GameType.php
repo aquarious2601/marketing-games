@@ -14,9 +14,7 @@ namespace App\Game;
 enum GameType: string
 {
     case Wheel = 'wheel';
-
-    // F28 adds 'gift-sheet' here. One case is not a mistake: a type is
-    // only worth listing once something can play it.
+    case GiftSheet = 'gift-sheet';
 
     /**
      * Unlike Theme::fromStored (F04 R8), an unrecognised value throws rather

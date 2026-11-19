@@ -91,6 +91,7 @@ theme:
 # their own, so it is ours to translate. An admin's own tagline never is.
 tagline:
     default: 'One spin, one prize. Good luck.'
+    sheet_default: 'Fill this in and the gifts are yours.'
 
 # F13: the reward catalogue. The type names and the defaults are the
 # application's own words; a reward the admin has renamed is not (F13 R29).
@@ -141,3 +142,12 @@ game:
     not_ready_prize_count: 'A wheel needs between %min% and %max% prizes.'
     not_ready_slice_without_reward: 'Every slice needs a reward before this game can go live.'
     not_ready_total: 'The probabilities total %total%. They must total %required%.'
+    not_ready_empty_sheet: 'This game gives nothing away yet. Add a gift first.'
+
+sheet:
+    invalid: 'The gift list is invalid.'
+    too_many: 'A sheet can hold at most %max% gifts.'
+    reward_required: 'Choose what this gift gives away.'
+    reward_unknown: 'That reward no longer exists.'
+    no_losing_reward: 'A sheet gives everything on it, so it cannot include the losing reward.'
+    reward_twice: 'This reward is already on the sheet.'

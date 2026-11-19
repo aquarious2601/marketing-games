@@ -241,4 +241,23 @@ export const zh: Record<MessageKey, string> = {
   'player.promotionEndedHint': '请到柜台询问是否有其他活动。',
   'player.needsLink': '需要链接',
   'player.needsLinkHint': '请扫描摊位上的二维码，或询问工作人员。',
+
+  // -- F28: the gift sheet -------------------------------------------
+  'sheet.gifts': '礼品',
+  'sheet.giftsLead': '每位参与者都会获得清单上的全部礼品，无需设置概率。',
+  'sheet.gift': '礼品',
+  'sheet.noRewards': '请先添加奖励——礼品总要送出点什么。',
+  'sheet.empty': '还没有礼品。请在下面添加。',
+  'sheet.add': '添加礼品',
+  'sheet.atMost': '一份清单最多 %max% 份礼品，以便在手机上完整显示。',
+  'sheet.preview': '玩家看到的内容',
+  'sheet.loading': '正在加载礼品…',
+  'sheet.loadFailed': '无法加载礼品清单。',
+  'sheet.saveFailed': '礼品清单保存失败，您的修改仍保留。',
+  'sheet.ready': '您的礼品已就绪',
+  'sheet.get': '领取我的礼品',
+  'sheet.getting': '请稍候…',
+  'sheet.yours': '这些都是您的',
+  'sheet.showAtCounter': '请在柜台出示此页。',
+  'sheet.failed': '礼品未能送出，未消耗任何次数——请重试。',
 }

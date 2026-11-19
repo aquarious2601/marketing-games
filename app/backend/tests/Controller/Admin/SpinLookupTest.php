@@ -282,7 +282,7 @@ final class SpinLookupTest extends DatabaseWebTestCase
             $this->entityManager->persist($player);
         }
 
-        $spin = new Spin($prize, $player);
+        $spin = Spin::forPrize($prize, $player);
         // F27 R9: a spin records the game it was played on.
         $spin->setGame($this->game);
 

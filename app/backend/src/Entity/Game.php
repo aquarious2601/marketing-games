@@ -197,6 +197,7 @@ class Game
     {
         return match ($this->getType()) {
             GameType::Wheel => 'tagline.default',
+            GameType::GiftSheet => 'tagline.sheet_default',
         };
     }
 

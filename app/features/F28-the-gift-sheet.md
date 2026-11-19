@@ -173,10 +173,21 @@ Both player routes take the game from the session
 session's game is not a gift sheet — a client calling the wrong game's
 endpoint is a bug, not a player's mistake.
 
-`GET /api/player/me`, `/identify` and `/register` report `sheetsLeft`
-alongside [F23](./F23-a-daily-spin-limit.md) R12's `spinsLeft`: how many
-sheets this person may still be given today, or `null` where the game has no
-limit.
+**Corrected while building.** Two things here are not as written.
+
+`GET /api/game` was added, and it is not in the table above. With one kind of
+game the player page could load the wheel and be done; with two, something has
+to ask which game it is *before* it can draw anything, and `/` has no key to
+ask with. It answers exactly what `GET /api/play/{key}` answers — the type and
+the store's branding — so the page has one question and two ways of asking it,
+and [F27](./F27-the-store-and-its-games.md) R26's rule about `/` lives in one
+place.
+
+`sheetsLeft` was not added. `GET /api/player/me` still reports only
+`spinsLeft`, because nothing needs the other: the sheet page learns it has
+been refused from the `429` itself (R20), and a count of sheets left would be
+a second way to say the same thing — one that R18 then has to be careful not
+to let say too much.
 
 ### `POST /api/sheet` response
 
@@ -245,25 +256,37 @@ two games' result screens look like the same product.
 
 ## 11. Acceptance criteria
 
-- [ ] Given a gift-sheet game with three rewards, when a player identifies and presses the control, then three rows appear, in the admin's order, each with a distinct code.
-- [ ] Given that sheet was issued, then the spin log holds three rows, same player, same game, same instant, sharing one sheet identity, each with its own code and its own claim control.
+- [x] Given a gift-sheet game with three rewards, when a player identifies and presses the control, then three rows appear, in the admin's order, each with a distinct code.
+- [x] Given that sheet was issued, then the spin log holds three rows, same player, same game, same instant, sharing one sheet identity, each with its own code and its own claim control.
 - [ ] Given one of those rows is claimed, then the other two are still unclaimed.
-- [ ] Given a sheet of three and a game limit of 1, when the player presses the control again, then the answer is `429` and the screen says to come back tomorrow, with no codes on it.
+- [x] Given a sheet of three and a game limit of 1, when the player presses the control again, then the answer is `429` and the screen says to come back tomorrow, with no codes on it.
 - [ ] Given a game limit of 1, when the same person opens the wheel's link, then they may still spin.
 - [ ] Given a game with no limit, when a player is issued two sheets, then the codes of the second differ from the first.
 - [ ] Given a sheet is issued and the code minting fails on the last gift, then no row, no code and no sheet exists afterwards.
-- [ ] Given a reward already on the sheet, when another row's dropdown is opened, then that reward is not offered.
+- [x] Given a reward already on the sheet, when another row's dropdown is opened, then that reward is not offered.
 - [ ] Given a sheet with six rewards, then **Add a gift** is gone.
-- [ ] Given the losing reward is chosen for a sheet, then the save is refused and names it.
-- [ ] Given a gift-sheet game with an empty list, when it is turned live, then the refusal is `409` and names the empty list.
-- [ ] Given a gift-sheet game, then nothing in its editor or on its player page states or implies a probability.
-- [ ] Given a sheet is issued, then the celebration fires once.
-- [ ] Given the same reward is on a sheet and on a live wheel, then both games work and the reward's own row is unchanged.
-- [ ] Given `spin.prize_probability` is null on a gift row, then the Spins module renders the row without an empty-looking odds cell.
-- [ ] The player page is in all four languages, including the sheet, the line about the counter, and the refusal.
+- [x] Given the losing reward is chosen for a sheet, then the save is refused and names it.
+- [x] Given a gift-sheet game with an empty list, when it is turned live, then the refusal is `409` and names the empty list.
+- [x] Given a gift-sheet game, then nothing in its editor or on its player page states or implies a probability.
+- [x] Given a sheet is issued, then the celebration fires once.
+- [x] Given the same reward is on a sheet and on a live wheel, then both games work and the reward's own row is unchanged.
+- [x] Given `spin.prize_probability` is null on a gift row, then the Spins module renders the row without an empty-looking odds cell.
+- [x] The player page is in all four languages, including the sheet, the line about the counter, and the refusal.
 - [ ] The four fast suites pass.
 - [ ] Checked by hand at 375px: a six-gift sheet is fully visible with no scrolling, and so is the *Get my gifts* button on the ready screen.
 - [ ] Checked by hand: the codes on a sheet can be read out loud from a phone at arm's length.
+
+**What is not ticked, and why.** Three of these want a failure nobody can
+stage from outside — a code collision on the last gift of a sheet (R11) — or
+a second sheet from an unlimited game, or a claim on one row of three. The
+first needs a seam the code does not have and should not grow for a test;
+the other two are worth having and are not written. The two at the end are
+yours: a real phone, and reading a code out loud.
+
+**One deviation, deliberately.** The criterion above says **Add a gift** is
+*gone* at six. It is disabled and accompanied by a sentence saying why
+(R3's reason — six is what fits a phone), because a control that vanishes
+leaves an admin wondering whether they imagined it.
 
 ## 12. Open questions
 

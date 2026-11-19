@@ -285,6 +285,25 @@ export const en = {
   'player.promotionEndedHint': 'Ask at the counter whether anything else is running.',
   'player.needsLink': 'A link is needed',
   'player.needsLinkHint': 'Scan the code on the stall, or ask a member of staff.',
+
+  // -- F28: the gift sheet -------------------------------------------
+  'sheet.gifts': 'Gifts',
+  'sheet.giftsLead': 'Everyone who plays gets every gift on this list. There are no odds to set.',
+  'sheet.gift': 'Gift',
+  'sheet.noRewards': 'Add a reward first — a gift has to give something away.',
+  'sheet.empty': 'No gifts yet. Add one below.',
+  'sheet.add': 'Add gift',
+  'sheet.atMost': 'A sheet holds at most %max% gifts, so they fit a phone.',
+  'sheet.preview': 'What the player sees',
+  'sheet.loading': 'Loading the gifts…',
+  'sheet.loadFailed': 'The gifts could not be loaded.',
+  'sheet.saveFailed': 'The gifts could not be saved. Your changes are still here.',
+  'sheet.ready': 'Your gifts are waiting',
+  'sheet.get': 'Get my gifts',
+  'sheet.getting': 'Just a moment…',
+  'sheet.yours': 'These are yours',
+  'sheet.showAtCounter': 'Show this at the counter.',
+  'sheet.failed': 'The gifts could not be given out. Nothing was used up — try again.',
 } as const
 
 export type MessageKey = keyof typeof en

@@ -24,6 +24,7 @@ import { WheelPreview, type PreviewSlice } from '../games/wheel/WheelPreview'
 import { fetchRewards, type Reward } from '../api/rewards'
 import { useT } from '../i18n/I18nContext'
 import { fetchGame, fetchGames, type GameSummary } from '../api/games'
+import { GiftEditor } from '../games/gift-sheet/GiftEditor'
 import { GameSettings } from './GameSettings'
 import { PrizeRow } from '../games/wheel/PrizeRow'
 
@@ -92,14 +93,38 @@ export function GameModule() {
     try {
       // The catalogue comes with the wheel: a slice selector with nothing
       // to select from is not a page worth rendering (F13 R7).
-      const [configuration, catalogue, loadedGame, index] = await Promise.all([
-        fetchWheel(gameId, { signal }),
-        fetchRewards({ signal }),
+      /*
+       * The game first, because what to load after it depends on its type:
+       * asking a sheet for its wheel is a 404, and a page that asked anyway
+       * would show a load failure for a game that is working perfectly.
+       */
+      const [loadedGame, index] = await Promise.all([
         fetchGame(gameId, { signal }),
         fetchGames({ signal }),
       ])
 
+      /*
+       * No abort check between the two loads: the one below covers it, and a
+       * second `signal?.aborted === true` here narrows the flag to `false`
+       * for the compiler, which then calls the real check unreachable.
+       */
+      const isWheel = 'wheel' === loadedGame.type
+      const [configuration, catalogue] = await Promise.all([
+        isWheel ? fetchWheel(gameId, { signal }) : null,
+        isWheel ? fetchRewards({ signal }) : { rewards: [], types: [] },
+      ])
+
       if (signal?.aborted === true) {
+        return
+      }
+
+      if (configuration === null) {
+        // A sheet: its editor loads its own gifts, and there is no wheel
+        // state here to fill in.
+        setGame(loadedGame)
+        setMaxDailyLimit(index.maxDailyLimit)
+        setLoad({ phase: 'ready' })
+
         return
       }
 
@@ -253,163 +278,174 @@ export function GameModule() {
       )}
 
       {/*
-        F26 R19 to R23: one column at every width. The list takes the whole
-        page and the preview follows it, so an admin edits a row and then
-        looks at the result rather than scrolling past a wheel to reach the
-        rows. The preview stops being sticky with the column that held it —
-        the trade recorded in F26 section 13.
+        F28. Each type brings its own editor, and nothing else about this
+        page changes: the name, the phrase and the limit above are every
+        game's (F27 R40), and what it gives away is the type's business.
       */}
-      <section aria-label={t('game.prizeList')}>
-          <h2 className="mb-1 text-sm font-semibold uppercase tracking-[0.15em] text-slate-500">
-            {t('game.prizes')}
-          </h2>
+      {'gift-sheet' === game?.type && <GiftEditor gameId={gameId} />}
 
-          {/*
-            F13 R11–R13. Turning it on adds a slice pointing at the losing
-            reward; turning it off takes that slice away. Its probability is
-            not redistributed automatically — the admin decides where those
-            points go, and the total has to reach 100 before this will save
-            (F01 R8), which is the prompt to decide.
-          */}
-          <label className="mb-3 mt-2 flex items-start gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={losing}
-              disabled={losingReward === null}
-              onChange={(event) => {
-                const wanted = event.target.checked
-                setLosing(wanted)
-                setJustSaved(false)
+      {'wheel' === game?.type && (
+        <>
+        {/*
+          F26 R19 to R23: one column at every width. The list takes the whole
+          page and the preview follows it, so an admin edits a row and then
+          looks at the result rather than scrolling past a wheel to reach the
+          rows. The preview stops being sticky with the column that held it —
+          the trade recorded in F26 section 13.
+        */}
+        <section aria-label={t('game.prizeList')}>
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-[0.15em] text-slate-500">
+              {t('game.prizes')}
+            </h2>
 
-                if (losingReward === null) {
-                  return
-                }
+            {/*
+              F13 R11–R13. Turning it on adds a slice pointing at the losing
+              reward; turning it off takes that slice away. Its probability is
+              not redistributed automatically — the admin decides where those
+              points go, and the total has to reach 100 before this will save
+              (F01 R8), which is the prompt to decide.
+            */}
+            <label className="mb-3 mt-2 flex items-start gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={losing}
+                disabled={losingReward === null}
+                onChange={(event) => {
+                  const wanted = event.target.checked
+                  setLosing(wanted)
+                  setJustSaved(false)
 
-                setDrafts((current) =>
-                  wanted
-                    ? // F14 R5: at the top, not appended.
-                      [losingSlice(losingReward.id), ...current]
-                    : current.filter((draft) => draft.rewardId !== losingReward.id),
-                )
-              }}
-              data-testid="losing-toggle"
-              className="mt-0.5 h-4 w-4 rounded border-slate-300"
-            />
-            <span>
-              <span className="font-medium">{t('game.losingToggle')}</span>
-              <span className="block text-xs text-slate-500">{t('game.losingToggleHint')}</span>
-            </span>
-          </label>
-          <p className="mb-3 text-sm text-slate-500">
-            {t('game.prizesLead')}
-          </p>
-
-          <ul className="space-y-2">
-            {drafts.map((prize, index) => (
-              <PrizeRow
-                key={prize.key}
-                prize={prize}
-                index={index}
-                total={drafts.length}
-                errors={errorsFor[index] ?? {}}
-                canRemove={canRemovePrize(drafts)}
-                losingFirst={
-                  losingReward !== null && drafts[0]?.rewardId === losingReward.id
-                }
-                rewards={rewards}
-                onChange={(change) => mutate((current) => updatePrize(current, index, change))}
-                onMove={(offset) => mutate((current) => movePrize(current, index, offset))}
-                onRemove={() => {
-                  // F14 R6: the toggle and the list are two views of one
-                  // fact. Taking the losing row away with its × is the same
-                  // intention as switching the toggle off, so it does both
-                  // rather than leaving the toggle claiming a row that is
-                  // no longer there.
-                  //
-                  // Guarded by canRemovePrize for the same reason: a wheel
-                  // at its minimum refuses the removal, and the toggle must
-                  // not go off over a row that is still on the screen.
-                  if (
-                    canRemovePrize(drafts) &&
-                    losingReward !== null &&
-                    prize.rewardId === losingReward.id
-                  ) {
-                    setLosing(false)
+                  if (losingReward === null) {
+                    return
                   }
 
-                  mutate((current) => removePrize(current, index))
+                  setDrafts((current) =>
+                    wanted
+                      ? // F14 R5: at the top, not appended.
+                        [losingSlice(losingReward.id), ...current]
+                      : current.filter((draft) => draft.rewardId !== losingReward.id),
+                  )
                 }}
+                data-testid="losing-toggle"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
               />
-            ))}
-          </ul>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => mutate(addPrize)}
-              disabled={!canAddPrize(drafts)}
-              className={secondaryButtonClass}
-            >
-              {t('game.addPrize')}
-            </button>
-
-            <TotalBadge total={validation.total} error={validation.totalError} />
-          </div>
-
-          {!canAddPrize(drafts) && (
-            <p className="mt-2 text-xs text-slate-500">
-              {t('game.atMostPrizes', { max: MAX_PRIZES })}
-            </p>
-          )}
-
-          {validation.countError !== null && (
-            <p role="alert" className="mt-2 text-sm text-rose-600">
-              {validation.countError}
-            </p>
-          )}
-
-          {generalViolations.map((violation) => (
-            <p key={violation.field + violation.message} role="alert" className="mt-2 text-sm text-rose-600">
-              {violation.message}
-            </p>
-          ))}
-
-          {saveError !== null && (
-            <p role="alert" className="mt-2 text-sm text-rose-600">
-              {saveError}
-            </p>
-          )}
-
-          <div className="mt-6 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void onSave()}
-              disabled={!validation.isValid || saving || !dirty}
-              data-testid="save-wheel"
-              className={primaryButtonClass}
-            >
-              {saving ? t('common.saving') : t('common.save')}
-            </button>
-
-            {justSaved && !dirty && (
-              <span role="status" className="text-sm text-emerald-700">
-                {t('common.saved')}
+              <span>
+                <span className="font-medium">{t('game.losingToggle')}</span>
+                <span className="block text-xs text-slate-500">{t('game.losingToggleHint')}</span>
               </span>
-            )}
-            {dirty && !saving && (
-              <span className="text-sm text-slate-400">{t('common.unsavedChanges')}</span>
-            )}
-        </div>
-      </section>
+            </label>
+            <p className="mb-3 text-sm text-slate-500">
+              {t('game.prizesLead')}
+            </p>
 
-      {/* F26 R20, R21: after the list and the save controls, centred, and no
-          wider than it is on a phone — a 1,600-pixel window has no use for a
-          bigger wheel. */}
-      <section aria-label={t('game.preview')} className="mt-8">
-        <div className="mx-auto max-w-xs">
-          <WheelPreview slices={slices} showOdds />
-        </div>
-      </section>
+            <ul className="space-y-2">
+              {drafts.map((prize, index) => (
+                <PrizeRow
+                  key={prize.key}
+                  prize={prize}
+                  index={index}
+                  total={drafts.length}
+                  errors={errorsFor[index] ?? {}}
+                  canRemove={canRemovePrize(drafts)}
+                  losingFirst={
+                    losingReward !== null && drafts[0]?.rewardId === losingReward.id
+                  }
+                  rewards={rewards}
+                  onChange={(change) => mutate((current) => updatePrize(current, index, change))}
+                  onMove={(offset) => mutate((current) => movePrize(current, index, offset))}
+                  onRemove={() => {
+                    // F14 R6: the toggle and the list are two views of one
+                    // fact. Taking the losing row away with its × is the same
+                    // intention as switching the toggle off, so it does both
+                    // rather than leaving the toggle claiming a row that is
+                    // no longer there.
+                    //
+                    // Guarded by canRemovePrize for the same reason: a wheel
+                    // at its minimum refuses the removal, and the toggle must
+                    // not go off over a row that is still on the screen.
+                    if (
+                      canRemovePrize(drafts) &&
+                      losingReward !== null &&
+                      prize.rewardId === losingReward.id
+                    ) {
+                      setLosing(false)
+                    }
+
+                    mutate((current) => removePrize(current, index))
+                  }}
+                />
+              ))}
+            </ul>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => mutate(addPrize)}
+                disabled={!canAddPrize(drafts)}
+                className={secondaryButtonClass}
+              >
+                {t('game.addPrize')}
+              </button>
+
+              <TotalBadge total={validation.total} error={validation.totalError} />
+            </div>
+
+            {!canAddPrize(drafts) && (
+              <p className="mt-2 text-xs text-slate-500">
+                {t('game.atMostPrizes', { max: MAX_PRIZES })}
+              </p>
+            )}
+
+            {validation.countError !== null && (
+              <p role="alert" className="mt-2 text-sm text-rose-600">
+                {validation.countError}
+              </p>
+            )}
+
+            {generalViolations.map((violation) => (
+              <p key={violation.field + violation.message} role="alert" className="mt-2 text-sm text-rose-600">
+                {violation.message}
+              </p>
+            ))}
+
+            {saveError !== null && (
+              <p role="alert" className="mt-2 text-sm text-rose-600">
+                {saveError}
+              </p>
+            )}
+
+            <div className="mt-6 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void onSave()}
+                disabled={!validation.isValid || saving || !dirty}
+                data-testid="save-wheel"
+                className={primaryButtonClass}
+              >
+                {saving ? t('common.saving') : t('common.save')}
+              </button>
+
+              {justSaved && !dirty && (
+                <span role="status" className="text-sm text-emerald-700">
+                  {t('common.saved')}
+                </span>
+              )}
+              {dirty && !saving && (
+                <span className="text-sm text-slate-400">{t('common.unsavedChanges')}</span>
+              )}
+          </div>
+        </section>
+
+        {/* F26 R20, R21: after the list and the save controls, centred, and no
+            wider than it is on a phone — a 1,600-pixel window has no use for a
+            bigger wheel. */}
+        <section aria-label={t('game.preview')} className="mt-8">
+          <div className="mx-auto max-w-xs">
+            <WheelPreview slices={slices} showOdds />
+          </div>
+        </section>
+        </>
+      )}
     </>
   )
 }

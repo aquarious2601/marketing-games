@@ -56,9 +56,9 @@ final class GameControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::URI);
 
         self::assertSame(
-            ['wheel'],
+            ['wheel', 'gift-sheet'],
             array_column($this->decodeResponse()['types'], 'value'),
-            'F28 adds the gift sheet; until then there is one kind.',
+            'The wheel first, because it is the one every shop starts with.',
         );
     }
 

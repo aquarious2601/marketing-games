@@ -71,6 +71,7 @@ theme:
 
 tagline:
     default: 'Un tour, un lot. Bonne chance !'
+    sheet_default: 'Remplissez ceci et les cadeaux sont à vous.'
 
 reward:
     type:
@@ -119,3 +120,12 @@ game:
     not_ready_prize_count: 'Une roue doit avoir entre %min% et %max% prix.'
     not_ready_slice_without_reward: 'Chaque case doit avoir une récompense avant la mise en ligne.'
     not_ready_total: 'Le total des probabilités est %total%. Il doit être de %required%.'
+    not_ready_empty_sheet: 'Ce jeu n''offre encore rien. Ajoutez d''abord un cadeau.'
+
+sheet:
+    invalid: 'La liste de cadeaux est invalide.'
+    too_many: 'Une liste peut contenir au maximum %max% cadeaux.'
+    reward_required: 'Choisissez ce que ce cadeau offre.'
+    reward_unknown: 'Cette récompense n''existe plus.'
+    no_losing_reward: 'Une liste offre tout ce qu''elle contient : la récompense « perdu » n''y a pas sa place.'
+    reward_twice: 'Cette récompense est déjà dans la liste.'

@@ -70,6 +70,7 @@ abstract class DatabaseWebTestCase extends WebTestCase
         $connection->executeStatement('TRUNCATE TABLE game');
         $connection->executeStatement('TRUNCATE TABLE `user`');
         $connection->executeStatement('TRUNCATE TABLE prize');
+        $connection->executeStatement('TRUNCATE TABLE gift');
         $connection->executeStatement('TRUNCATE TABLE reward');
         $connection->executeStatement('TRUNCATE TABLE wheel');
         $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');

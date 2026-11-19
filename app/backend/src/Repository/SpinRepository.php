@@ -74,6 +74,70 @@ final class SpinRepository extends ServiceEntityRepository
      * `>=` and no upper bound: the window is "since the day began", and
      * there is no such thing as a spin recorded in the future.
      */
+    /**
+     * How many sheets this person has been given on this game since an
+     * instant (F28 R17).
+     *
+     * Sheets, not rows: a limit of 1 on a sheet of three gifts means one
+     * sheet, and counting rows would refuse the second gift of the first
+     * one. The distinct count is why a sheet carries an identity at all
+     * (R19).
+     */
+    public function countSheetsForPlayerOnGameSince(
+        Player $player,
+        Game $game,
+        \DateTimeImmutable $since,
+    ): int {
+        return (int) $this->createQueryBuilder('s')
+            ->select('COUNT(DISTINCT s.sheetId)')
+            ->where('s.player = :player')
+            ->andWhere('s.game = :game')
+            ->andWhere('s.spunAt >= :since')
+            ->andWhere('s.sheetId IS NOT NULL')
+            ->setParameter('player', $player)
+            ->setParameter('game', $game)
+            ->setParameter('since', $since)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * The rows of this person's most recent sheet on this game, or none.
+     *
+     * F28 R18 keeps these off the refusal screen, but the page that has just
+     * been given a sheet reloads, and this is what it reads back.
+     *
+     * @return list<Spin>
+     */
+    public function latestSheetFor(Player $player, Game $game): array
+    {
+        $sheet = $this->createQueryBuilder('s')
+            ->select('s.sheetId')
+            ->where('s.player = :player')
+            ->andWhere('s.game = :game')
+            ->andWhere('s.sheetId IS NOT NULL')
+            ->setParameter('player', $player)
+            ->setParameter('game', $game)
+            ->orderBy('s.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (null === $sheet) {
+            return [];
+        }
+
+        /** @var list<Spin> $rows */
+        $rows = $this->createQueryBuilder('s')
+            ->where('s.sheetId = :sheet')
+            ->setParameter('sheet', $sheet['sheetId'])
+            ->orderBy('s.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $rows;
+    }
+
     /** F27 R38. The number in the Games list. */
     public function countForGame(Game $game): int
     {

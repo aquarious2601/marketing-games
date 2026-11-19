@@ -252,4 +252,23 @@ export const fr: Record<MessageKey, string> = {
   'player.promotionEndedHint': 'Demandez au comptoir si une autre promotion est en cours.',
   'player.needsLink': 'Un lien est nécessaire',
   'player.needsLinkHint': 'Scannez le code sur le stand, ou demandez à un membre du personnel.',
+
+  // -- F28: the gift sheet -------------------------------------------
+  'sheet.gifts': 'Cadeaux',
+  'sheet.giftsLead': 'Chaque joueur reçoit tous les cadeaux de cette liste. Aucune probabilité à régler.',
+  'sheet.gift': 'Cadeau',
+  'sheet.noRewards': 'Ajoutez d\'abord une récompense — un cadeau doit offrir quelque chose.',
+  'sheet.empty': 'Aucun cadeau pour le moment. Ajoutez-en un ci-dessous.',
+  'sheet.add': 'Ajouter un cadeau',
+  'sheet.atMost': 'Une liste contient au maximum %max% cadeaux, pour tenir sur un téléphone.',
+  'sheet.preview': 'Ce que voit le joueur',
+  'sheet.loading': 'Chargement des cadeaux…',
+  'sheet.loadFailed': 'Les cadeaux n\'ont pas pu être chargés.',
+  'sheet.saveFailed': 'Les cadeaux n\'ont pas pu être enregistrés. Vos modifications sont conservées.',
+  'sheet.ready': 'Vos cadeaux vous attendent',
+  'sheet.get': 'Recevoir mes cadeaux',
+  'sheet.getting': 'Un instant…',
+  'sheet.yours': 'Ils sont à vous',
+  'sheet.showAtCounter': 'Présentez ceci au comptoir.',
+  'sheet.failed': 'Les cadeaux n\'ont pas pu être remis. Rien n\'a été consommé — réessayez.',
 }

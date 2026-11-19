@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Game;
 
 use App\Entity\Game;
+use App\Games\GiftSheet\Repository\GiftRepository;
 use App\Games\Wheel\Entity\Wheel;
 use App\Games\Wheel\Repository\WheelRepository;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -22,6 +23,7 @@ final class GameReadiness
 {
     public function __construct(
         private readonly WheelRepository $wheels,
+        private readonly GiftRepository $gifts,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -37,7 +39,20 @@ final class GameReadiness
     {
         return match ($game->getType()) {
             GameType::Wheel => $this->whyNotAWheel($game),
+            GameType::GiftSheet => $this->whyNotASheet($game),
         };
+    }
+
+    /**
+     * F28 R7. A sheet with nothing on it would identify a player, take their
+     * details and hand them nothing — the one state worse than not being
+     * live at all.
+     */
+    private function whyNotASheet(Game $game): ?string
+    {
+        return 0 === $this->gifts->countOnSheet($game)
+            ? $this->translator->trans('game.not_ready_empty_sheet')
+            : null;
     }
 
     private function whyNotAWheel(Game $game): ?string

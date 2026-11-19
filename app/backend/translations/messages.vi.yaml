@@ -71,6 +71,7 @@ theme:
 
 tagline:
     default: 'Một lượt quay, một phần thưởng. Chúc may mắn!'
+    sheet_default: 'Điền thông tin và nhận quà.'
 
 reward:
     type:
@@ -119,3 +120,12 @@ game:
     not_ready_prize_count: 'Vòng xoay cần từ %min% đến %max% phần thưởng.'
     not_ready_slice_without_reward: 'Mỗi ô phải có phần thưởng trước khi mở trò chơi.'
     not_ready_total: 'Tổng tỉ lệ là %total%. Tổng phải là %required%.'
+    not_ready_empty_sheet: 'Trò chơi này chưa tặng gì. Hãy thêm một món quà trước.'
+
+sheet:
+    invalid: 'Danh sách quà không hợp lệ.'
+    too_many: 'Một danh sách chứa tối đa %max% món quà.'
+    reward_required: 'Hãy chọn phần thưởng cho món quà này.'
+    reward_unknown: 'Phần thưởng này không còn tồn tại.'
+    no_losing_reward: 'Danh sách tặng mọi thứ trong đó, nên không thể có phần thưởng "không trúng".'
+    reward_twice: 'Phần thưởng này đã có trong danh sách.'

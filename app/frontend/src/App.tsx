@@ -9,7 +9,7 @@ import { SpinsModule } from './admin/SpinsModule'
 import { AdminShell } from './auth/AdminShell'
 import { LoginPage } from './auth/LoginPage'
 import { RequireSession } from './auth/RequireSession'
-import { PlayerPage } from './player/PlayerPage'
+import { GamePage } from './player/GamePage'
 
 function App() {
   return (
@@ -21,7 +21,7 @@ function App() {
         opaque and names nothing (R19), so the route cannot be read to learn
         what else the installation runs.
       */}
-      <Route path="/play/:key" element={<PlayerPage />} />
+      <Route path="/play/:key" element={<GamePage />} />
 
       {/*
         F27 R26. `/` still serves the player page, but only while exactly one
@@ -29,7 +29,7 @@ function App() {
         link, bookmark and printed QR code keeps working. The page asks the
         server which case it is in; nothing here can tell.
       */}
-      <Route path="/" element={<PlayerPage />} />
+      <Route path="/" element={<GamePage />} />
 
       <Route path="/login" element={<LoginPage />} />
 
@@ -74,7 +74,7 @@ function App() {
         <Route path="*" element={<Navigate to="/admin/games" replace />} />
       </Route>
 
-      <Route path="*" element={<PlayerPage />} />
+      <Route path="*" element={<GamePage />} />
     </Routes>
   )
 }

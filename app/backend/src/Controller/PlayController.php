@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Branding\BrandingPresenter;
+use App\Game\GameResolver;
 use App\Game\LinkKey;
 use App\Player\PlayerSession;
 use App\Repository\GameRepository;
@@ -25,6 +26,7 @@ final class PlayController extends AbstractController
 {
     public function __construct(
         private readonly GameRepository $games,
+        private readonly GameResolver $resolver,
         private readonly PlayerSession $session,
         private readonly StoreProvider $store,
         private readonly BrandingPresenter $branding,
@@ -53,6 +55,34 @@ final class PlayController extends AbstractController
         }
 
         $this->session->bindGame($game);
+
+        return new JsonResponse([
+            'type' => $game->getType()->value,
+            'branding' => $this->branding->presentForGame($this->store->getOrCreate(), $game),
+        ]);
+    }
+
+    /**
+     * The game to draw when there is no key (F27 R26).
+     *
+     * `/` is allowed to work while exactly one game is live, and a page
+     * cannot draw a game without knowing its type — a wheel and a sheet are
+     * different screens. This answers the same shape `/play/{key}` does, so
+     * the page has one question and two ways of asking it.
+     *
+     * Added while building F28; F28 section 8 records it.
+     */
+    #[Route('/api/game', name: 'api_game', methods: ['GET'])]
+    public function game(): JsonResponse
+    {
+        $game = $this->resolver->current();
+
+        if (null === $game) {
+            return new JsonResponse(
+                ['error' => ['status' => Response::HTTP_CONFLICT, 'message' => 'no_game']],
+                Response::HTTP_CONFLICT,
+            );
+        }
 
         return new JsonResponse([
             'type' => $game->getType()->value,

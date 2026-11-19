@@ -71,6 +71,7 @@ theme:
 
 tagline:
     default: '一次转动，一份奖品。祝您好运！'
+    sheet_default: '填写信息，礼品即归您所有。'
 
 reward:
     type:
@@ -119,3 +120,12 @@ game:
     not_ready_prize_count: '转盘需要 %min% 至 %max% 个奖品。'
     not_ready_slice_without_reward: '上线前每个扇区都需要一个奖励。'
     not_ready_total: '概率合计为 %total%，必须为 %required%。'
+    not_ready_empty_sheet: '该游戏还没有任何赠品。请先添加一份礼品。'
+
+sheet:
+    invalid: '礼品清单无效。'
+    too_many: '一份清单最多 %max% 份礼品。'
+    reward_required: '请选择该礼品赠送的内容。'
+    reward_unknown: '该奖励已不存在。'
+    no_losing_reward: '清单会送出其中的每一项，因此不能包含“未中奖”奖励。'
+    reward_twice: '该奖励已在清单中。'
