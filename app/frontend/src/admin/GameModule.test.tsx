@@ -45,9 +45,9 @@ const GAME = {
 
 
 const REWARDS = [
-  { id: 1, name: 'Free sample', type: 'free_product' as const, value: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
-  { id: 2, name: 'Ten off', type: 'percent_off' as const, value: 10, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
-  { id: 3, name: 'Maybe next time', type: 'nothing' as const, value: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+  { id: 1, name: 'Free sample', type: 'free_product' as const, value: null, cost: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+  { id: 2, name: 'Ten off', type: 'percent_off' as const, value: 10, cost: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+  { id: 3, name: 'Maybe next time', type: 'nothing' as const, value: null, cost: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
 ]
 
 const REWARD_TYPES = [

@@ -95,6 +95,8 @@ reward:
     amount_too_small: 'Un montant doit valoir au moins %min%.'
     amount_too_large: 'Un montant ne peut pas dépasser %max%.'
     value_not_allowed: 'Ce type de récompense ne prend pas de valeur.'
+    cost_invalid: 'Un coût doit être un montant entier et ne peut pas être négatif.'
+    cost_not_allowed: 'L’item perdant ne coûte rien à donner, il ne prend donc pas de coût.'
     in_use: 'Cette récompense est sur la roue : %slices%. Faites pointer ces parts ailleurs d’abord.'
     not_found: "Cette récompense n'existe pas."
 
@@ -102,6 +104,7 @@ spin:
     not_claimable: 'Un tour perdant ne peut pas être réclamé.'
 
 store:
+    basket_invalid: 'Un panier moyen doit être un montant entier et ne peut pas être négatif.'
     language_invalid: 'Choisissez une des langues du jeu.'
     timezone_invalid: 'Ce n''est pas un fuseau horaire reconnu par le serveur.'
 
@@ -129,3 +132,9 @@ sheet:
     reward_unknown: 'Cette récompense n''existe plus.'
     no_losing_reward: 'Une liste offre tout ce qu''elle contient : la récompense « perdu » n''y a pas sa place.'
     reward_twice: 'Cette récompense est déjà dans la liste.'
+
+stats:
+    range_invalid: 'Cette période ne peut pas être lue.'
+    day_invalid: 'Un jour s’écrit AAAA-MM-JJ.'
+    from_after_to: 'Le premier jour ne peut pas être après le dernier.'
+    range_too_long: 'Une période ne peut pas dépasser %max% jours.'

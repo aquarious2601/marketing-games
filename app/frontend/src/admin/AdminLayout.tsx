@@ -92,4 +92,11 @@ const MODULES: ReadonlyArray<{ path: string; label: MessageKey }> = [
   { path: 'rewards', label: 'rewards.title' },
   { path: 'players', label: 'players.title' },
   { path: 'spins', label: 'spins.title' },
+  /*
+   * F32 R22, and the sixth. F09 said three was right for three and that six
+   * would make the navigation its own decision: this is six, the strip is
+   * still one row of short words, and a seventh is where the grouping F09
+   * warned about has to happen.
+   */
+  { path: 'stats', label: 'stats.title' },
 ]

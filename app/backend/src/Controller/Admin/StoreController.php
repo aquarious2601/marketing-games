@@ -11,6 +11,7 @@ use App\Branding\LogoStore;
 use App\Branding\Currency;
 use App\Dto\Violation;
 use App\Entity\Store;
+use App\Reward\RewardType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -53,6 +54,10 @@ final class StoreController extends AbstractController
 
         return new JsonResponse([
             ...$this->presenter->present($store),
+            // F32 R5. Here rather than in the presenter, because the
+            // presenter's payload is also the player's: what a basket is
+            // worth is the shop's business and nobody else's.
+            'averageBasket' => $store->getAverageBasket(),
             // F30 R15: no themes here. The list went with the picker, to
             // the game's editor, and the player never asked for it.
             // F13 R27: the codes and their symbols, so the selector needs
@@ -97,6 +102,7 @@ final class StoreController extends AbstractController
         $currency = $this->readCurrency($payload, $violations);
         $language = $this->readLanguage($payload, $violations);
         $timezone = $this->readTimezone($payload, $violations);
+        $basket = $this->readAverageBasket($payload, $violations);
 
         if ([] !== $violations) {
             return $this->invalid($violations);
@@ -122,9 +128,62 @@ final class StoreController extends AbstractController
             $store->setCurrency($currency);
         }
 
+        /*
+         * F32 R5. Sent at all means set, including to nothing: emptying
+         * the field is how a shop says it no longer stands behind the
+         * figure, and a percentage then prices as unpriced (R6) rather
+         * than against a number nobody believes any more.
+         */
+        if (\is_array($payload) && array_key_exists('averageBasket', $payload)) {
+            $store->setAverageBasket($basket);
+        }
+
         $this->entityManager->flush();
 
-        return new JsonResponse($this->presenter->present($store));
+        return new JsonResponse([
+            ...$this->presenter->present($store),
+            'averageBasket' => $store->getAverageBasket(),
+        ]);
+    }
+
+    /**
+     * F32 R3, R5. Whole minor units, never negative.
+     *
+     * Null covers both "not sent" and "sent as nothing"; the caller
+     * tells those apart by looking for the key, because only one of them
+     * should clear a figure the shop typed.
+     */
+    private function readAverageBasket(mixed $payload, array &$violations): ?int
+    {
+        if (!\is_array($payload)) {
+            return null;
+        }
+
+        $raw = $payload['averageBasket'] ?? null;
+
+        if (null === $raw || '' === $raw) {
+            return null;
+        }
+
+        if (!\is_int($raw) || $raw < 0) {
+            $violations[] = new Violation(
+                'averageBasket',
+                $this->translator->trans('store.basket_invalid'),
+            );
+
+            return null;
+        }
+
+        if ($raw > RewardType::MAX_AMOUNT) {
+            $violations[] = new Violation(
+                'averageBasket',
+                $this->translator->trans('reward.amount_too_large', ['%max%' => RewardType::MAX_AMOUNT]),
+            );
+
+            return null;
+        }
+
+        return $raw;
     }
 
     #[Route('/logo', name: 'upload_logo', methods: ['POST'])]

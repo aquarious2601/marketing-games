@@ -6,6 +6,7 @@ import { StoreModule } from './admin/StoreModule'
 import { CustomerModule } from './admin/CustomerModule'
 import { PlayersModule } from './admin/PlayersModule'
 import { RewardsModule } from './admin/RewardsModule'
+import { StatsModule } from './admin/StatsModule'
 import { SpinsModule } from './admin/SpinsModule'
 import { AdminShell } from './auth/AdminShell'
 import { LoginPage } from './auth/LoginPage'
@@ -74,6 +75,8 @@ function App() {
         <Route path="players/:id" element={<CustomerModule />} />
         <Route path="rewards" element={<RewardsModule />} />
         <Route path="spins" element={<SpinsModule />} />
+        {/* F32 R22. The numbers, read at the end of a day or a week. */}
+        <Route path="stats" element={<StatsModule />} />
         {/* F09 R4: an unrecognised module is the Games list, not a dead
             end inside an otherwise working admin. */}
         <Route path="*" element={<Navigate to="/admin/games" replace />} />

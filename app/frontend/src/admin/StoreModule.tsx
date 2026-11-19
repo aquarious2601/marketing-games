@@ -23,6 +23,8 @@ interface Draft {
   language: string
   /** F27 R15. Never empty once saved: the form requires one. */
   timezone: string
+  /** F32 R5. Empty means unpriced percentages, not a basket of zero. */
+  averageBasket: string
 }
 
 /**
@@ -44,6 +46,7 @@ export function StoreModule() {
     currency: '',
     language: '',
     timezone: '',
+    averageBasket: '',
   })
   const [saved, setSaved] = useState<Draft>(draft)
   const [saving, setSaving] = useState(false)
@@ -78,6 +81,7 @@ export function StoreModule() {
         // filled in with a guess.
         language: loaded.language ?? '',
         timezone: loaded.timezone,
+        averageBasket: loaded.averageBasket === null ? '' : String(loaded.averageBasket),
       }
 
       setStore(loaded)
@@ -103,7 +107,8 @@ export function StoreModule() {
     draft.companyName !== saved.companyName ||
     draft.currency !== saved.currency ||
     draft.language !== saved.language ||
-    draft.timezone !== saved.timezone
+    draft.timezone !== saved.timezone ||
+    draft.averageBasket !== saved.averageBasket
 
   const change = (patch: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...patch }))
@@ -123,6 +128,13 @@ export function StoreModule() {
         // F27 R17: empty is null, which is "let the browser decide" rather
         // than a language nobody speaks.
         language: '' === draft.language ? null : draft.language,
+        /*
+         * F32 R5. Empty is null, which clears the figure: a shop that no
+         * longer stands behind its average basket should be able to say so,
+         * and a percentage then prices as unpriced (R6) rather than against
+         * a number nobody believes.
+         */
+        averageBasket: '' === draft.averageBasket.trim() ? null : Number(draft.averageBasket),
       })
 
       setStore((current) => (current === null ? current : { ...current, ...result }))
@@ -314,6 +326,33 @@ export function StoreModule() {
           {violationFor('timezone') !== undefined && (
             <p role="alert" className="mt-1 text-xs text-rose-600">
               {violationFor('timezone')}
+            </p>
+          )}
+        </div>
+
+        {/* F32 R5. The one figure here that is not about identity: it
+            exists so a percentage reward can become money (R6), and the
+            hint says so rather than leaving an admin to guess what the
+            number is for. */}
+        <div className="mt-4">
+          <label htmlFor="store-basket" className={labelClass}>
+            {t('store.averageBasket')}
+          </label>
+          <input
+            id="store-basket"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={draft.averageBasket}
+            onChange={(event) => change({ averageBasket: event.target.value })}
+            aria-invalid={violationFor('averageBasket') !== undefined}
+            data-testid="store-basket"
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-slate-500">{t('store.averageBasketHint')}</p>
+          {violationFor('averageBasket') !== undefined && (
+            <p role="alert" className="mt-1 text-xs text-rose-600">
+              {violationFor('averageBasket')}
             </p>
           )}
         </div>

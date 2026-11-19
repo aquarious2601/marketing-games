@@ -67,6 +67,23 @@ class Reward
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $value = null;
 
+    /**
+     * F32 R1, R2, R7. What handing one of these over costs the shop, in
+     * the store's currency.
+     *
+     * A different fact from `value`, which is what the *customer* saves:
+     * a 20% off has a value of 20 and costs whatever a fifth of a basket
+     * comes to; a free coffee has no value at all and costs what the
+     * coffee costs. Two facts, two columns.
+     *
+     * Nullable because unpriced is not zero (R7): a reward that genuinely
+     * costs nothing is a zero somebody typed, and the stats say how many
+     * wins they could not price rather than quietly totalling them as
+     * free.
+     */
+    #[ORM\Column(type: 'integer', nullable: true)]
+    private ?int $cost = null;
+
     #[ORM\Column(name: 'created_at')]
     private \DateTimeImmutable $createdAt;
 
@@ -110,11 +127,32 @@ class Reward
         if (!$type->needsValue()) {
             $this->value = null;
         }
+
+        // F32 R4, for the same reason the value is cleared above.
+        if (RewardType::Nothing === $type) {
+            $this->cost = null;
+        }
     }
 
     public function getValue(): ?int
     {
         return $this->value;
+    }
+
+    /** F32 R1. Null is unpriced, which is not zero (R7). */
+    public function getCost(): ?int
+    {
+        return $this->cost;
+    }
+
+    /**
+     * F32 R4. The losing reward takes none: nothing is handed over, so
+     * nothing is spent, and a cost on it would be a number waiting to be
+     * added into a total it does not belong in.
+     */
+    public function setCost(?int $cost): void
+    {
+        $this->cost = RewardType::Nothing === $this->getType() ? null : $cost;
     }
 
     public function setValue(?int $value): void

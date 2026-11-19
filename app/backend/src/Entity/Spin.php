@@ -101,6 +101,22 @@ class Spin
     private ?int $rewardValue = null;
 
     /**
+     * F32 R8, R9, R10. What this win cost the shop, worked out at the
+     * moment it was won.
+     *
+     * A snapshot beside the type and the value, for the same reason those
+     * are snapshots: correcting a price next month must not restate last
+     * month's figures. A number an owner read on Monday has to still be
+     * that number on Friday.
+     *
+     * Null is unpriced and stays unpriced (R10) — a cost filled in later
+     * would otherwise appear retrospectively on a prize already handed
+     * over.
+     */
+    #[ORM\Column(name: 'reward_cost', type: 'integer', nullable: true)]
+    private ?int $rewardCost = null;
+
+    /**
      * F13 R16–R18 with F16 R1. Unique across every spin ever recorded,
      * which the index — not the generator — is what actually guarantees.
      *
@@ -295,6 +311,17 @@ class Spin
     public function isClaimable(): bool
     {
         return $this->getRewardType()->isClaimable();
+    }
+
+    public function getRewardCost(): ?int
+    {
+        return $this->rewardCost;
+    }
+
+    /** F32 R8. Written once, by whoever records the spin. */
+    public function setRewardCost(?int $cost): void
+    {
+        $this->rewardCost = $cost;
     }
 
     public function getClaimedBy(): ?User

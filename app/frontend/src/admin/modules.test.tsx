@@ -79,6 +79,7 @@ const STORE = {
   companyName: null,
   language: null,
   timezone: 'Europe/Paris',
+  averageBasket: null,
   theme: 'plain',
   logoUrl: null,
   themes: [{ value: 'plain', label: 'Plain' }],
@@ -117,7 +118,7 @@ beforeEach(() => {
   fetchRewardsMock.mockReset()
   fetchRewardsMock.mockResolvedValue({
     rewards: [
-      { id: 1, name: 'Free sample', type: 'free_product', value: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
+      { id: 1, name: 'Free sample', type: 'free_product', value: null, cost: null, createdAt: '2026-11-15T09:00:00+00:00', usedBy: [] },
     ],
     types: [{ value: 'free_product', label: 'Free product' }],
   })

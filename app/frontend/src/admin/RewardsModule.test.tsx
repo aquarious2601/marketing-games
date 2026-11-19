@@ -37,6 +37,7 @@ function reward(overrides: Partial<Reward> = {}): Reward {
     name: 'Free coffee',
     type: 'free_product',
     value: null,
+    cost: null,
     createdAt: '2026-11-15T09:00:00+00:00',
     usedBy: [],
     ...overrides,
@@ -67,6 +68,7 @@ function branding(overrides: Partial<AdminStore> = {}): AdminStore {
     companyName: null,
     language: null,
     timezone: 'Europe/Paris',
+    averageBasket: null,
     currency: 'VND',
     currencySymbol: '₫',
     logoUrl: null,
@@ -187,7 +189,7 @@ describe('adding a reward', () => {
     await user.click(screen.getByTestId('reward-save'))
 
     await waitFor(() =>
-      expect(createRewardMock).toHaveBeenCalledWith({ name: 'Free tea', type: 'free_product' }),
+      expect(createRewardMock).toHaveBeenCalledWith({ name: 'Free tea', type: 'free_product', cost: null }),
     )
   })
 
@@ -230,6 +232,8 @@ describe('adding a reward', () => {
         name: 'Fifteen off',
         type: 'percent_off',
         value: 15,
+        // F32 R7: nothing typed is unpriced, which is not a zero.
+        cost: null,
       }),
     )
   })
@@ -272,7 +276,7 @@ describe('changing a reward', () => {
     await user.click(screen.getByTestId('reward-save'))
 
     await waitFor(() =>
-      expect(updateRewardMock).toHaveBeenCalledWith(1, { name: 'Free tea', type: 'free_product' }),
+      expect(updateRewardMock).toHaveBeenCalledWith(1, { name: 'Free tea', type: 'free_product', cost: null }),
     )
   })
 })
@@ -412,7 +416,7 @@ describe('the currency on an amount', () => {
     await user.click(screen.getByTestId('reward-save'))
 
     await waitFor(() =>
-      expect(createRewardMock).toHaveBeenCalledWith({ name: 'Free tea', type: 'free_product' }),
+      expect(createRewardMock).toHaveBeenCalledWith({ name: 'Free tea', type: 'free_product', cost: null }),
     )
   })
 
@@ -435,6 +439,7 @@ describe('the currency on an amount', () => {
         name: 'Fifty off',
         type: 'amount_off',
         value: 50000,
+        cost: null,
       }),
     )
   })
@@ -453,5 +458,62 @@ describe('the currency on an amount', () => {
     await user.click(screen.getByTestId('reward-save'))
 
     expect(await screen.findByText(/Choose one of/)).toBeInTheDocument()
+  })
+})
+
+/** F32 R1, R4, R7: what a reward costs the shop. */
+describe('what a reward costs', () => {
+  /** The blank form, open and ready to type into. */
+  async function openTheForm() {
+    createRewardMock.mockResolvedValue(reward({ id: 2, name: 'Free tea' }))
+
+    const user = userEvent.setup()
+    render(<RewardsModule />)
+    await screen.findByTestId('reward-list')
+
+    await user.click(screen.getByTestId('reward-add'))
+
+    return user
+  }
+
+  it('sends the cost the admin typed', async () => {
+    const user = await openTheForm()
+
+    await user.type(screen.getByTestId('reward-name'), 'Free tea')
+    await user.type(screen.getByTestId('reward-cost-input'), '25000')
+    await user.click(screen.getByTestId('reward-save'))
+
+    await waitFor(() =>
+      expect(createRewardMock).toHaveBeenCalledWith({
+        name: 'Free tea',
+        type: 'free_product',
+        cost: 25000,
+      }),
+    )
+  })
+
+  /** R7. Emptied is unpriced, which is a different fact from zero. */
+  it('sends nothing as unpriced rather than as zero', async () => {
+    const user = await openTheForm()
+
+    await user.type(screen.getByTestId('reward-name'), 'Mystery gift')
+    await user.click(screen.getByTestId('reward-save'))
+
+    await waitFor(() =>
+      expect(createRewardMock).toHaveBeenCalledWith({
+        name: 'Mystery gift',
+        type: 'free_product',
+        cost: null,
+      }),
+    )
+  })
+
+  /** R4. Nothing is handed over, so there is nothing to cost. */
+  it('offers no cost on the losing item', async () => {
+    const user = await openTheForm()
+
+    await user.selectOptions(screen.getByLabelText('Type', { exact: true }), 'nothing')
+
+    expect(screen.queryByTestId('reward-cost-input')).not.toBeInTheDocument()
   })
 })

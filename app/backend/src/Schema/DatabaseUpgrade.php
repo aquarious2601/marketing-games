@@ -128,6 +128,10 @@ final class DatabaseUpgrade
             $this->giveEachGameItsTheme($dryRun),
             $this->dropStoreTheme($dryRun),
             $this->recordWhoClaimed($dryRun),
+            $this->addRewardCost($dryRun),
+            $this->addAverageBasket($dryRun),
+            $this->addSpinRewardCost($dryRun),
+            $this->priceWhatIsAlreadyRecorded($dryRun),
         ];
     }
 
@@ -1877,6 +1881,144 @@ final class DatabaseUpgrade
             $dryRun,
             sprintf('add it, leaving %d claim(s) without an author', $claimed),
             sprintf('added it; %d claim(s) have no author', $claimed),
+        ));
+    }
+
+    /** F32 R1. What a reward costs the shop, beside what it is worth. */
+    private function addRewardCost(bool $dryRun): UpgradeStep
+    {
+        $name = 'a reward carries its cost';
+
+        if (!$this->tableExists('reward')) {
+            return UpgradeStep::skipped($name, 'there is no reward table');
+        }
+
+        if ($this->columnExists('reward', 'cost')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement('ALTER TABLE reward ADD cost INT DEFAULT NULL');
+        }
+
+        /*
+         * Left null for every existing reward, deliberately. Unpriced is not
+         * zero (R7): a catalogue that came back from this upgrade reading
+         * "costs nothing" would make the stats total a campaign as free, and
+         * the admin would have no way to tell a reward they had priced at
+         * zero from one nobody has looked at.
+         */
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            'add it, unpriced',
+            'added it; every reward starts unpriced',
+        ));
+    }
+
+    /** F32 R5. The one figure that lets a percentage become money. */
+    private function addAverageBasket(bool $dryRun): UpgradeStep
+    {
+        $name = 'the store has an average basket';
+        $shop = $this->shopTable();
+
+        if (!$this->tableExists($shop)) {
+            return UpgradeStep::skipped($name, 'there is no store table');
+        }
+
+        if ($this->columnExists($shop, 'average_basket')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                'ALTER TABLE '.$shop.' ADD average_basket INT DEFAULT NULL',
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added it'));
+    }
+
+    /** F32 R8. The snapshot, so a day's figures stop moving. */
+    private function addSpinRewardCost(bool $dryRun): UpgradeStep
+    {
+        $name = 'a spin remembers what it cost';
+
+        if (!$this->tableExists('spin')) {
+            return UpgradeStep::skipped($name, 'there is no spin table');
+        }
+
+        if ($this->columnExists('spin', 'reward_cost')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                'ALTER TABLE spin ADD reward_cost INT DEFAULT NULL',
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added it'));
+    }
+
+    /**
+     * F32 R11. Prices the wins already recorded, once, from the catalogue as
+     * it stands right now.
+     *
+     * A best effort, and the report says how many it could not reach. The
+     * honest alternative — leaving every existing win unpriced — makes the
+     * stats useless on the day they ship for a shop that has been running
+     * the game for weeks, which is every shop that wants them.
+     *
+     * Only ever rows that are still null (R9, R10), so a second run prices
+     * nothing again and a cost corrected afterwards is never overwritten by
+     * a later upgrade.
+     *
+     * The percentage case is left alone here. Its cost depends on the
+     * average basket, which this upgrade has only just given the store and
+     * which nobody has filled in yet; pricing it from a null basket would
+     * write zeros.
+     */
+    private function priceWhatIsAlreadyRecorded(bool $dryRun): UpgradeStep
+    {
+        $name = "what the wins already recorded cost";
+
+        if (!$this->columnExists('spin', 'reward_cost') || !$this->columnExists('reward', 'cost')) {
+            if ($dryRun) {
+                return UpgradeStep::done($name, 'would price what it can, after the steps above');
+            }
+
+            return UpgradeStep::skipped($name, 'there is nothing to price yet');
+        }
+
+        $unpriced = (int) $this->connection->fetchOne(
+            "SELECT COUNT(*) FROM spin WHERE reward_cost IS NULL AND reward_type <> 'nothing'",
+        );
+
+        if (0 === $unpriced) {
+            return UpgradeStep::skipped($name, 'every win already has a cost or has none to have');
+        }
+
+        /*
+         * Matched through the prize's reward and the gift's reward, because
+         * a spin keeps a snapshot rather than a pointer at the catalogue
+         * (F02 R10): the name is all the two have in common, and the name is
+         * unique (F13 R4).
+         */
+        $priced = 0;
+
+        if (!$dryRun) {
+            $priced = (int) $this->connection->executeStatement(
+                'UPDATE spin s '
+                .'JOIN reward r ON r.name = s.prize_name '
+                ."SET s.reward_cost = r.cost "
+                ."WHERE s.reward_cost IS NULL AND s.reward_type <> 'nothing' AND r.cost IS NOT NULL",
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            sprintf('price what it can of %d win(s)', $unpriced),
+            sprintf('priced %d of %d win(s); the rest stay unpriced', $priced, $unpriced),
         ));
     }
 

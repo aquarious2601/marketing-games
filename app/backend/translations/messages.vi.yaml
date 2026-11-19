@@ -95,6 +95,8 @@ reward:
     amount_too_small: 'Số tiền phải ít nhất là %min%.'
     amount_too_large: 'Số tiền không được vượt quá %max%.'
     value_not_allowed: 'Loại phần thưởng này không nhận giá trị.'
+    cost_invalid: 'Chi phí phải là số tiền nguyên và không được âm.'
+    cost_not_allowed: 'Ô không trúng không tốn gì để trao, nên không nhận chi phí.'
     in_use: 'Phần thưởng này đang nằm trên vòng quay: %slices%. Hãy trỏ các ô đó sang phần thưởng khác trước.'
     not_found: 'Phần thưởng đó không tồn tại.'
 
@@ -102,6 +104,7 @@ spin:
     not_claimable: 'Lượt quay không trúng thì không thể nhận thưởng.'
 
 store:
+    basket_invalid: 'Giỏ hàng trung bình phải là số tiền nguyên và không được âm.'
     language_invalid: 'Hãy chọn một trong các ngôn ngữ của trò chơi.'
     timezone_invalid: 'Máy chủ không nhận ra múi giờ này.'
 
@@ -129,3 +132,9 @@ sheet:
     reward_unknown: 'Phần thưởng này không còn tồn tại.'
     no_losing_reward: 'Danh sách tặng mọi thứ trong đó, nên không thể có phần thưởng "không trúng".'
     reward_twice: 'Phần thưởng này đã có trong danh sách.'
+
+stats:
+    range_invalid: 'Không đọc được khoảng ngày đó.'
+    day_invalid: 'Ngày phải viết theo dạng YYYY-MM-DD.'
+    from_after_to: 'Ngày đầu không thể sau ngày cuối.'
+    range_too_long: 'Khoảng thời gian không được dài hơn %max% ngày.'

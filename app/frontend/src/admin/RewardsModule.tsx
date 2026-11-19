@@ -271,6 +271,9 @@ function RewardEditor({
           name: reward.name,
           type: reward.type,
           ...(reward.value !== null ? { value: reward.value } : {}),
+          // F32 R7: null is unpriced, and stays null rather than becoming a
+          // zero the admin never typed.
+          cost: reward.cost,
         },
   )
   const [saving, setSaving] = useState(false)
@@ -295,6 +298,15 @@ function RewardEditor({
     const payload: RewardDraft = takesValue(draft.type)
       ? { name: draft.name, type: draft.type, value: draft.value ?? 0 }
       : { name: draft.name, type: draft.type }
+
+    /*
+     * F32 R1, R4. Sent for every type except the losing one, which the
+     * server refuses a cost on rather than ignoring — nothing is handed
+     * over, so nothing is spent.
+     */
+    if (draft.type !== 'nothing') {
+      payload.cost = draft.cost ?? null
+    }
 
     /*
      * F27 R16. No currency goes up any more. F15 R9 had an amount-off save
@@ -428,6 +440,42 @@ function RewardEditor({
             )}
             {takesCurrency(draft.type) && (
               <p className="mt-1 text-xs text-slate-500">{t('rewards.currencyHint')}</p>
+            )}
+          </div>
+        )}
+
+        {/* F32 R1. What the shop spends, which is a different fact from
+            what the customer saves above — and the only one the stats can
+            add up. Offered for every type but the losing one (R4). */}
+        {draft.type !== 'nothing' && (
+          <div>
+            <label htmlFor="reward-cost" className={labelClass}>
+              {t('rewards.cost')} ({symbolFor(currencies, currency)})
+            </label>
+            <input
+              id="reward-cost"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={draft.cost ?? ''}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  // R7: emptied is unpriced, not zero.
+                  cost: event.target.value === '' ? null : Number(event.target.value),
+                }))
+              }
+              aria-invalid={problem('cost') !== undefined}
+              data-testid="reward-cost-input"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              {draft.type === 'percent_off' ? t('rewards.costHintPercent') : t('rewards.costHint')}
+            </p>
+            {problem('cost') !== undefined && (
+              <p role="alert" className="mt-1 text-xs text-rose-600">
+                {problem('cost')}
+              </p>
             )}
           </div>
         )}

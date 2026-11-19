@@ -75,6 +75,22 @@ class Store
     #[ORM\Column(length: 64, options: ['default' => 'UTC'])]
     private string $timezone = 'UTC';
 
+    /**
+     * F32 R5, R6. What a customer typically spends, in the store's
+     * currency.
+     *
+     * It exists for one purpose: a percentage reward is a percentage of
+     * *something*, and without this there is nothing to take a percentage
+     * of. Null means a percentage cannot be priced, which the stats
+     * report as unpriced rather than as free.
+     *
+     * Deliberately not multiplied by anything else. Customers times the
+     * basket would read as revenue brought in, and this database does not
+     * know what anybody bought (F32 section 13).
+     */
+    #[ORM\Column(name: 'average_basket', type: 'integer', nullable: true)]
+    private ?int $averageBasket = null;
+
     #[ORM\Column(name: 'updated_at')]
     private \DateTimeImmutable $updatedAt;
 
@@ -173,6 +189,18 @@ class Store
     }
 
     /** F27 R15. Never null: see the property. */
+    /** F32 R5. Null when nothing has been typed: see the property. */
+    public function getAverageBasket(): ?int
+    {
+        return $this->averageBasket;
+    }
+
+    public function setAverageBasket(?int $averageBasket): void
+    {
+        $this->averageBasket = $averageBasket;
+        $this->touch();
+    }
+
     public function getTimezone(): string
     {
         return $this->timezone;

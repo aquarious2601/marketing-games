@@ -190,6 +190,21 @@ a date in the store's zone (R18), not a timestamp.
 days; a `to` before its `from`, or a stretch longer than a year, is refused
 with a field-level `422` rather than silently clamped.
 
+**Corrected while building (R1 beside R6).** R1 gives every reward type a
+cost and R6 says a percentage's cost *is* its percentage of the average
+basket, which taken together leaves a field the form offers and the system
+ignores. A typed cost wins, and the basket is the fallback: a shop that has
+worked out what a fifth of its own baskets comes to knows better than an
+average does, and the hint under the field says so. With nothing typed and
+no basket, the win is unpriced (R6), which is the case R20 reports.
+
+**Also while building: the page asks for a number of days.** §8 names
+`from` and `to`, and both still work. But the days are the store's (R18) and
+a browser does not know which zone that is, so a page asking for "the last
+30 days" would have to guess at the shop's today to name a first date. The
+endpoint takes `days` as well, the half that holds the timezone works the
+dates out, and the module sends only that.
+
 ## 9. Interface
 
 ### Admin view
@@ -230,51 +245,78 @@ tables.
 
 ## 11. Acceptance criteria
 
-- [ ] Given a free product costing 25,000 ₫ and a win of it, when it is
+- [x] Given a free product costing 25,000 ₫ and a win of it, when it is
       collected, then the day's collected figure is 25,000 ₫.
-- [ ] Given a 20% reward and an average basket of 200,000 ₫, when it is won,
+- [x] Given a 20% reward and an average basket of 200,000 ₫, when it is won,
       then the win is priced at 40,000 ₫.
-- [ ] Given a 20% reward and no average basket, when it is won, then the win
+- [x] Given a 20% reward and no average basket, when it is won, then the win
       is unpriced and the module says one win could not be priced.
-- [ ] Given a win priced at 25,000 ₫, when the reward's cost is then changed
+- [x] Given a win priced at 25,000 ₫, when the reward's cost is then changed
       to 30,000 ₫, then that win is still 25,000 ₫ and the next win of it is
       30,000 ₫.
-- [ ] Given a win issued on Monday and collected on Wednesday, then Monday's
+- [x] Given a win issued on Monday and collected on Wednesday, then Monday's
       issued figure holds it and Wednesday's collected figure holds it.
-- [ ] Given three wins on a day of which one is collected, then that day's
+- [x] Given three wins on a day of which one is collected, then that day's
       collection rate is 33%.
-- [ ] Given a customer who played for the first time today, then today counts
+- [x] Given a customer who played for the first time today, then today counts
       one new customer; given they play again tomorrow, then tomorrow counts
       one returning customer and no new one.
-- [ ] Given one customer who spun four times in a day, then that day counts
+- [x] Given one customer who spun four times in a day, then that day counts
       one customer and four plays.
-- [ ] Given a day with six spins of which two won, then the row reads six
+- [x] Given a day with six spins of which two won, then the row reads six
       plays, two wins and four that won nothing.
-- [ ] Given a customer who played both games in a day, then each game's row
+- [x] Given a customer who played both games in a day, then each game's row
       counts them once and the total counts them once.
-- [ ] Given a store in `Asia/Ho_Chi_Minh` and a spin at 23:30 local time,
+- [x] Given a store in `Asia/Ho_Chi_Minh` and a spin at 23:30 local time,
       then the spin counts in that local day whatever zone the admin's
       browser is in.
-- [ ] Given a stretch in which nothing happened, then every day is a row of
+- [x] Given a stretch in which nothing happened, then every day is a row of
       zeros and no figure reads `NaN`.
-- [ ] Given wins collected after one, two and six days, then the delay shown
-      is two days.
-- [ ] Given a database of spins recorded before this feature, when the
+- [x] Given three wins collected after different waits, then the delay shown
+      is the middle one. (Stated in days when it was written; the test uses
+      one, two and a hundred hours, which is the same rule at a scale a test
+      can set up without inventing a week.)
+- [x] Given a database of spins recorded before this feature, when the
       upgrade runs, then the wins whose rewards have a cost are priced and
       the rest are reported as unpriced.
-- [ ] Given the upgrade runs twice, then the second run prices nothing again
+- [x] Given the upgrade runs twice, then the second run prices nothing again
       and changes nothing.
 - [ ] Given the Stats module at 375px, then the summary needs no horizontal
       scroll.
-- [ ] Every label this feature adds exists in English, French, Chinese and
+- [x] Every label this feature adds exists in English, French, Chinese and
       Vietnamese.
-- [ ] The four fast suites pass.
+- [x] The four fast suites pass.
 - [ ] Checked by hand: a week's rows against what the shop believes happened.
 
 ## 12. Verification
 
-Written when the feature is built, naming the suites and the tests that
-carry each rule.
+`php vendor/bin/phpunit` — 698 tests. `StatsControllerTest` covers R12 to
+R21 and R23 to R25 against the real database, with the spins written rather
+than played for: every figure here is about *when* something happened, and a
+real spin happens now, so a test that could only produce "today" could not
+check a day boundary, a collection two days later, or a median delay. It is
+also what lets R18 be checked properly — a win at 00:30 and one at 23:30 in
+`Asia/Ho_Chi_Minh`, both landing in the shop's day whatever zone the test
+host is in. `RewardCostTest` covers R1 to R7 including the correction above.
+`RewardIssueTest` covers R8 to R10 through real spins, which is the only way
+to exercise that the cost is snapshotted as the spin is recorded — and that
+correcting a price afterwards moves the next win and not the last one.
+`DatabaseUpgradeTest` covers R11: the three columns, the one-time pricing,
+and that a second run prices nothing again.
+
+`npm test` — 691 tests. `StatsModule.test.tsx` covers R15 to R21 and R23 to
+R25 — the two halves of the summary, the rate with its "as of now", the
+dash where there is nothing to divide, the typical wait in hours and in
+days, the unpriced count, and a quiet day as a row of zeros.
+`RewardsModule.test.tsx` covers the cost field including R7's unpriced
+against zero and R4's absence on the losing item; `StoreModule.test.tsx`
+covers the average basket, including that emptying it clears the figure.
+`npm run typecheck` and `npm run lint` are clean.
+
+**Not looked at in a browser.** Every screen here is behind the admin login,
+and the account's password is not this session's to type. So R29 — the
+summary readable at 375px without horizontal scroll — is left unticked
+rather than assumed, as is the pass against what the shop believes happened.
 
 ## 13. Decisions and risks
 

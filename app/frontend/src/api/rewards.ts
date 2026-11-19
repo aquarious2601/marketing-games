@@ -11,6 +11,12 @@ export interface Reward {
   type: RewardType
   /** Null for a free product and for nothing (F13 R3). */
   value: number | null
+  /**
+   * F32 R1, R7. What handing one over costs the shop, or null for unpriced
+   * — which is not zero: a reward that genuinely costs nothing is a zero
+   * somebody typed, and the stats count the unpriced ones separately.
+   */
+  cost: number | null
   createdAt: string
   /**
    * The labels of the slices using this reward (F13 R6).
@@ -41,6 +47,8 @@ export interface RewardDraft {
   type: RewardType
   /** Omitted for the types that take none; sending one is rejected (F13 R3). */
   value?: number
+  /** F32 R1. Null clears it back to unpriced; omitted does the same. */
+  cost?: number | null
   /**
    * F15 R9: the campaign's currency, saved with the amount it counts.
    *
