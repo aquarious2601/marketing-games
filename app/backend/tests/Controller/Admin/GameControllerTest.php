@@ -62,14 +62,19 @@ final class GameControllerTest extends DatabaseWebTestCase
         );
     }
 
-    /** F27 R41: the whole URL, because the whole URL is what gets printed. */
-    public function testEachGameCarriesItsWholeLink(): void
+    /**
+     * F27 R41: the path, which the page turns into the whole URL.
+     *
+     * Not the whole URL from here: the API answers on its own host, and in
+     * development that is not the host the app is served from.
+     */
+    public function testEachGameCarriesItsLink(): void
     {
         $this->client->request('GET', self::URI);
 
         $game = $this->decodeResponse()['games'][0];
 
-        self::assertSame('http://localhost/play/'.$game['linkKey'], $game['playUrl']);
+        self::assertSame('/play/'.$game['linkKey'], $game['playPath']);
     }
 
     // --------------------------------------------------------- creating one

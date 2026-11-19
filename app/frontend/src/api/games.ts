@@ -18,8 +18,14 @@ export interface GameSummary {
   /** F27 R29. Null means no limit. */
   dailyLimit: number | null
   linkKey: string
-  /** F27 R41. The whole URL, because what gets copied goes on a poster. */
-  playUrl: string
+  /**
+   * F27 R41. The path, not the whole URL.
+   *
+   * The server cannot know where the page is served from — in development
+   * it is not even the same host — so the page puts its own origin in front
+   * of this. `playUrlOf` below is the one place that does it.
+   */
+  playPath: string
   isLive: boolean
   plays: number
   /**

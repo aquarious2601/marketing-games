@@ -105,7 +105,7 @@ export function GamesModule() {
 
   const onCopy = async (game: GameSummary) => {
     try {
-      await navigator.clipboard.writeText(game.playUrl)
+      await navigator.clipboard.writeText(playUrlOf(game))
       setCopied(game.id)
     } catch {
       // Copying is a convenience; the whole URL is on screen either way.
@@ -196,7 +196,7 @@ export function GamesModule() {
                         data-testid={`game-${game.id}-link`}
                         className="rounded bg-slate-50 px-2 py-1 text-xs text-slate-700"
                       >
-                        {game.playUrl}
+                        {playUrlOf(game)}
                       </code>
                       <button
                         type="button"
@@ -298,6 +298,18 @@ export function GamesModule() {
       )}
     </>
   )
+}
+
+/**
+ * F27 R41. The whole URL an admin copies, built from the page's own origin.
+ *
+ * Here rather than on the server, which answers from wherever the API is
+ * served and in development is a different host entirely (the API on
+ * 127.0.0.1:8000, the app on localhost:5173) — so the link it built pointed
+ * at the API and did not resolve.
+ */
+function playUrlOf(game: GameSummary): string {
+  return `${window.location.origin}${game.playPath}`
 }
 
 const headingClass = 'mb-4 text-xl font-semibold text-slate-900'
