@@ -58,6 +58,8 @@ export interface LoggedSpin {
   claimable: boolean
   /** F13 R21: null until somebody at the counter says otherwise. */
   claimedAt: string | null
+  /** F27 R44: which promotion this row came from, by name. */
+  game: string
   /**
    * Null for an anonymous spin (F09 R15) — one from before F08, or one whose
    * player has been deleted. The spin still happened and the prize still
@@ -70,6 +72,8 @@ export interface SpinLog {
   spins: LoggedSpin[]
   /** As above: how many match, not how many came back (F09 R16). */
   total: number
+  /** F27 R44: the games to filter by, so the page needs no second call. */
+  games: Array<{ id: number; name: string }>
 }
 
 /**
@@ -97,10 +101,25 @@ export async function setSpinClaimed(
  * F16 R7. `search`, not `phone`: the one box takes a phone number or a
  * reward code, and the server decides which of the two it was given.
  */
-export async function fetchSpinLog(search: string, options?: RequestOptions): Promise<SpinLog> {
-  const query = search.trim() === '' ? '' : `?search=${encodeURIComponent(search.trim())}`
+/** F27 R44. `game` is a game's id, or null for every game. */
+export async function fetchSpinLog(
+  search: string,
+  game: number | null = null,
+  options?: RequestOptions,
+): Promise<SpinLog> {
+  const parameters = new URLSearchParams()
 
-  return apiGet<SpinLog>(`/admin/spins${query}`, options)
+  if (search.trim() !== '') {
+    parameters.set('search', search.trim())
+  }
+
+  if (game !== null) {
+    parameters.set('game', String(game))
+  }
+
+  const query = parameters.toString()
+
+  return apiGet<SpinLog>(`/admin/spins${query === '' ? '' : `?${query}`}`, options)
 }
 
 export interface PlayerHistory {

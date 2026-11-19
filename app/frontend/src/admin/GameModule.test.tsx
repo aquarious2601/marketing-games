@@ -2,7 +2,9 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { StrictMode } from 'react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ApiError, ApiValidationError } from '../api/client'
+import { fetchGame, fetchGames } from '../api/games'
 import { fetchRewards } from '../api/rewards'
 import { fetchWheel, saveWheel, type WheelConfiguration } from '../games/wheel/api'
 import { GameModule } from './GameModule'
@@ -17,6 +19,27 @@ vi.mock('../games/wheel/api', async (importOriginal) => ({
   fetchWheel: vi.fn(),
   saveWheel: vi.fn(),
 }))
+
+vi.mock('../api/games', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/games')>()),
+  fetchGame: vi.fn(),
+  fetchGames: vi.fn(),
+}))
+
+/** F27 R38: the game this editor is for, as the server reports it. */
+const GAME = {
+  id: 1,
+  name: 'Test campaign',
+  type: 'wheel',
+  ownTagline: null,
+  defaultTagline: 'One spin, one prize. Good luck.',
+  dailyLimit: null,
+  linkKey: 'q7mfd2xkbnrt',
+  playUrl: 'http://localhost/play/q7mfd2xkbnrt',
+  isLive: true,
+  plays: 0,
+  notReady: null,
+}
 
 
 const REWARDS = [
@@ -34,6 +57,8 @@ const REWARD_TYPES = [
 
 const fetchRewardsMock = vi.mocked(fetchRewards)
 const fetchWheelMock = vi.mocked(fetchWheel)
+const fetchGameMock = vi.mocked(fetchGame)
+const fetchGamesMock = vi.mocked(fetchGames)
 const saveWheelMock = vi.mocked(saveWheel)
 
 /**
@@ -78,11 +103,29 @@ beforeEach(() => {
   fetchWheelMock.mockReset()
   saveWheelMock.mockReset()
   fetchWheelMock.mockResolvedValue(configuration())
+  fetchGameMock.mockReset()
+  fetchGamesMock.mockReset()
+  fetchGameMock.mockResolvedValue(GAME)
+  fetchGamesMock.mockResolvedValue({ games: [GAME], types: [{ value: 'wheel', label: 'Prize wheel' }], maxDailyLimit: 99 })
 })
+
+/**
+ * F27 R38. The editor takes its game from the URL, so every render needs a
+ * route to take it from.
+ */
+function renderEditor() {
+  return render(
+    <MemoryRouter initialEntries={['/admin/games/1']}>
+      <Routes>
+        <Route path="/admin/games/:id" element={<GameModule />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
 async function renderAdmin() {
   const user = userEvent.setup()
-  render(<GameModule />)
+  renderEditor()
   await screen.findByRole('heading', { level: 1 })
 
   return user
@@ -113,13 +156,13 @@ function total(): HTMLElement {
 }
 
 function saveButton(): HTMLButtonElement {
-  return screen.getByRole('button', { name: /^save$/i })
+  return screen.getByTestId('save-wheel')
 }
 
 describe('loading', () => {
   it('shows a loading state, then the wheel', async () => {
     fetchWheelMock.mockReturnValue(new Promise(() => {}))
-    render(<GameModule />)
+    renderEditor()
 
     expect(screen.getByRole('status')).toHaveTextContent(/loading/i)
   })
@@ -138,7 +181,11 @@ describe('loading', () => {
   it('renders no name input on a row', async () => {
     await renderAdmin()
 
-    expect(screen.queryByLabelText(/name$/i)).not.toBeInTheDocument()
+    // Scoped to a row since F27: the game itself has a name field now, and
+    // what F26 took away was the one on each slice.
+    expect(
+      within(screen.getAllByTestId('prize-row')[0]).queryByLabelText(/name$/i),
+    ).not.toBeInTheDocument()
   })
 
   /**
@@ -201,7 +248,11 @@ describe('loading', () => {
 
     render(
       <StrictMode>
-        <GameModule />
+        <MemoryRouter initialEntries={['/admin/games/1']}>
+          <Routes>
+            <Route path="/admin/games/:id" element={<GameModule />} />
+          </Routes>
+        </MemoryRouter>
       </StrictMode>,
     )
 
@@ -216,7 +267,7 @@ describe('loading', () => {
   it('offers a retry on failure and shows no editable form', async () => {
     fetchWheelMock.mockRejectedValue(new ApiError('nope', 500))
     const user = userEvent.setup()
-    render(<GameModule />)
+    renderEditor()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
     expect(screen.queryByTestId('prize-row')).not.toBeInTheDocument()
@@ -419,6 +470,8 @@ describe('saving', () => {
 
     await waitFor(() =>
       expect(saveWheelMock).toHaveBeenCalledWith(
+        // F27 R40: one wheel per game, so the save says which game's.
+        1,
         [
           // F13 R7: every slice says what it gives away. F26 R12: and that
           // is the whole of it — no name goes up.

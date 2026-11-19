@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Admin;
 
 use App\Branding\LogoStore;
-use App\Entity\Branding;
+use App\Entity\Store;
 use App\Tests\Support\DatabaseWebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * F04 through the kernel, the database and the filesystem.
  */
-final class BrandingControllerTest extends DatabaseWebTestCase
+final class StoreControllerTest extends DatabaseWebTestCase
 {
     protected function setUp(): void
     {
@@ -23,8 +23,8 @@ final class BrandingControllerTest extends DatabaseWebTestCase
         $this->signInAsAdmin();
     }
 
-    private const URI = '/api/admin/branding';
-    private const LOGO_URI = '/api/admin/branding/logo';
+    private const URI = '/api/admin/store';
+    private const LOGO_URI = '/api/admin/store/logo';
 
     /** @var list<string> */
     private array $temporaryFiles = [];
@@ -51,12 +51,11 @@ final class BrandingControllerTest extends DatabaseWebTestCase
 
         self::assertResponseIsSuccessful();
 
-        $branding = $this->decodeResponse();
+        $store = $this->decodeResponse();
 
-        self::assertNull($branding['companyName']);
-        self::assertNull($branding['campaignName']);
-        self::assertSame('plain', $branding['theme']);
-        self::assertNull($branding['logoUrl']);
+        self::assertNull($store['companyName']);
+        self::assertSame('plain', $store['theme']);
+        self::assertNull($store['logoUrl']);
     }
 
     /** F04 R7 */
@@ -74,42 +73,38 @@ final class BrandingControllerTest extends DatabaseWebTestCase
 
     // ------------------------------------------------------------- saving
 
-    public function testItSavesTheNamesAndTheTheme(): void
+    public function testItSavesTheCompanyNameAndTheTheme(): void
     {
         $this->put(self::URI, [
             'companyName' => 'AA Store',
-            'campaignName' => 'Black Friday Giveaway',
             'theme' => 'black-friday',
         ]);
 
         self::assertResponseIsSuccessful();
 
         $this->client->request('GET', self::URI);
-        $branding = $this->decodeResponse();
+        $store = $this->decodeResponse();
 
-        self::assertSame('AA Store', $branding['companyName']);
-        self::assertSame('Black Friday Giveaway', $branding['campaignName']);
-        self::assertSame('black-friday', $branding['theme']);
+        self::assertSame('AA Store', $store['companyName']);
+        self::assertSame('black-friday', $store['theme']);
     }
 
     /** F04 R2, R3 — trimmed, and empty means unset */
-    public function testItTrimsNamesAndStoresBlanksAsUnset(): void
+    public function testItTrimsTheCompanyNameAndStoresBlankAsUnset(): void
     {
         $this->put(self::URI, [
             'companyName' => '   AA Store   ',
-            'campaignName' => '    ',
             'theme' => 'plain',
         ]);
 
         self::assertResponseIsSuccessful();
 
-        $branding = $this->decodeResponse();
-        self::assertSame('AA Store', $branding['companyName']);
-        self::assertNull($branding['campaignName']);
+        $store = $this->decodeResponse();
+        self::assertSame('AA Store', $store['companyName']);
     }
 
     /** F04 R4 */
-    public function testItAcceptsBrandingWithNoNamesAtAll(): void
+    public function testItAcceptsAStoreWithNoCompanyNameAtAll(): void
     {
         $this->put(self::URI, ['theme' => 'christmas']);
 
@@ -120,206 +115,8 @@ final class BrandingControllerTest extends DatabaseWebTestCase
 
     // ------------------------------------------------------------ tagline
 
-    /** F04 R28 */
-    public function testTheDefaultTaglineIsUsedUntilTheAdminSetsOne(): void
-    {
-        $this->client->request('GET', self::URI);
-        $branding = $this->decodeResponse();
-
-        self::assertSame('One spin, one prize. Good luck.', $branding['tagline']);
-        self::assertNull($branding['ownTagline'], 'The admin has not chosen one.');
-        self::assertSame('One spin, one prize. Good luck.', $branding['defaultTagline']);
-    }
-
-    public function testItSavesATagline(): void
-    {
-        $this->put(self::URI, ['tagline' => 'Spin for a treat!', 'theme' => 'halloween']);
-
-        self::assertResponseIsSuccessful();
-
-        $this->client->request('GET', self::URI);
-        $branding = $this->decodeResponse();
-
-        self::assertSame('Spin for a treat!', $branding['tagline']);
-        self::assertSame('Spin for a treat!', $branding['ownTagline']);
-    }
-
-    public function testClearingTheTaglineReturnsToTheDefault(): void
-    {
-        $this->put(self::URI, ['tagline' => 'Spin for a treat!', 'theme' => 'plain']);
-        $this->put(self::URI, ['tagline' => '   ', 'theme' => 'plain']);
-
-        self::assertResponseIsSuccessful();
-
-        $this->client->request('GET', self::URI);
-        $branding = $this->decodeResponse();
-
-        self::assertNull($branding['ownTagline']);
-        self::assertSame('One spin, one prize. Good luck.', $branding['tagline']);
-    }
-
-    public function testItTrimsTheTagline(): void
-    {
-        $this->put(self::URI, ['tagline' => '  Spin for a treat!  ', 'theme' => 'plain']);
-
-        self::assertSame('Spin for a treat!', $this->decodeResponse()['tagline']);
-    }
-
-    public function testItRejectsATaglineOver120Characters(): void
-    {
-        $this->put(self::URI, ['tagline' => str_repeat('a', 121), 'theme' => 'plain']);
-
-        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
-        self::assertSame('tagline', $this->decodeResponse()['error']['violations'][0]['field']);
-    }
-
-    public function testItAcceptsATaglineOfExactly120Characters(): void
-    {
-        $this->put(self::URI, ['tagline' => str_repeat('a', 120), 'theme' => 'plain']);
-
-        self::assertResponseIsSuccessful();
-    }
-
-    /** The tagline reaches the player, who needs no admin request to get it. */
-    public function testTheTaglineReachesThePlayer(): void
-    {
-        $this->put(self::URI, ['tagline' => 'Spin for a treat!', 'theme' => 'plain']);
-
-        $this->client->request('GET', '/api/wheel');
-
-        self::assertSame('Spin for a treat!', $this->decodeResponse()['branding']['tagline']);
-    }
-
         /** F04 R12 */
     // ------------------------------------------- F23: spins per day
-
-    /** F23 R1: a campaign arrives with no limit, as every campaign has. */
-    public function testACampaignStartsWithNoDailySpinLimit(): void
-    {
-        $this->client->request('GET', self::URI);
-
-        self::assertNull($this->decodeResponse()['dailySpinLimit']);
-    }
-
-    /** F23 R20 */
-    public function testItSavesADailySpinLimit(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => 3]);
-
-        self::assertResponseIsSuccessful();
-
-        $this->client->request('GET', self::URI);
-        self::assertSame(3, $this->decodeResponse()['dailySpinLimit']);
-    }
-
-    /** What a number input actually posts when somebody types in it. */
-    public function testItAcceptsTheLimitAsAString(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => '5']);
-
-        self::assertResponseIsSuccessful();
-
-        $this->client->request('GET', self::URI);
-        self::assertSame(5, $this->decodeResponse()['dailySpinLimit']);
-    }
-
-    /** F23 R1: and what it posts when somebody clears it. */
-    public function testAnEmptyStringClearsTheLimit(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => 4]);
-        $this->put(self::URI, ['dailySpinLimit' => '']);
-
-        self::assertResponseIsSuccessful();
-
-        $this->client->request('GET', self::URI);
-        self::assertNull($this->decodeResponse()['dailySpinLimit']);
-    }
-
-    public function testNullClearsTheLimit(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => 4]);
-        $this->put(self::URI, ['dailySpinLimit' => null]);
-
-        $this->client->request('GET', self::URI);
-        self::assertNull($this->decodeResponse()['dailySpinLimit']);
-    }
-
-    /**
-     * F23 R1. The same rule the currency has (F13 R27), and for a sharper
-     * reason: without it, the first save from any client that predates this
-     * field would quietly unlimit the campaign.
-     */
-    public function testOmittingTheLimitLeavesItAlone(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => 7]);
-        $this->put(self::URI, ['campaignName' => 'Spring']);
-
-        $this->client->request('GET', self::URI);
-        self::assertSame(7, $this->decodeResponse()['dailySpinLimit']);
-    }
-
-    /**
-     * F23 R4. Zero is a mistake in a number field, not an instruction to
-     * close the campaign.
-     */
-    public function testItRejectsALimitOfZero(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => 4]);
-        $this->put(self::URI, ['dailySpinLimit' => 0]);
-
-        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
-        self::assertSame('dailySpinLimit', $this->decodeResponse()['error']['violations'][0]['field']);
-
-        $this->client->request('GET', self::URI);
-        self::assertSame(4, $this->decodeResponse()['dailySpinLimit'], 'Nothing should have been stored.');
-    }
-
-    /** F23 R4: and the ceiling that keeps the column a SMALLINT. */
-    public function testItRejectsALimitOverNinetyNine(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => 100]);
-
-        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
-        self::assertSame('dailySpinLimit', $this->decodeResponse()['error']['violations'][0]['field']);
-    }
-
-    public function testItAcceptsALimitOfExactlyNinetyNine(): void
-    {
-        $this->put(self::URI, ['dailySpinLimit' => 99]);
-
-        self::assertResponseIsSuccessful();
-    }
-
-    public function testItRejectsALimitThatIsNotANumber(): void
-    {
-        foreach (['three', '3.5', -1, 2.5, true] as $value) {
-            $this->put(self::URI, ['dailySpinLimit' => $value]);
-
-            self::assertResponseStatusCodeSame(
-                Response::HTTP_UNPROCESSABLE_ENTITY,
-                var_export($value, true).' was accepted as a limit.',
-            );
-        }
-    }
-
-    /** F23 R21: the rest of the section is not saved behind a bad limit. */
-    public function testABadLimitSavesNothingElseEither(): void
-    {
-        $this->put(self::URI, ['campaignName' => 'Spring', 'dailySpinLimit' => 0]);
-
-        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
-
-        $this->client->request('GET', self::URI);
-        self::assertNull($this->decodeResponse()['campaignName']);
-    }
-
-    /** F23 R20: the admin form needs the ceiling to validate against. */
-    public function testItReportsTheCeiling(): void
-    {
-        $this->client->request('GET', self::URI);
-
-        self::assertSame(99, $this->decodeResponse()['maxDailySpinLimit']);
-    }
 
     public function testItRejectsAnUnknownTheme(): void
     {
@@ -359,13 +156,13 @@ final class BrandingControllerTest extends DatabaseWebTestCase
     /** F04 R5 — the two saves must not tread on each other */
     public function testSavingBrandingLeavesThePrizesAlone(): void
     {
-        $this->client->request('GET', '/api/admin/wheel');
+        $this->client->request('GET', $this->wheelUri());
         $before = array_column($this->decodeResponse()['prizes'], 'name');
 
         $this->put(self::URI, ['companyName' => 'AA Store', 'theme' => 'halloween']);
         self::assertResponseIsSuccessful();
 
-        $this->client->request('GET', '/api/admin/wheel');
+        $this->client->request('GET', $this->wheelUri());
         self::assertSame($before, array_column($this->decodeResponse()['prizes'], 'name'));
     }
 
@@ -373,7 +170,7 @@ final class BrandingControllerTest extends DatabaseWebTestCase
     {
         $this->put(self::URI, ['companyName' => 'AA Store', 'theme' => 'halloween']);
 
-        $this->client->request('GET', '/api/admin/wheel');
+        $this->client->request('GET', $this->wheelUri());
         $prizes = array_map(
             static fn (array $p): array => [
                 'id' => $p['id'],
@@ -383,7 +180,7 @@ final class BrandingControllerTest extends DatabaseWebTestCase
             $this->decodeResponse()['prizes'],
         );
 
-        $this->put('/api/admin/wheel', ['prizes' => $prizes]);
+        $this->put($this->wheelUri(), ['prizes' => $prizes]);
         self::assertResponseIsSuccessful();
 
         $this->client->request('GET', self::URI);
@@ -496,10 +293,10 @@ final class BrandingControllerTest extends DatabaseWebTestCase
 
         self::assertResponseIsSuccessful();
 
-        $branding = $this->entityManager->getRepository(Branding::class)->findOneBy([]);
-        self::assertInstanceOf(Branding::class, $branding);
+        $store = $this->entityManager->getRepository(Store::class)->findOneBy([]);
+        self::assertInstanceOf(Store::class, $store);
 
-        $filename = (string) $branding->getLogoFilename();
+        $filename = (string) $store->getLogoFilename();
         self::assertMatchesRegularExpression('/^[0-9a-f]{32}\.png$/', $filename);
         self::assertStringNotContainsString('evil', $filename);
         self::assertStringNotContainsString('..', $filename);
@@ -578,10 +375,10 @@ final class BrandingControllerTest extends DatabaseWebTestCase
     {
         $this->entityManager->clear();
 
-        $branding = $this->entityManager->getRepository(Branding::class)->findOneBy([]);
-        self::assertInstanceOf(Branding::class, $branding);
+        $store = $this->entityManager->getRepository(Store::class)->findOneBy([]);
+        self::assertInstanceOf(Store::class, $store);
 
-        $filename = $branding->getLogoFilename();
+        $filename = $store->getLogoFilename();
         self::assertIsString($filename);
 
         return static::getContainer()->get(LogoStore::class)->pathFor($filename);

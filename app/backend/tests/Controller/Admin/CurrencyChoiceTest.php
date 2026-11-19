@@ -11,13 +11,13 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * F15: choosing the currency, through the kernel.
  *
- * Separate from BrandingControllerTest because what is under test is the
+ * Separate from StoreControllerTest because what is under test is the
  * interaction between the stored choice and the reader's language, and
  * every case here needs a different `Accept-Language`.
  */
 final class CurrencyChoiceTest extends DatabaseWebTestCase
 {
-    private const URI = '/api/admin/branding';
+    private const URI = '/api/admin/store';
 
     /** F15 R2, R8: the selector opens on what the language suggests. */
     #[DataProvider('languagesAndTheirCurrencies')]
@@ -130,12 +130,12 @@ final class CurrencyChoiceTest extends DatabaseWebTestCase
     {
         $this->client->request('GET', '/api/wheel', server: ['HTTP_ACCEPT_LANGUAGE' => 'fr']);
 
-        $branding = $this->decodeResponse()['branding'];
+        $store = $this->decodeResponse()['branding'];
 
-        self::assertSame('EUR', $branding['currency']);
-        self::assertArrayNotHasKey('ownCurrency', $branding);
-        self::assertArrayNotHasKey('defaultCurrency', $branding);
-        self::assertArrayNotHasKey('currencies', $branding);
+        self::assertSame('EUR', $store['currency']);
+        self::assertArrayNotHasKey('ownCurrency', $store);
+        self::assertArrayNotHasKey('defaultCurrency', $store);
+        self::assertArrayNotHasKey('currencies', $store);
     }
 
     private function get(string $language): void

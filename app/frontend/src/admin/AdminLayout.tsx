@@ -39,10 +39,12 @@ export function AdminLayout() {
               key={module.path}
               to={module.path}
               data-testid={`admin-tab-${module.path}`}
-              // `end` is unnecessary here — none of these is a prefix of
-              // another — but it keeps the match exact if a module ever grows
-              // a child route of its own.
-              end
+              /*
+                No `end` since F27: Games has a child route — the editor for
+                one game at /admin/games/:id — and the tab has to stay marked
+                while an admin is inside it. None of the others is a prefix
+                of another, so an exact match buys nothing elsewhere.
+              */
               className={({ isActive }) =>
                 [
                   'border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
@@ -69,8 +71,11 @@ export function AdminLayout() {
 }
 
 /**
- * The modules, in the order they are used: the game is set up once, the
- * players and the log are read every day.
+ * The modules, in the order they are used: the shop is filled in once, its
+ * games are set up and edited, and the last two are read every day.
+ *
+ * Store first because every game inherits it, and because a shop fills it in
+ * before it has a game to run (F27 R10).
  *
  * "Spins" rather than "Activity" or "History" because `spin` is the word the
  * code and the database already use — the spin table, `spunAt`, the spin log
@@ -82,7 +87,8 @@ export function AdminLayout() {
  * things you read.
  */
 const MODULES: ReadonlyArray<{ path: string; label: MessageKey }> = [
-  { path: 'game', label: 'game.title' },
+  { path: 'store', label: 'store.title' },
+  { path: 'games', label: 'games.title' },
   { path: 'rewards', label: 'rewards.title' },
   { path: 'players', label: 'players.title' },
   { path: 'spins', label: 'spins.title' },

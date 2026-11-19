@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { ApiValidationError, type ApiViolation } from '../api/client'
 import { fetchWheel, saveWheel } from '../games/wheel/api'
 import {
@@ -22,7 +23,8 @@ import {
 import { WheelPreview, type PreviewSlice } from '../games/wheel/WheelPreview'
 import { fetchRewards, type Reward } from '../api/rewards'
 import { useT } from '../i18n/I18nContext'
-import { BrandingSection } from './BrandingSection'
+import { fetchGame, fetchGames, type GameSummary } from '../api/games'
+import { GameSettings } from './GameSettings'
 import { PrizeRow } from '../games/wheel/PrizeRow'
 
 type LoadState =
@@ -45,6 +47,15 @@ type LoadState =
  */
 export function GameModule() {
   const t = useT()
+  /*
+   * F27 R38. The game is named by the URL rather than held in state: an
+   * admin arrives here from the list, from a bookmark or from a reload, and
+   * all three have to open the same game.
+   */
+  const { id } = useParams<{ id: string }>()
+  const gameId = Number(id)
+  const [game, setGame] = useState<GameSummary | null>(null)
+  const [maxDailyLimit, setMaxDailyLimit] = useState(99)
   const [load, setLoad] = useState<LoadState>({ phase: 'loading' })
   const [drafts, setDrafts] = useState<DraftPrize[]>([])
   const [saved, setSaved] = useState<DraftPrize[]>([])
@@ -81,9 +92,11 @@ export function GameModule() {
     try {
       // The catalogue comes with the wheel: a slice selector with nothing
       // to select from is not a page worth rendering (F13 R7).
-      const [configuration, catalogue] = await Promise.all([
-        fetchWheel({ signal }),
+      const [configuration, catalogue, loadedGame, index] = await Promise.all([
+        fetchWheel(gameId, { signal }),
         fetchRewards({ signal }),
+        fetchGame(gameId, { signal }),
+        fetchGames({ signal }),
       ])
 
       if (signal?.aborted === true) {
@@ -97,6 +110,8 @@ export function GameModule() {
         catalogue.rewards.find((reward) => reward.type === 'nothing')?.id ?? null
       const initial = pinLosingFirst(fromConfiguration(configuration), losingRewardId)
 
+      setGame(loadedGame)
+      setMaxDailyLimit(index.maxDailyLimit)
       setDrafts(initial)
       setSaved(initial)
       setLosing(configuration.includesLosingSlice)
@@ -112,7 +127,8 @@ export function GameModule() {
       // nothing over a good configuration (F01 section 9, "Load failed").
       setLoad({ phase: 'failed', reason: t('game.loadFailed') })
     }
-  }, [])
+    // gameId, because opening a different game has to load a different one.
+  }, [gameId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -160,7 +176,7 @@ export function GameModule() {
     setServerViolations([])
 
     try {
-      const configuration = await saveWheel(toSubmission(drafts), losing)
+      const configuration = await saveWheel(gameId, toSubmission(drafts), losing)
       const stored = fromConfiguration(configuration)
 
       setDrafts(stored)
@@ -219,16 +235,22 @@ export function GameModule() {
       <header className="mb-6">
         {/* F09 R8: the module's name, once. The prize list and the branding
             are sections within it, each with its own heading. */}
+        {/* F09 R8: one h1, and it names what is being edited rather than
+            the module — with two games, "Game" says nothing. */}
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-          {t('game.title')}
+          {game?.name ?? t('game.title')}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          {t('game.lead')}
+          <Link to="/admin/games" className="underline">
+            {t('game.backToGames')}
+          </Link>
         </p>
       </header>
 
-      {/* Saved separately from the prizes (F04 R5). */}
-      <BrandingSection />
+      {/* Saved separately from the prizes (F04 R5, F27 R40). */}
+      {game !== null && (
+        <GameSettings game={game} maxDailyLimit={maxDailyLimit} onSaved={setGame} />
+      )}
 
       {/*
         F26 R19 to R23: one column at every width. The list takes the whole
@@ -363,6 +385,7 @@ export function GameModule() {
               type="button"
               onClick={() => void onSave()}
               disabled={!validation.isValid || saving || !dirty}
+              data-testid="save-wheel"
               className={primaryButtonClass}
             >
               {saving ? t('common.saving') : t('common.save')}

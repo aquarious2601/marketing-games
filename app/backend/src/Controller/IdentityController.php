@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Dto\PlayerInputParser;
 use App\Dto\Violation;
 use App\Entity\Player;
+use App\Game\GameResolver;
 use App\Player\PlayerPresenter;
 use App\Player\PlayerRegistrar;
 use App\Player\PlayerSession;
@@ -40,6 +41,7 @@ final class IdentityController extends AbstractController
         private readonly PlayerSession $session,
         private readonly PlayerPresenter $presenter,
         private readonly SpinAllowance $allowance,
+        private readonly GameResolver $resolver,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -187,7 +189,19 @@ final class IdentityController extends AbstractController
      */
     private function spinsLeft(?Player $player): ?int
     {
-        return null === $player ? null : $this->allowance->remainingFor($player);
+        $game = $this->resolver->current();
+
+        /*
+         * F27 R30. Null when there is no game to count against, which is
+         * the same answer as "no limit" and the right one: a page with no
+         * game cannot play anything anyway, and the alternative is
+         * inventing an allowance for a promotion nobody is running.
+         */
+        if (null === $player || null === $game) {
+            return null;
+        }
+
+        return $this->allowance->remainingFor($player, $game);
     }
 
     /**

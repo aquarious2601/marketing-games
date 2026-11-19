@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Games\Wheel;
 
+use App\Entity\Game;
 use App\Games\Wheel\Entity\Prize;
 use App\Games\Wheel\Entity\Wheel;
 use App\Games\Wheel\Repository\WheelRepository;
@@ -11,8 +12,9 @@ use App\Reward\RewardProvider;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * Hands out the one wheel, creating a sensible default the first time
- * (F01 R2), so the admin page is never an empty form that cannot be saved.
+ * Hands out a game's wheel, creating a sensible default the first time
+ * (F01 R2), so a newly created wheel game is never an empty form that
+ * cannot be saved.
  */
 final class WheelProvider
 {
@@ -43,15 +45,16 @@ final class WheelProvider
     ) {
     }
 
-    public function getOrCreate(): Wheel
+    public function getOrCreate(Game $game): Wheel
     {
-        $wheel = $this->wheels->findTheWheel();
+        $wheel = $this->wheels->findForGame($game);
 
         if ($wheel instanceof Wheel) {
             return $wheel;
         }
 
         $wheel = new Wheel();
+        $wheel->setGame($game);
         $wheel->setIncludesLosingSlice(true);
 
         $rewards = $this->rewards->defaults();

@@ -1,10 +1,14 @@
 import { apiDelete, apiGet, apiPut, apiUpload, type RequestOptions } from './client'
 
-export interface Branding {
+/**
+ * What every game shows (F27 R2, R10): the shop's own identity.
+ *
+ * This is the half that belongs to the store. What a promotion is called and
+ * what its phrase is belongs to the game (R11) and arrives beside these on
+ * the player's payload — see `Branding` below.
+ */
+export interface StoreBranding {
   companyName: string | null
-  campaignName: string | null
-  /** The effective phrase: the admin's, or the default. Never null. */
-  tagline: string
   theme: string
   /**
    * F13 R27, R28. The code and its symbol travel together, so neither the
@@ -19,6 +23,16 @@ export interface Branding {
   logoUrl: string | null
 }
 
+/**
+ * What the player page reads: the shop's branding with the game's own words
+ * in it, which is the shape this payload has always had (F27 R11).
+ */
+export interface Branding extends StoreBranding {
+  campaignName: string
+  /** The effective phrase: the admin's, or the game type's default. */
+  tagline: string
+}
+
 export interface ThemeOption {
   value: string
   label: string
@@ -30,67 +44,58 @@ export interface CurrencyOption {
   symbol: string
 }
 
-export interface AdminBranding extends Branding {
+/** The Store module's payload (F27 R37). */
+export interface AdminStore extends StoreBranding {
   themes: ThemeOption[]
-  /** F13 R27: the currencies a campaign may be counted in. */
+  /** F13 R27: the currencies a shop may be counted in. */
   currencies: CurrencyOption[]
-  /** What the admin actually set; null means the default is in use. */
-  ownTagline: string | null
-  defaultTagline: string
   /** F15 R4: the chosen currency, or null while nobody has chosen. */
   ownCurrency: string | null
   /** F15 R2: what this admin's language suggests, used only while unchosen. */
   defaultCurrency: string
-  /**
-   * F23 R1, R22. How many spins one person gets per day, or null for no
-   * limit. Admin only — it is deliberately absent from the payload the
-   * player page loads with the wheel.
-   */
-  dailySpinLimit: number | null
-  /** F23 R4: the ceiling, so the form validates against the server's. */
-  maxDailySpinLimit: number
+  /** F27 R17. Null means no choice, and the browser decides as it always has. */
+  language: string | null
+  /** F27 R15. Never null: the upgrade seeded it and the form requires one. */
+  timezone: string
 }
 
 /**
  * The upload response. `notice` is set when sanitising removed something
  * from an SVG (F05 R10) and null when the file came through untouched.
  */
-export interface LogoUpload extends Branding {
+export interface LogoUpload extends StoreBranding {
   notice: string | null
 }
 
-export interface BrandingSubmission {
+export interface StoreSubmission {
   companyName: string
-  campaignName: string
-  tagline: string
   theme: string
-  /** F15 R10. Omitted leaves the campaign's currency alone (F13 R27). */
+  /** F15 R10. Omitted leaves the shop's currency alone (F13 R27). */
   currency?: string
-  /**
-   * F23 R1. Null clears the limit; omitting the key leaves it alone, which
-   * is what stops an older client silently unlimiting a campaign.
-   */
-  dailySpinLimit?: number | null
+  /** F27 R17. Null means "let the browser decide". */
+  language: string | null
+  /** F27 R15. Omitted leaves the shop's clock alone. */
+  timezone?: string
 }
 
-export async function fetchBranding(options?: RequestOptions): Promise<AdminBranding> {
-  return apiGet<AdminBranding>('/admin/branding', options)
+export async function fetchStore(options?: RequestOptions): Promise<AdminStore> {
+  return apiGet<AdminStore>('/admin/store', options)
 }
 
-export async function saveBranding(
-  submission: BrandingSubmission,
+export async function saveStore(
+  submission: StoreSubmission,
   options?: RequestOptions,
-): Promise<Branding> {
-  return apiPut<Branding>('/admin/branding', submission, options)
+): Promise<StoreBranding> {
+  return apiPut<StoreBranding>('/admin/store', submission, options)
 }
 
 export async function uploadLogo(file: File, options?: RequestOptions): Promise<LogoUpload> {
   const form = new FormData()
   form.append('logo', file)
 
-  return apiUpload<LogoUpload>('/admin/branding/logo', form, options)
+  return apiUpload<LogoUpload>('/admin/store/logo', form, options)
 }
 
-export async function removeLogo(options?: RequestOptions): Promise<Branding> {
-  return apiDelete<Branding>('/admin/branding/logo', options)
+export async function removeLogo(options?: RequestOptions): Promise<StoreBranding> {
+  return apiDelete<StoreBranding>('/admin/store/logo', options)
 }

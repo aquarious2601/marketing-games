@@ -233,9 +233,13 @@ is the whole of what a second game is waiting for.
 | `GET` | `/api/wheel` | public | Unchanged shape; the game comes from the session (R27) |
 | `POST` | `/api/spin` | public | Unchanged shape; the game comes from the session |
 
-`GET /api/branding` keeps its path and its shape and now answers from the
-store plus the session's game, so the player page needs no new call to draw
-its header.
+**Corrected while building.** There is no `GET /api/branding` route and never
+was — only `GET /api/branding/logo`. A player's branding has always travelled
+inside `GET /api/wheel`, which is where this feature puts the game's name and
+phrase beside the store's (R11). The payload therefore keeps exactly the shape
+it had, and the player page needs no new call to draw its header. What is new
+is `GET /api/play/{key}`, which answers the same branding plus the game's type
+so a page can tell which game it is about to draw.
 
 ## 9. Interface
 
@@ -296,27 +300,27 @@ is the one thing an admin does there from a phone.
 
 ## 11. Acceptance criteria
 
-- [ ] Given a fresh database, when the upgrade runs, then one store and one live wheel game exist, the game carries today's campaign name, tagline and limit, and the store carries the company name, logo, currency and theme.
+- [x] Given a fresh database, when the upgrade runs, then one store and one live wheel game exist, the game carries today's campaign name, tagline and limit, and the store carries the company name, logo, currency and theme.
 - [ ] Given an installation upgraded from today's data, when a player opens `/`, then they see exactly what they saw before the upgrade.
-- [ ] Given the upgrade has run, when it is run again, then every step reports itself already done and nothing changes.
-- [ ] Given `APP_TIMEZONE=Europe/Paris` before the upgrade, when it runs, then the store's timezone is `Europe/Paris`, and removing the variable afterwards changes no behaviour.
+- [x] Given the upgrade has run, when it is run again, then every step reports itself already done and nothing changes.
+- [x] Given `APP_TIMEZONE=Europe/Paris` before the upgrade, when it runs, then the store's timezone is `Europe/Paris`, and removing the variable afterwards changes no behaviour.
 - [ ] Given a store whose timezone is `Asia/Ho_Chi_Minh`, when a player spins at 23:30 UTC, then the spin counts towards the next day's allowance.
-- [ ] Given two games are live, when a player opens each link, then each shows its own name, tagline and prizes, and both show the store's logo and company name.
+- [x] Given two games are live, when a player opens each link, then each shows its own name, tagline and prizes, and both show the store's logo and company name.
 - [ ] Given two games are live, when a player uses up the wheel's daily limit, then the gift game still lets them play.
-- [ ] Given a game is turned off, when its link is opened, then the page says the promotion has ended and carries no company name, logo or theme.
-- [ ] Given a key that was never minted, when it is opened, then the page is byte-for-byte the one a turned-off game shows.
-- [ ] Given two games are live, when `/` is opened, then the page says a link is needed and names no game.
-- [ ] Given one game is live, when `/` is opened, then that game is played there.
+- [x] Given a game is turned off, when its link is opened, then the page says the promotion has ended and carries no company name, logo or theme.
+- [x] Given a key that was never minted, when it is opened, then the page is byte-for-byte the one a turned-off game shows.
+- [x] Given two games are live, when `/` is opened, then the page says a link is needed and names no game.
+- [x] Given one game is live, when `/` is opened, then that game is played there.
 - [ ] Given a player identified on one game's link, when they open another game's link, then they are asked to identify again, and their row and their history are the same ones.
-- [ ] Given a game created from the Games module, then it is not live, has a 12-character key, and no two games share a key.
-- [ ] Given a wheel whose probabilities total 97, when it is turned live, then the refusal is `409` and names the total.
+- [x] Given a game created from the Games module, then it is not live, has a 12-character key, and no two games share a key.
+- [x] Given a wheel whose probabilities total 97, when it is turned live, then the refusal is `409` and names the total.
 - [ ] Given an amount-off reward is edited, then the editor shows the store's currency as text and offers no picker.
 - [ ] Given the store's currency changes from EUR to VND, then every amount-off reward in every game is re-labelled and no number has changed.
-- [ ] Given a URL for another installation's game id, when it is requested, then the answer is `404`.
-- [ ] `/admin` opens the Games module; `/admin/game` redirects there; the five modules each load only their own data ([F09](./F09-admin-modules.md) R6).
+- [x] Given a URL for another installation's game id, when it is requested, then the answer is `404`.
+- [x] `/admin` opens the Games module; `/admin/game` redirects there; the five modules each load only their own data ([F09](./F09-admin-modules.md) R6).
 - [ ] The Spins module shows a Game column and filters on it.
-- [ ] Given a spin recorded before the upgrade, then its row names the game the upgrade created.
-- [ ] The four fast suites pass.
+- [x] Given a spin recorded before the upgrade, then its row names the game the upgrade created.
+- [x] The four fast suites pass.
 - [ ] Checked by hand in a browser: both links on a phone at 375px, the ended page, the needs-a-link page, copying a link, and creating a game from empty to live.
 
 ## 12. Open questions

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Games\Wheel\Controller;
 
 use App\Dto\Violation;
+use App\Entity\Game;
+use App\Game\GameType;
+use App\Repository\GameRepository;
 use App\Games\Wheel\Dto\WheelInputParser;
 use App\Games\Wheel\WheelPresenter;
 use App\Games\Wheel\WheelProvider;
@@ -23,10 +26,11 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * publicly before admin authentication exists: anyone who can reach these
  * routes can rewrite the prizes and the odds.
  */
-#[Route('/api/admin/wheel', name: 'api_admin_wheel_')]
+#[Route('/api/admin/games/{id}/wheel', name: 'api_admin_wheel_', requirements: ['id' => '\\d+'])]
 final class WheelController extends AbstractController
 {
     public function __construct(
+        private readonly GameRepository $games,
         private readonly WheelProvider $provider,
         private readonly WheelWriter $writer,
         private readonly WheelPresenter $presenter,
@@ -36,14 +40,24 @@ final class WheelController extends AbstractController
     }
 
     #[Route('', name: 'show', methods: ['GET'])]
-    public function show(): JsonResponse
+    public function show(int $id): JsonResponse
     {
-        return new JsonResponse($this->presenter->present($this->provider->getOrCreate()));
+        $game = $this->wheelGame($id);
+
+        return $game instanceof Game
+            ? new JsonResponse($this->presenter->present($this->provider->getOrCreate($game)))
+            : $this->notAWheel();
     }
 
     #[Route('', name: 'replace', methods: ['PUT'])]
-    public function replace(Request $request): JsonResponse
+    public function replace(int $id, Request $request): JsonResponse
     {
+        $game = $this->wheelGame($id);
+
+        if (!$game instanceof Game) {
+            return $this->notAWheel();
+        }
+
         try {
             /** @var mixed $payload */
             $payload = json_decode($request->getContent(), true, flags: \JSON_THROW_ON_ERROR);
@@ -59,7 +73,7 @@ final class WheelController extends AbstractController
 
         // Loading the wheel after parsing keeps a malformed request from
         // creating a default wheel as a side effect.
-        $wheel = $this->provider->getOrCreate();
+        $wheel = $this->provider->getOrCreate($game);
 
         $violations = $this->writer->apply($wheel, $draft);
 
@@ -68,6 +82,34 @@ final class WheelController extends AbstractController
         }
 
         return new JsonResponse($this->presenter->present($wheel));
+    }
+
+    /**
+     * F27 R6. The game this wheel belongs to, or null when the id names no
+     * game or names a game of another type.
+     *
+     * One lookup for both endpoints, because "a wheel endpoint for a sheet"
+     * and "a wheel endpoint for nothing" deserve the same answer: a 404 that
+     * says nothing about which of the two it was.
+     */
+    private function wheelGame(int $id): ?Game
+    {
+        $game = $this->games->find($id);
+
+        return null !== $game && $game->is(GameType::Wheel) ? $game : null;
+    }
+
+    private function notAWheel(): JsonResponse
+    {
+        return new JsonResponse(
+            [
+                'error' => [
+                    'status' => Response::HTTP_NOT_FOUND,
+                    'message' => $this->translator->trans('game.not_found'),
+                ],
+            ],
+            Response::HTTP_NOT_FOUND,
+        );
     }
 
     /**

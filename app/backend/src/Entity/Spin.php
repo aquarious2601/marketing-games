@@ -106,6 +106,15 @@ class Spin
     #[ORM\Column(name: 'claimed_at', nullable: true)]
     private ?\DateTimeImmutable $claimedAt = null;
 
+    /**
+     * F27 R9. Recorded rather than read through the prize, so the log still
+     * says where a spin came from after a game is turned off or another is
+     * added beside it.
+     */
+    #[ORM\ManyToOne(targetEntity: Game::class)]
+    #[ORM\JoinColumn(name: 'game_id', nullable: false, onDelete: 'CASCADE')]
+    private ?Game $game = null;
+
     #[ORM\Column(name: 'spun_at')]
     private \DateTimeImmutable $spunAt;
 
@@ -128,6 +137,16 @@ class Spin
     public function getId(): ?int
     {
         return $this->id;
+    }
+
+    public function getGame(): Game
+    {
+        return $this->game ?? throw new \LogicException('A spin always records its game (F27 R9).');
+    }
+
+    public function setGame(Game $game): void
+    {
+        $this->game = $game;
     }
 
     public function getPrize(): ?Prize

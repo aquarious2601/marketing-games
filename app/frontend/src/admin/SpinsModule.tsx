@@ -12,12 +12,15 @@ import { EMPTY, formatDateTime } from './tableFormat'
  * and in a player's history, which is the point of one shared table.
  */
 const SPIN_COLUMNS = (t: Translate): Column[] => [
-  { key: 'prize', label: t('spins.colPrize'), width: '20%' },
-  { key: 'player', label: t('spins.colPlayer'), width: '16%' },
-  { key: 'phone', label: t('spins.colPhone'), width: '16%' },
-  { key: 'code', label: t('spins.colCode'), width: '14%' },
-  { key: 'spun', label: t('spins.colSpun'), width: '18%' },
-  { key: 'status', label: t('spins.colStatus'), width: '16%' },
+  { key: 'prize', label: t('spins.colPrize'), width: '18%' },
+  // F27 R44. Second, beside the prize: the two together are what a row is —
+  // what went out, and which promotion gave it away.
+  { key: 'game', label: t('spins.colGame'), width: '14%' },
+  { key: 'player', label: t('spins.colPlayer'), width: '14%' },
+  { key: 'phone', label: t('spins.colPhone'), width: '14%' },
+  { key: 'code', label: t('spins.colCode'), width: '12%' },
+  { key: 'spun', label: t('spins.colSpun'), width: '16%' },
+  { key: 'status', label: t('spins.colStatus'), width: '12%' },
 ]
 
 type LoadPhase = 'loading' | 'ready' | 'failed'
@@ -44,6 +47,10 @@ export function SpinsModule() {
   // is not (F09 R16).
   const [total, setTotal] = useState(0)
   const [filter, setFilter] = useState('')
+  // F27 R44. Null is every game, which is the right default for a log:
+  // a promotion being over is no reason to hide what it gave away.
+  const [game, setGame] = useState<number | null>(null)
+  const [games, setGames] = useState<Array<{ id: number; name: string }>>([])
   const [claimError, setClaimError] = useState<string | null>(null)
 
   const columns = SPIN_COLUMNS(t)
@@ -65,27 +72,32 @@ export function SpinsModule() {
     }
   }
 
-  const load = useCallback(async (phone: string, signal?: AbortSignal) => {
-    setPhase('loading')
+  const load = useCallback(
+    async (phone: string, forGame: number | null, signal?: AbortSignal) => {
+      setPhase('loading')
 
-    try {
-      const log = await fetchSpinLog(phone, { signal })
+      try {
+        const log = await fetchSpinLog(phone, forGame, { signal })
 
-      if (signal?.aborted === true) {
-        return
+        if (signal?.aborted === true) {
+          return
+        }
+
+        setSpins(log.spins)
+        setTotal(log.total)
+        // F27 R44: the selector's options come with the log.
+        setGames(log.games)
+        setPhase('ready')
+      } catch {
+        if (signal?.aborted === true) {
+          return
+        }
+
+        setPhase('failed')
       }
-
-      setSpins(log.spins)
-      setTotal(log.total)
-      setPhase('ready')
-    } catch {
-      if (signal?.aborted === true) {
-        return
-      }
-
-      setPhase('failed')
-    }
-  }, [])
+    },
+    [],
+  )
 
   /**
    * Refetched as the filter changes, after a pause.
@@ -98,13 +110,16 @@ export function SpinsModule() {
    */
   useEffect(() => {
     const controller = new AbortController()
-    const timer = setTimeout(() => void load(filter, controller.signal), filter === '' ? 0 : 250)
+    const timer = setTimeout(
+      () => void load(filter, game, controller.signal),
+      filter === '' ? 0 : 250,
+    )
 
     return () => {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [filter, load])
+  }, [filter, game, load])
 
   return (
     <>
@@ -126,6 +141,35 @@ export function SpinsModule() {
             {total === 1 ? t('spins.countOne') : t('spins.count', { count: total })}
           </span>
         </div>
+
+        {/* F27 R44. Beside the search box rather than above it: both narrow
+            the same list, and an admin reaches for whichever matches the
+            question they have. */}
+        {games.length > 1 && (
+          <div className="mt-4">
+            <label htmlFor="spin-game" className={labelClass}>
+              {t('spins.gameLabel')}
+            </label>
+            <select
+              id="spin-game"
+              value={game === null ? '' : String(game)}
+              onChange={(event) =>
+                setGame(event.target.value === '' ? null : Number(event.target.value))
+              }
+              data-testid="spin-game-filter"
+              className={`${inputClass} bg-white`}
+            >
+              {/* Every game, and the default: a log is a record, so hiding a
+                  finished promotion's rows would be hiding what it gave. */}
+              <option value="">{t('spins.allGames')}</option>
+              {games.map((each) => (
+                <option key={each.id} value={each.id}>
+                  {each.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="mt-4">
           <label htmlFor="spin-filter" className={labelClass}>
@@ -155,7 +199,11 @@ export function SpinsModule() {
         {phase === 'failed' && (
           <div role="alert" className="mt-4 flex items-center gap-3">
             <p className="text-sm text-rose-600">{t('spins.loadFailed')}</p>
-            <button type="button" onClick={() => void load(filter)} className={secondaryButtonClass}>
+            <button
+              type="button"
+              onClick={() => void load(filter, game)}
+              className={secondaryButtonClass}
+            >
               {t('common.tryAgain')}
             </button>
           </div>
@@ -178,6 +226,9 @@ export function SpinsModule() {
             {spins.map((spin) => (
               <Row key={spin.id} testId="spin-row">
                 <Cell strong>{spin.prizeName}</Cell>
+
+                {/* F27 R44: which promotion gave it away. */}
+                <Cell testId="spin-game">{spin.game}</Cell>
 
                 {/* F09 R15 with F11 §9: a dash, not an empty cell. An empty
                     cell is ambiguous between "no value" and "we failed to

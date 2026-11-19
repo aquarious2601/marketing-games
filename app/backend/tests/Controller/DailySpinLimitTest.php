@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Branding\BrandingProvider;
+use App\Store\StoreProvider;
 use App\Campaign\CampaignDay;
+use App\Entity\Store;
+use App\Entity\Game;
 use App\Entity\Spin;
 use App\Tests\Support\DatabaseWebTestCase;
 use Doctrine\ORM\EntityManagerInterface;
@@ -313,16 +315,16 @@ final class DailySpinLimitTest extends DatabaseWebTestCase
      */
     private function limitTo(?int $limit): void
     {
-        $container = static::getContainer();
+        /*
+         * F27 R29. The limit is the game's now, not the campaign's: each
+         * promotion carries its own allowance and counts it separately
+         * (R30).
+         */
+        $game = $this->entityManager->getRepository(Game::class)->find($this->game->getId());
+        \assert($game instanceof Game);
 
-        $provider = $container->get(BrandingProvider::class);
-        \assert($provider instanceof BrandingProvider);
-
-        $entityManager = $container->get(EntityManagerInterface::class);
-        \assert($entityManager instanceof EntityManagerInterface);
-
-        $provider->getOrCreate()->setDailySpinLimit($limit);
-        $entityManager->flush();
+        $game->setDailyLimit($limit);
+        $this->entityManager->flush();
     }
 
     private function spinsLeft(): ?int
@@ -337,12 +339,21 @@ final class DailySpinLimitTest extends DatabaseWebTestCase
         return $left;
     }
 
+    /** F27 R31: the shop's clock, read back from the row it lives on. */
+    private function storeTimezone(): \DateTimeZone
+    {
+        $store = $this->entityManager->getRepository(Store::class)->findOneBy([]);
+        \assert($store instanceof Store);
+
+        return $store->getTimezoneAsZone();
+    }
+
     private function startOfToday(): \DateTimeImmutable
     {
         $day = static::getContainer()->get(CampaignDay::class);
         \assert($day instanceof CampaignDay);
 
-        return $day->startOfToday();
+        return $day->startOfToday($this->storeTimezone());
     }
 
     /**

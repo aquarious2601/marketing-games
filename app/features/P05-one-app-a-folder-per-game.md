@@ -175,19 +175,25 @@ marketing-games/
 
 ## 11. Acceptance criteria
 
-- [ ] `app/` exists with `backend/`, `frontend/`, `features/` and `deploy/`; `roulette/` does not exist.
-- [ ] `.\test-all.ps1` from the repository root passes, and reports the same test and assertion counts as the commit before the move.
-- [ ] `php vendor/bin/phpunit` passes from `app/backend`; `npm test`, `npm run typecheck` and `npm run lint` pass from `app/frontend`.
+- [x] `app/` exists with `backend/`, `frontend/`, `features/` and `deploy/`; `roulette/` does not exist.
+- [x] `.\test-all.ps1` from the repository root passes, and reports the same test and assertion counts as the commit before the move.
+- [x] `php vendor/bin/phpunit` passes from `app/backend`; `npm test`, `npm run typecheck` and `npm run lint` pass from `app/frontend`.
 - [ ] `npm run test:e2e` still passes by hand, with no spec changed other than a path or an import.
-- [ ] The wheel's backend code is under `app/backend/src/Games/Wheel/` and its namespace is `App\Games\Wheel\`.
-- [ ] The wheel's frontend code is under `app/frontend/src/games/wheel/`.
-- [ ] No shared file — store, player, reward, spin, login, admin shell, upgrade steps — sits under a `games/` folder.
-- [ ] `git log --follow app/backend/src/Games/Wheel/WheelProvider.php` shows commits from before the move.
-- [ ] The CI workflow, `test-all.ps1` and the deploy scripts name `app/` and run green.
+- [x] The wheel's backend code is under `app/backend/src/Games/Wheel/` and its namespace is `App\Games\Wheel\`.
+- [x] The wheel's frontend code is under `app/frontend/src/games/wheel/`.
+- [x] No shared file — store, player, reward, spin, login, admin shell, upgrade steps — sits under a `games/` folder.
+- [x] `git log --follow app/backend/src/Games/Wheel/WheelProvider.php` shows commits from before the move.
+- [x] The CI workflow, `test-all.ps1` and the deploy scripts name `app/` and run green.
 - [ ] A release built after the move installs and serves, and the health endpoint answers as it did.
-- [ ] `grep -rn "roulette/" --exclude-dir=.git .` returns only deliberately historical mentions (R15), each one of them a sentence about the past, a bucket or a log file.
-- [ ] The repository's `CLAUDE.md`, this folder's README and every feature file that quotes a path have been updated.
-- [ ] The move commit contains no change other than paths, imports, namespaces and `use` statements.
+
+**On the folder itself:** in the repository `roulette/` is gone. On the machine
+the move was made on an empty `roulette/backend/` directory stayed behind,
+because another process was sitting in it and Windows will not remove a
+directory anybody holds. Git does not track empty directories, so the commit
+is unaffected; the folder goes when that process does.
+- [x] `grep -rn "roulette/" --exclude-dir=.git .` returns only deliberately historical mentions (R15), each one of them a sentence about the past, a bucket or a log file.
+- [x] The repository's `CLAUDE.md`, this folder's README and every feature file that quotes a path have been updated.
+- [x] The move commit contains no change other than paths, imports, namespaces and `use` statements.
 
 ## 12. Open questions
 

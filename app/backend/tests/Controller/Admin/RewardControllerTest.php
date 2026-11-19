@@ -377,7 +377,7 @@ final class RewardControllerTest extends DatabaseWebTestCase
         $this->signInAsAdmin();
         $id = $this->addAndGetId('Free coffee', 'free_product');
 
-        $this->put('/api/admin/wheel', [
+        $this->put($this->wheelUri(), [
             'prizes' => [
                 ['name' => 'Lucky you!', 'probability' => 50, 'rewardId' => $id],
                 ['name' => 'Other', 'probability' => 50, 'rewardId' => $this->aRewardId()],
@@ -410,7 +410,7 @@ final class RewardControllerTest extends DatabaseWebTestCase
         $this->signInAsAdmin();
         $id = $this->addAndGetId('Free coffee', 'free_product');
 
-        $this->put('/api/admin/wheel', [
+        $this->put($this->wheelUri(), [
             'prizes' => [
                 ['name' => 'Lucky you!', 'probability' => 50, 'rewardId' => $id],
                 ['name' => 'Other', 'probability' => 50, 'rewardId' => $this->aRewardId()],
@@ -517,7 +517,7 @@ final class RewardControllerTest extends DatabaseWebTestCase
         /** @var string|false|null $value */
         $value = $this->entityManager
             ->getConnection()
-            ->fetchOne('SELECT currency FROM branding');
+            ->fetchOne('SELECT currency FROM store');
 
         return \is_string($value) ? $value : null;
     }

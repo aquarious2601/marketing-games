@@ -27,6 +27,7 @@ function spin(overrides: Partial<LoggedSpin> = {}): LoggedSpin {
     code: 'A7K3-M9PX',
     claimable: true,
     claimedAt: null,
+    game: 'Test campaign',
     ...overrides,
   }
 }
@@ -34,7 +35,7 @@ function spin(overrides: Partial<LoggedSpin> = {}): LoggedSpin {
 beforeEach(() => {
   fetchSpinLogMock.mockReset()
   setSpinClaimedMock.mockReset()
-  fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1 })
+  fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
 })
 
 /** F09 R13, R14 */
@@ -50,6 +51,7 @@ describe('the spin log', () => {
         }),
       ],
       total: 2,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -63,7 +65,8 @@ describe('the spin log', () => {
     // F11: the name and the number are separate columns now, so each can be
     // read straight down. They used to be one cell of concatenated text.
     expect(screen.getAllByTestId('spin-player')[0]).toHaveTextContent('Anh Le')
-    expect(screen.getAllByTestId('spin-row')[0].querySelectorAll('td')[2]).toHaveTextContent(
+    // Index 3 since F27 R44 inserted Game second: prize, game, player, phone.
+    expect(screen.getAllByTestId('spin-row')[0].querySelectorAll('td')[3]).toHaveTextContent(
       '0912345678',
     )
   })
@@ -72,6 +75,7 @@ describe('the spin log', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ id: 9, prizeName: 'Newest' }), spin({ id: 8, prizeName: 'Oldest' })],
       total: 2,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -104,6 +108,7 @@ describe('the spin log', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ player: null })],
       total: 1,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -116,9 +121,9 @@ describe('the spin log', () => {
 
     // Both the player and the phone cell, so neither reads as missing.
     const cells = screen.getByTestId('spin-row').querySelectorAll('td')
-    expect(cells[1]).toHaveTextContent('—')
     expect(cells[2]).toHaveTextContent('—')
-    expect(screen.getByTestId('spin-anonymous')).toBe(cells[1])
+    expect(cells[3]).toHaveTextContent('—')
+    expect(screen.getByTestId('spin-anonymous')).toBe(cells[2])
   })
 
   /**
@@ -129,6 +134,7 @@ describe('the spin log', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ prizeName: 'A prize since deleted' })],
       total: 1,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -144,7 +150,7 @@ describe('the spin log', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/spins could not be loaded/i)
 
-    fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1 })
+    fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
     await user.click(screen.getByRole('button', { name: /try again/i }))
 
     expect(await screen.findByTestId('spin-log')).toBeInTheDocument()
@@ -154,7 +160,9 @@ describe('the spin log', () => {
 /** F11: the table standard, and that both listings really share it. */
 describe('the table itself', () => {
   // F13 added Code and Status; Spun moved along with them.
-  const HEADERS = ['Prize', 'Player', 'Phone', 'Code', 'Spun', 'Status']
+  // F27 R44 put Game second, beside the prize: the two together are what
+  // a row is — what went out, and which promotion gave it away.
+  const HEADERS = ['Prize', 'Game', 'Player', 'Phone', 'Code', 'Spun', 'Status']
 
   /** F11 R1, R2 */
   it('labels every column', async () => {
@@ -210,6 +218,7 @@ describe('the table itself', () => {
         }),
       ],
       total: 2,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -217,14 +226,14 @@ describe('the table itself', () => {
 
     const [short, long] = screen.getAllByTestId('spin-row')
 
-    expect(short.querySelectorAll('td')[2]).toHaveTextContent('0912345678')
-    expect(long.querySelectorAll('td')[2]).toHaveTextContent('0987654321')
+    expect(short.querySelectorAll('td')[3]).toHaveTextContent('0912345678')
+    expect(long.querySelectorAll('td')[3]).toHaveTextContent('0987654321')
   })
 
   /** F11 R4 — a long prize name is truncated, not wrapped, and keeps its title */
   it('keeps a long prize name reachable', async () => {
     const name = 'Twenty per cent off absolutely everything in the shop today'
-    fetchSpinLogMock.mockResolvedValue({ spins: [spin({ prizeName: name })], total: 1 })
+    fetchSpinLogMock.mockResolvedValue({ spins: [spin({ prizeName: name })], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
 
     render(<SpinsModule />)
     await screen.findByTestId('spin-log')
@@ -240,7 +249,8 @@ describe('the table itself', () => {
     render(<SpinsModule />)
     await screen.findByTestId('spin-log')
 
-    const when = screen.getByTestId('spin-row').querySelectorAll('td')[4]
+    // Index 5 since F27 R44: prize, game, player, phone, code, spun.
+    const when = screen.getByTestId('spin-row').querySelectorAll('td')[5]
 
     expect(when).not.toHaveTextContent('2026-11-15T10:02:11+00:00')
     expect(when).toHaveClass('tabular-nums')
@@ -271,6 +281,7 @@ describe('rewards on a log row', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ rewardType: 'free_product', rewardValue: null, code: null })],
       total: 1,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -286,6 +297,7 @@ describe('rewards on a log row', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ rewardType: 'nothing', rewardValue: null, code: null, claimable: false })],
       total: 1,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -316,6 +328,7 @@ describe('rewards on a log row', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ claimedAt: '2026-11-15T11:00:00+00:00' })],
       total: 1,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
     setSpinClaimedMock.mockResolvedValue(spin({ claimedAt: null }))
 
@@ -362,7 +375,7 @@ describe('rewards on a log row', () => {
 /** F09 R19 — two different facts, two different messages */
 describe('the empty states', () => {
   it('says nothing has happened yet when the log is empty', async () => {
-    fetchSpinLogMock.mockResolvedValue({ spins: [], total: 0 })
+    fetchSpinLogMock.mockResolvedValue({ spins: [], total: 0, games: [{ id: 1, name: 'Test campaign' }] })
 
     render(<SpinsModule />)
 
@@ -370,7 +383,7 @@ describe('the empty states', () => {
   })
 
   it('says nothing matches when the filter is the reason', async () => {
-    fetchSpinLogMock.mockResolvedValue({ spins: [], total: 0 })
+    fetchSpinLogMock.mockResolvedValue({ spins: [], total: 0, games: [{ id: 1, name: 'Test campaign' }] })
 
     const user = userEvent.setup()
     render(<SpinsModule />)
@@ -414,7 +427,7 @@ describe('the filter', () => {
     await user.type(screen.getByTestId('spin-filter'), 'a7k3m9px')
 
     await waitFor(() =>
-      expect(fetchSpinLogMock).toHaveBeenCalledWith('a7k3m9px', expect.anything()),
+      expect(fetchSpinLogMock).toHaveBeenCalledWith('a7k3m9px', null, expect.anything()),
     )
   })
 
@@ -422,7 +435,7 @@ describe('the filter', () => {
   it('claims the spin a code found', async () => {
     const found = spin({ id: 42, code: 'A7K3-M9PX' })
 
-    fetchSpinLogMock.mockResolvedValue({ spins: [found], total: 1 })
+    fetchSpinLogMock.mockResolvedValue({ spins: [found], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
     setSpinClaimedMock.mockResolvedValue({ ...found, claimedAt: '2026-11-16T10:00:00+00:00' })
 
     const user = userEvent.setup()
@@ -430,7 +443,7 @@ describe('the filter', () => {
     await screen.findByTestId('spin-log')
 
     await user.type(screen.getByTestId('spin-filter'), 'A7K3-M9PX')
-    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('A7K3-M9PX', expect.anything()))
+    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('A7K3-M9PX', null, expect.anything()))
 
     expect(screen.getAllByTestId('spin-row')).toHaveLength(1)
     expect(screen.getByTestId('spin-code')).toHaveTextContent('A7K3-M9PX')
@@ -451,7 +464,7 @@ describe('the filter', () => {
     // Filtered server-side, not in the loaded array: the log is capped, so
     // filtering what happens to be loaded would search the most recent page
     // only.
-    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('5678', expect.anything()))
+    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('5678', null, expect.anything()))
   })
 
   it('does not ask once per keystroke', async () => {
@@ -478,6 +491,7 @@ describe('when the log is capped', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ id: 9 }), spin({ id: 8 })],
       total: 1432,
+      games: [{ id: 1, name: 'Test campaign' }],
     })
 
     render(<SpinsModule />)
@@ -489,7 +503,7 @@ describe('when the log is capped', () => {
   })
 
   it('says nothing when the log is complete', async () => {
-    fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1 })
+    fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
 
     render(<SpinsModule />)
     await screen.findByTestId('spin-log')

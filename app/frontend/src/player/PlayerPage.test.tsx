@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiValidationError } from '../api/client'
 import {
@@ -8,6 +9,7 @@ import {
   forgetPlayer,
   identifyPhone,
   registerPlayer,
+  resolvePlay,
   spin,
   type PlayerState,
   type PlayerWheel,
@@ -22,6 +24,7 @@ import { sliceUnderPointer } from '../games/wheel/rotation'
 vi.mock('../api/player', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/player')>()),
   fetchPlayerWheel: vi.fn(),
+  resolvePlay: vi.fn(),
   spin: vi.fn(),
   fetchIdentity: vi.fn(),
   identifyPhone: vi.fn(),
@@ -30,6 +33,7 @@ vi.mock('../api/player', async (importOriginal) => ({
 }))
 
 const fetchWheelMock = vi.mocked(fetchPlayerWheel)
+const resolvePlayMock = vi.mocked(resolvePlay)
 const spinMock = vi.mocked(spin)
 const fetchIdentityMock = vi.mocked(fetchIdentity)
 const identifyPhoneMock = vi.mocked(identifyPhone)
@@ -94,7 +98,7 @@ const PRIZES = ['Try again', 'Free sample', 'Free gift', 'Grand prize']
 
 const PLAIN_BRANDING = {
   companyName: null,
-  campaignName: null,
+  campaignName: '',
   tagline: 'One spin, one prize. Good luck.',
   theme: 'plain',
   currency: 'VND',
@@ -1720,5 +1724,77 @@ describe('a day that has been used up', () => {
 
     expect(await screen.findByTestId('spins-exhausted')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * F27 R24, R25, R26: the two pages with no game on them.
+ *
+ * Both are deliberately plain — no company name, no logo, no theme — and the
+ * first two tests here are the ones that matter: a promotion that has ended
+ * and a key that never existed have to be the same page, because anything
+ * that tells them apart lets somebody enumerate a shop's promotions.
+ */
+describe('a link with no game behind it', () => {
+  function renderAtKey(key = 'q7mfd2xkbnrt') {
+    render(
+      <MemoryRouter initialEntries={[`/play/${key}`]}>
+        <Routes>
+          <Route path="/play/:key" element={<PlayerPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('says the promotion has ended when the key does not resolve', async () => {
+    resolvePlayMock.mockRejectedValue(new ApiError('no_such_game', 404))
+    renderAtKey()
+
+    expect(await screen.findByTestId('promotion-ended')).toHaveTextContent(/has ended/i)
+  })
+
+  it('carries no company name, no logo and no theme on that page', async () => {
+    resolvePlayMock.mockRejectedValue(new ApiError('no_such_game', 404))
+    renderAtKey()
+
+    await screen.findByTestId('promotion-ended')
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByText(/AA Store/i)).not.toBeInTheDocument()
+  })
+
+  it('never asks for the wheel when the key does not resolve', async () => {
+    resolvePlayMock.mockRejectedValue(new ApiError('no_such_game', 404))
+    renderAtKey()
+
+    await screen.findByTestId('promotion-ended')
+
+    expect(fetchWheelMock).not.toHaveBeenCalled()
+  })
+
+  /** F27 R20: resolving the key is what binds the session to the game. */
+  it('resolves the key before asking for anything else', async () => {
+    resolvePlayMock.mockResolvedValue({ type: 'wheel', branding: wheel().branding })
+    renderAtKey('abcdefghijkm')
+
+    await screen.findByTestId('wheel-preview')
+
+    expect(resolvePlayMock).toHaveBeenCalledWith('abcdefghijkm', expect.anything())
+  })
+
+  /** F27 R26: `/` with nothing to serve asks for the link instead. */
+  it('asks for a link when the server has no game to serve', async () => {
+    fetchWheelMock.mockRejectedValue(new ApiError('no_game', 409))
+    render(<PlayerPage />)
+
+    expect(await screen.findByTestId('needs-link')).toHaveTextContent(/link is needed/i)
+  })
+
+  /** Any other failure is still a failure, with a retry (F01 section 9). */
+  it('still offers a retry when the server breaks', async () => {
+    fetchWheelMock.mockRejectedValue(new ApiError('boom', 500))
+    render(<PlayerPage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
   })
 })

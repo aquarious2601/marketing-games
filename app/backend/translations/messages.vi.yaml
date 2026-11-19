@@ -15,6 +15,7 @@ player:
     spin_requires_identity: 'Hãy cho chúng tôi biết bạn là ai trước khi quay.'
     spin_already_used: 'Bạn đã quay rồi. Nhấn Người chơi tiếp theo để chuyển điện thoại.'
     spin_limit_reached: 'Hôm nay bạn đã chơi rồi. Hẹn gặp lại bạn vào ngày mai.'
+    no_game: 'Trang này cần đường liên kết ở quầy.'
     phone_required: 'Nhập số điện thoại của bạn.'
     phone_invalid: 'Số đó trông không giống số điện thoại. Cần từ %min% đến %max% chữ số.'
     first_name_required: 'Nhập tên của bạn.'
@@ -49,7 +50,6 @@ branding:
     must_be_text: 'Mục này phải là văn bản.'
     too_long: 'Mục này không được dài quá %max% ký tự.'
     choose_one_of: 'Hãy chọn một trong: %values%.'
-    daily_spin_limit_invalid: 'Số lượt quay mỗi ngày phải là số nguyên từ 1 đến %max%, hoặc để trống nếu không giới hạn.'
 
 logo:
     required: 'Hãy chọn một hình ảnh để tải lên.'
@@ -99,3 +99,23 @@ reward:
 
 spin:
     not_claimable: 'Lượt quay không trúng thì không thể nhận thưởng.'
+
+store:
+    language_invalid: 'Hãy chọn một trong các ngôn ngữ của trò chơi.'
+    timezone_invalid: 'Máy chủ không nhận ra múi giờ này.'
+
+game:
+    type_wheel: 'Vòng xoay trúng thưởng'
+    type_gift_sheet: 'Danh sách quà tặng'
+    type_invalid: 'Hãy chọn loại trò chơi.'
+    type_is_fixed: 'Trò chơi giữ nguyên loại đã tạo. Hãy tạo một trò chơi khác.'
+    name_required: 'Hãy đặt tên cho trò chơi này.'
+    name_too_long: 'Tên dài tối đa %max% ký tự.'
+    tagline_too_long: 'Khẩu hiệu dài tối đa %max% ký tự.'
+    daily_limit_invalid: 'Số lượt mỗi ngày phải là số nguyên từ 1 đến %max%, hoặc để trống nếu không giới hạn.'
+    live_must_be_boolean: 'Hãy cho biết trò chơi có đang mở hay không.'
+    not_found: 'Không tìm thấy trò chơi.'
+    not_ready_no_wheel: 'Trò chơi này chưa có vòng xoay.'
+    not_ready_prize_count: 'Vòng xoay cần từ %min% đến %max% phần thưởng.'
+    not_ready_slice_without_reward: 'Mỗi ô phải có phần thưởng trước khi mở trò chơi.'
+    not_ready_total: 'Tổng tỉ lệ là %total%. Tổng phải là %required%.'

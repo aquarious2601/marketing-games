@@ -200,19 +200,27 @@ final class SecurityControllerTest extends DatabaseWebTestCase
      */
     public static function adminRoutes(): iterable
     {
-        yield 'read the wheel' => ['GET', '/api/admin/wheel'];
-        yield 'replace the wheel' => ['PUT', '/api/admin/wheel'];
-        yield 'read the branding' => ['GET', '/api/admin/branding'];
-        yield 'save the branding' => ['PUT', '/api/admin/branding'];
-        yield 'upload a logo' => ['POST', '/api/admin/branding/logo'];
-        yield 'delete the logo' => ['DELETE', '/api/admin/branding/logo'];
+        // A fixed id: the firewall answers before the controller runs, so
+        // the game behind it never has to exist. A provider is static and
+        // could not look one up anyway.
+        yield 'read the wheel' => ['GET', '/api/admin/games/1/wheel'];
+        yield 'replace the wheel' => ['PUT', '/api/admin/games/1/wheel'];
+        yield 'read the store' => ['GET', '/api/admin/store'];
+        yield 'save the store' => ['PUT', '/api/admin/store'];
+        yield 'list the games' => ['GET', '/api/admin/games'];
+        yield 'create a game' => ['POST', '/api/admin/games'];
+        yield 'read a game' => ['GET', '/api/admin/games/1'];
+        yield 'save a game' => ['PUT', '/api/admin/games/1'];
+        yield 'turn a game live' => ['PUT', '/api/admin/games/1/live'];
+        yield 'upload a logo' => ['POST', '/api/admin/store/logo'];
+        yield 'delete the logo' => ['DELETE', '/api/admin/store/logo'];
     }
 
     public function testAnUnauthorisedAdminRequestChangesNothing(): void
     {
         $this->client->request(
             'PUT',
-            '/api/admin/wheel',
+            $this->wheelUri(),
             server: ['CONTENT_TYPE' => 'application/json'],
             content: json_encode([
                 'prizes' => [
@@ -232,10 +240,10 @@ final class SecurityControllerTest extends DatabaseWebTestCase
         $this->createUser();
         $this->logIn();
 
-        $this->client->request('GET', '/api/admin/wheel');
+        $this->client->request('GET', $this->wheelUri());
         self::assertResponseIsSuccessful();
 
-        $this->client->request('GET', '/api/admin/branding');
+        $this->client->request('GET', '/api/admin/store');
         self::assertResponseIsSuccessful();
     }
 

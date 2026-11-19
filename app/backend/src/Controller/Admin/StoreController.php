@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Controller\Admin;
 
 use App\Branding\BrandingPresenter;
-use App\Branding\BrandingProvider;
+use App\Store\StoreProvider;
 use App\Branding\LogoRejected;
 use App\Branding\LogoStore;
 use App\Branding\Currency;
 use App\Branding\Theme;
 use App\Dto\Violation;
-use App\Entity\Branding;
+use App\Entity\Store;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -28,32 +28,32 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * accepts file uploads, which makes the missing authentication a way to fill
  * the disk as well as a way to rewrite the prizes — see F04 section 13.
  */
-#[Route('/api/admin/branding', name: 'api_admin_branding_')]
-final class BrandingController extends AbstractController
+#[Route('/api/admin/store', name: 'api_admin_store_')]
+final class StoreController extends AbstractController
 {
+    /**
+     * @param list<string> $enabledLocales the four languages F12 R1 names,
+     *                                     bound in services.yaml so this
+     *                                     controller does not keep a second
+     *                                     copy of the list
+     */
     public function __construct(
-        private readonly BrandingProvider $provider,
+        private readonly StoreProvider $provider,
         private readonly BrandingPresenter $presenter,
         private readonly LogoStore $logos,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
+        private readonly array $enabledLocales,
     ) {
     }
 
     #[Route('', name: 'show', methods: ['GET'])]
     public function show(): JsonResponse
     {
-        $branding = $this->provider->getOrCreate();
+        $store = $this->provider->getOrCreate();
 
         return new JsonResponse([
-            ...$this->presenter->present($branding),
-            // The admin edits their own value, not the effective one: a
-            // pre-filled default would be saved back as if they had chosen
-            // it, and they could never return to the default.
-            'ownTagline' => $branding->getOwnTagline(),
-            // F12 R11: the application's own fallback wording, so it is ours
-            // to translate. An admin's own tagline never is.
-            'defaultTagline' => $this->translator->trans('tagline.default'),
+            ...$this->presenter->present($store),
             // The admin needs the list to build its selector; the player
             // never asks for it.
             // F12 R9: the application's own words for each theme, in the
@@ -71,18 +71,19 @@ final class BrandingController extends AbstractController
             // F15 R6. Same split as the tagline above and for the same
             // reason: the admin edits their own value, and a default shown
             // as if it were theirs is a default they can never get back to.
-            'ownCurrency' => $branding->getOwnCurrency()?->value,
+            'ownCurrency' => $store->getOwnCurrency()?->value,
             // F15 R2: what this admin's language suggests. Only ever used
             // while nothing has been chosen.
             'defaultCurrency' => $this->presenter->defaultCurrency()->value,
             /*
-             * F23 R22. Here and not in the presenter, so it reaches the
-             * admin and not the player page: a player is told about their
-             * own day, never about the campaign's rule (F23 R18), and
-             * anything in the public payload is readable by anybody.
+             * F27 R15, R17. The clock is never null and is never offered as
+             * a default to accept: the form makes the admin pick one, and the
+             * upgrade seeded existing shops from APP_TIMEZONE. A null
+             * language means no choice, and the browser decides as it always
+             * has.
              */
-            'dailySpinLimit' => $branding->getDailySpinLimit(),
-            'maxDailySpinLimit' => Branding::MAX_DAILY_SPIN_LIMIT,
+            'language' => $store->getLanguage(),
+            'timezone' => $store->getTimezone(),
         ]);
     }
 
@@ -103,44 +104,36 @@ final class BrandingController extends AbstractController
         $violations = [];
 
         $companyName = $this->readName($payload, 'companyName', $violations);
-        $campaignName = $this->readName($payload, 'campaignName', $violations);
-        $tagline = $this->readText($payload, 'tagline', Branding::TAGLINE_MAX_LENGTH, $violations);
         $theme = $this->readTheme($payload, $violations);
         $currency = $this->readCurrency($payload, $violations);
-
-        /*
-         * F23 R1. Absent and null mean different things here, which is why
-         * this is not another `?int` reader: absent leaves the limit alone,
-         * null clears it. A reader returning null for both could not tell a
-         * client that has never heard of the field from an admin emptying
-         * it, and the first upgrade would quietly unlimit every campaign.
-         */
-        $limitGiven = \array_key_exists('dailySpinLimit', $payload);
-        $dailySpinLimit = $limitGiven ? $this->readDailySpinLimit($payload, $violations) : null;
+        $language = $this->readLanguage($payload, $violations);
+        $timezone = $this->readTimezone($payload, $violations);
 
         if ([] !== $violations) {
             return $this->invalid($violations);
         }
 
-        $branding = $this->provider->getOrCreate();
-        $branding->setNames($companyName, $campaignName);
-        $branding->setTagline($tagline);
-        $branding->setTheme($theme ?? Theme::Plain);
+        $store = $this->provider->getOrCreate();
+        $store->setCompanyName($companyName);
+        $store->setTheme($theme ?? Theme::Plain);
+        $store->setLanguage($language);
+
+        // F27 R15: absent leaves the clock alone, like the currency below.
+        // A request that forgot the field must not move the shop's day.
+        if (null !== $timezone) {
+            $store->setTimezone($timezone);
+        }
 
         // F13 R27: absent leaves it alone, unlike the theme, which resets to
         // Plain. The difference is deliberate — a theme is a look somebody
         // chose today, a currency is a fact about the shop.
         if (null !== $currency) {
-            $branding->setCurrency($currency);
-        }
-
-        if ($limitGiven) {
-            $branding->setDailySpinLimit($dailySpinLimit);
+            $store->setCurrency($currency);
         }
 
         $this->entityManager->flush();
 
-        return new JsonResponse($this->presenter->present($branding));
+        return new JsonResponse($this->presenter->present($store));
     }
 
     #[Route('/logo', name: 'upload_logo', methods: ['POST'])]
@@ -152,8 +145,8 @@ final class BrandingController extends AbstractController
             return $this->invalid([new Violation('logo', $this->translator->trans('logo.required'))]);
         }
 
-        $branding = $this->provider->getOrCreate();
-        $previous = $branding->getLogoFilename();
+        $store = $this->provider->getOrCreate();
+        $previous = $store->getLogoFilename();
 
         try {
             $stored = $this->logos->store($file);
@@ -161,7 +154,7 @@ final class BrandingController extends AbstractController
             return $this->invalid([new Violation('logo', $this->translator->trans($rejected->getKey(), $rejected->getParameters()))]);
         }
 
-        $branding->setLogo($stored['filename'], $stored['contentType']);
+        $store->setLogo($stored['filename'], $stored['contentType']);
         $this->entityManager->flush();
 
         // F04 R17. Deleted only once the new one is safely recorded, so a
@@ -169,7 +162,7 @@ final class BrandingController extends AbstractController
         $this->logos->delete($previous);
 
         return new JsonResponse([
-            ...$this->presenter->present($branding),
+            ...$this->presenter->present($store),
             // F05 R10, R11: null unless sanitising actually took something out.
             'notice' => $this->noticeFor($stored['removed']),
         ]);
@@ -178,15 +171,15 @@ final class BrandingController extends AbstractController
     #[Route('/logo', name: 'delete_logo', methods: ['DELETE'])]
     public function deleteLogo(): JsonResponse
     {
-        $branding = $this->provider->getOrCreate();
-        $filename = $branding->getLogoFilename();
+        $store = $this->provider->getOrCreate();
+        $filename = $store->getLogoFilename();
 
-        $branding->clearLogo();
+        $store->clearLogo();
         $this->entityManager->flush();
 
         $this->logos->delete($filename);
 
-        return new JsonResponse($this->presenter->present($branding));
+        return new JsonResponse($this->presenter->present($store));
     }
 
     /**
@@ -213,7 +206,7 @@ final class BrandingController extends AbstractController
      */
     private function readName(array $payload, string $field, array &$violations): ?string
     {
-        return $this->readText($payload, $field, Branding::NAME_MAX_LENGTH, $violations);
+        return $this->readText($payload, $field, Store::NAME_MAX_LENGTH, $violations);
     }
 
     /**
@@ -247,55 +240,6 @@ final class BrandingController extends AbstractController
     }
 
     /**
-     * F23 R4. A whole number from 1 to the ceiling, or null for no limit.
-     *
-     * Zero is refused rather than read as "nobody may play". A campaign
-     * nobody can play is a mistake somebody made in a number field, and
-     * obeying it would make this the quiet way to pause a campaign — which
-     * is campaign scheduling, and is not this.
-     *
-     * An empty string is null, because that is what a cleared number input
-     * sends; a string of digits is a number, because a form does not care
-     * which of the two it posts.
-     *
-     * Checked before it reaches a SMALLINT column, which is what lets the
-     * column stay one after what F21 cost.
-     *
-     * @param array<mixed>    $payload
-     * @param list<Violation> $violations
-     */
-    private function readDailySpinLimit(array $payload, array &$violations): ?int
-    {
-        /** @var mixed $value */
-        $value = $payload['dailySpinLimit'] ?? null;
-
-        if (null === $value || '' === $value) {
-            return null;
-        }
-
-        $limit = null;
-
-        if (\is_int($value)) {
-            $limit = $value;
-        } elseif (\is_string($value) && 1 === preg_match('/^\d{1,3}$/', $value)) {
-            $limit = (int) $value;
-        }
-
-        if (null === $limit || $limit < 1 || $limit > Branding::MAX_DAILY_SPIN_LIMIT) {
-            $violations[] = new Violation(
-                'dailySpinLimit',
-                $this->translator->trans('branding.daily_spin_limit_invalid', [
-                    '%max%' => Branding::MAX_DAILY_SPIN_LIMIT,
-                ]),
-            );
-
-            return null;
-        }
-
-        return $limit;
-    }
-
-    /**
      * F13 R27. Absent keeps what is stored, so a client that has not caught
      * up with this feature cannot silently reset a shop's currency.
      *
@@ -322,6 +266,68 @@ final class BrandingController extends AbstractController
         }
 
         return $currency;
+    }
+
+    /**
+     * F27 R17. One of the four languages, or null for "let the browser
+     * decide", which is what every shop has until somebody picks.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     */
+    private function readLanguage(array $payload, array &$violations): ?string
+    {
+        /** @var mixed $value */
+        $value = $payload['language'] ?? null;
+
+        if (null === $value || '' === $value) {
+            return null;
+        }
+
+        if (!is_string($value) || !in_array($value, $this->enabledLocales, true)) {
+            $violations[] = new Violation(
+                'language',
+                $this->translator->trans('store.language_invalid'),
+            );
+
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * F27 R15, R34. An identifier this runtime recognises, or a violation.
+     *
+     * Absent returns null and leaves the stored clock alone, like the
+     * currency: a client that has not caught up with this feature must not be
+     * able to move a shop's day by forgetting a field.
+     *
+     * Checked here as well as in the entity, so an admin gets a violation
+     * against the field rather than a 500 out of a constructor.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     */
+    private function readTimezone(array $payload, array &$violations): ?string
+    {
+        /** @var mixed $value */
+        $value = $payload['timezone'] ?? null;
+
+        if (null === $value) {
+            return null;
+        }
+
+        if (is_string($value) && in_array($value, timezone_identifiers_list(), true)) {
+            return $value;
+        }
+
+        $violations[] = new Violation(
+            'timezone',
+            $this->translator->trans('store.timezone_invalid'),
+        );
+
+        return null;
     }
 
     /**

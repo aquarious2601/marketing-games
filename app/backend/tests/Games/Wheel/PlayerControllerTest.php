@@ -73,16 +73,21 @@ final class PlayerControllerTest extends DatabaseWebTestCase
     {
         $this->client->request('GET', self::WHEEL_URI);
 
-        $branding = $this->decodeResponse()['branding'];
+        $store = $this->decodeResponse()['branding'];
 
+        /*
+         * F27 R11. The shop's own fields come first and the game's two
+         * follow, which is why the order changed and the shape did not: the
+         * player page reads one header and has no use for the distinction.
+         */
         self::assertSame(
-            // F13 R28 adds the campaign currency and its symbol.
-            ['companyName', 'campaignName', 'tagline', 'theme', 'currency', 'currencySymbol', 'logoUrl'],
-            array_keys($branding),
+            // F13 R28 adds the shop's currency and its symbol.
+            ['companyName', 'theme', 'currency', 'currencySymbol', 'logoUrl', 'campaignName', 'tagline'],
+            array_keys($store),
         );
-        self::assertSame('One spin, one prize. Good luck.', $branding['tagline']);
-        self::assertSame('plain', $branding['theme']);
-        self::assertNull($branding['logoUrl']);
+        self::assertSame('One spin, one prize. Good luck.', $store['tagline']);
+        self::assertSame('plain', $store['theme']);
+        self::assertNull($store['logoUrl']);
     }
 
     public function testTheBrandingReachesThePlayerOnceSaved(): void
@@ -93,21 +98,22 @@ final class PlayerControllerTest extends DatabaseWebTestCase
 
         $this->client->request(
             'PUT',
-            '/api/admin/branding',
+            '/api/admin/store',
             server: ['CONTENT_TYPE' => 'application/json'],
             content: json_encode(
-                ['companyName' => 'AA Store', 'campaignName' => 'Noel', 'theme' => 'christmas'],
+                ['companyName' => 'AA Store', 'theme' => 'christmas'],
                 \JSON_THROW_ON_ERROR,
             ),
         );
         self::assertResponseIsSuccessful();
 
         $this->client->request('GET', self::WHEEL_URI);
-        $branding = $this->decodeResponse()['branding'];
+        $store = $this->decodeResponse()['branding'];
 
-        self::assertSame('AA Store', $branding['companyName']);
-        self::assertSame('Noel', $branding['campaignName']);
-        self::assertSame('christmas', $branding['theme']);
+        self::assertSame('AA Store', $store['companyName']);
+        self::assertSame('christmas', $store['theme']);
+        // F27 R11: the name on the player page is the game's, not the shop's.
+        self::assertSame('Test campaign', $store['campaignName']);
     }
 
     /** F04 must not undo F02 R2 */
@@ -263,7 +269,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
 
         $this->client->request(
             'PUT',
-            '/api/admin/wheel',
+            $this->wheelUri(),
             server: ['CONTENT_TYPE' => 'application/json'],
             content: json_encode([
                 'prizes' => [

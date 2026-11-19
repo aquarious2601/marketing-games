@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Player;
 
-use App\Branding\BrandingProvider;
+use App\Store\StoreProvider;
 use App\Campaign\CampaignDay;
+use App\Entity\Game;
 use App\Entity\Player;
 use App\Repository\SpinRepository;
 
@@ -27,29 +28,35 @@ use App\Repository\SpinRepository;
 final class SpinAllowance
 {
     public function __construct(
-        private readonly BrandingProvider $branding,
+        private readonly StoreProvider $store,
         private readonly SpinRepository $spins,
         private readonly CampaignDay $day,
     ) {
     }
 
     /**
-     * Spins left today, or null when the campaign has no limit (F23 R12).
+     * Spins left today on this game, or null when it has no limit
+     * (F23 R12, F27 R29). Each game counts its own: an allowance spent on
+     * the wheel leaves the gift sheet's untouched (F27 R30).
      *
      * Null rather than a large number, so a caller cannot accidentally
      * render "no limit" as a count, and so `0 === remainingFor(...)` is
      * false for an unlimited campaign without anybody having to think
      * about it.
      */
-    public function remainingFor(Player $player): ?int
+    public function remainingFor(Player $player, Game $game): ?int
     {
-        $limit = $this->branding->getOrCreate()->getDailySpinLimit();
+        $limit = $game->getDailyLimit();
 
         if (null === $limit) {
             return null;
         }
 
-        $used = $this->spins->countForPlayerSince($player, $this->day->startOfToday());
+        $used = $this->spins->countForPlayerOnGameSince(
+            $player,
+            $game,
+            $this->day->startOfToday($this->store->getOrCreate()->getTimezoneAsZone()),
+        );
 
         /*
          * F23 R5. Never negative: an admin who lowers the limit below what
@@ -61,8 +68,8 @@ final class SpinAllowance
     }
 
     /** F23 R10. True only when a limit exists and has been used up. */
-    public function isExhausted(Player $player): bool
+    public function isExhausted(Player $player, Game $game): bool
     {
-        return 0 === $this->remainingFor($player);
+        return 0 === $this->remainingFor($player, $game);
     }
 }
