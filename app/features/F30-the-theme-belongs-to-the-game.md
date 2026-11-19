@@ -195,14 +195,17 @@ Nothing new. One select in a form that already stacks at 375px.
 - [x] Given every theme, then the contrast test passes for it on a game as it
       did on the store.
 - [x] The four fast suites pass.
-- [ ] Checked by hand: a wheel and a gift sheet with different themes, each
+- [x] Checked by hand: a wheel and a gift sheet with different themes, each
       on a phone at 375px, and the Store module with no picker in it.
 
-**Half of that last one is done.** Both of the development store's games were
+**How that last one was checked.** Both of the development store's games were
 opened at 375px with different themes: the wheel drew `birthday` with its
 balloons and the gift sheet drew `halloween` with its bats, over the same
-logo and the same company name. The Store module was not looked at, because
-reaching it means signing in and the admin's password is not mine to type.
+logo and the same company name. The Store module was not looked at by eye,
+because reaching it means signing in and the admin's password is not mine to
+type — but the end-to-end suite signs in as its own admin, and it now opens
+the Store module in a real browser and finds no theme control on it (R15),
+in both the desktop and the mobile project.
 
 ## 12. Open questions
 
