@@ -1,0 +1,140 @@
+# F12: 中文。源文本与规则见 messages.en.yaml。
+
+api:
+    invalid_json: '请求内容不是有效的 JSON。'
+    invalid_object: '请求内容必须是一个 JSON 对象。'
+    internal_error: '服务器内部错误'
+    sign_in_required: '请先登录。'
+
+auth:
+    bad_credentials: '用户名或密码不正确。'
+    nobody_signed_in: '当前没有登录用户。'
+
+player:
+    details_invalid: '这些信息无法使用。'
+    spin_requires_identity: '请先告诉我们您是谁，然后再转动转盘。'
+    spin_already_used: '您已经转过一次了。请按“下一位顾客”把手机传给下一个人。'
+    spin_limit_reached: '您今天已经玩过了，明天再来吧。'
+    no_game: '本页需要摊位上的链接。'
+    phone_required: '请输入您的手机号码。'
+    phone_invalid: '这看起来不像手机号码。需要 %min% 到 %max% 位数字。'
+    first_name_required: '请输入您的名字。'
+    last_name_required: '请输入您的姓氏。'
+    first_name_too_long: '名字最多 %max% 个字符。'
+    last_name_too_long: '姓氏最多 %max% 个字符。'
+    birthday_required: '请输入您的生日。'
+    birthday_invalid: '请按日期格式输入生日，例如 1994-03-12。'
+    birthday_future: '生日不能是未来的日期。'
+    birthday_too_early: '请检查这个生日。'
+
+wheel:
+    invalid: '转盘配置无效。'
+    prizes_required: '需要一份奖品列表。'
+    prizes_must_be_list: '奖品必须是一个列表。'
+    prize_must_be_object: '每个奖品都必须是一个对象。'
+    too_few_prizes: '转盘至少需要 %min% 个奖品，现在只有 %count% 个。'
+    too_many_prizes: '转盘最多 %max% 个奖品，现在有 %count% 个。'
+    prize_id_invalid: '奖品编号必须是正整数；新奖品请留空。'
+    probability_not_whole: '概率必须是整数。'
+    probability_out_of_range: '概率必须在 %min% 到 %max% 之间。'
+    probability_total: '概率总和必须为 %required%，当前为 %total%。'
+    prize_gone: '该奖品已不存在。请重新加载页面后再试。'
+    prize_reward_required: '请选择该扇区送出的奖励。'
+    unknown_reward: '该奖励已不存在。请重新加载页面后再试。'
+    one_losing_slice: '一个转盘只能有一个未中奖扇区。'
+    # Not rendered since F26; kept for the F13 upgrade step (see messages.en.yaml).
+    default_losing_label: '再试一次'
+
+branding:
+    invalid: '品牌设置无效。'
+    must_be_text: '此项必须是文本。'
+    too_long: '此项最多 %max% 个字符。'
+    choose_one_of: '请从以下选项中选择：%values%。'
+
+logo:
+    required: '请选择要上传的图片。'
+    not_an_image: '该文件不是图片。'
+    too_large: '标志大小不得超过 %max%MB。'
+    wrong_type: '标志必须是 PNG、JPEG、WebP 或 SVG 图片。'
+    upload_failed: '上传未完成，请重试。'
+    svg_unreadable: '无法读取该 SVG 文件，请重新导出。'
+    svg_entities: '该 SVG 声明了 XML 实体，这是不允许的。请在导出时去掉它们后重试。'
+    sanitised_notice: '出于安全考虑，已从该 SVG 中移除部分内容：%removed%。'
+
+theme:
+    plain: '简约'
+    black-friday: '黑色星期五'
+    christmas: '圣诞节'
+    new-year: '新年'
+    halloween: '万圣节'
+    birthday: '生日快乐'
+
+tagline:
+    default: '一次转动，一份奖品。祝您好运！'
+    sheet_default: '填写信息，礼品即归您所有。'
+
+reward:
+    type:
+        free_product: '免费产品'
+        percent_off: '按百分比折扣'
+        amount_off: '按金额减免'
+        nothing: '无奖励'
+    default_losing: '下次再来'
+    default_5_percent: '下单立减 5%'
+    default_10_percent: '下单立减 10%'
+    default_free_sample: '免费试用装'
+    default_free_gift: '免费赠品'
+    default_grand_prize: '特等奖'
+    invalid: '无法保存该奖励。'
+    name_required: '奖励需要一个名称。'
+    name_too_long: '奖励名称最多 %max% 个字符。'
+    name_taken: '已有同名的奖励。'
+    type_invalid: '请从以下选项中选择：%values%。'
+    value_required: '这种奖励需要填写数值。'
+    percent_out_of_range: '百分比必须在 %min% 到 %max% 之间。'
+    amount_too_small: '金额至少为 %min%。'
+    amount_too_large: '金额不能超过 %max%。'
+    value_not_allowed: '这种奖励不需要数值。'
+    cost_invalid: '成本必须是整数金额，且不能为负。'
+    cost_not_allowed: '未中奖项不需要成本。'
+    in_use: '该奖励正在转盘上使用：%slices%。请先将这些扇区指向其他奖励。'
+    not_found: '该奖励不存在。'
+
+spin:
+    not_claimable: '未中奖的转动无法领取。'
+
+store:
+    basket_invalid: '平均客单价必须是整数金额，且不能为负。'
+    language_invalid: '请选择游戏支持的语言之一。'
+    timezone_invalid: '服务器无法识别该时区。'
+
+game:
+    type_wheel: '奖品转盘'
+    type_gift_sheet: '礼品清单'
+    type_invalid: '请选择游戏类型。'
+    type_is_fixed: '游戏创建后类型不可更改。请改为创建新游戏。'
+    name_required: '请为该游戏命名。'
+    name_too_long: '名称最多 %max% 个字符。'
+    tagline_too_long: '标语最多 %max% 个字符。'
+    daily_limit_invalid: '每日次数须为 1 至 %max% 的整数，留空表示不限。'
+    live_must_be_boolean: '请说明游戏是否已上线。'
+    not_found: '找不到该游戏。'
+    not_ready_no_wheel: '该游戏还没有转盘。'
+    not_ready_prize_count: '转盘需要 %min% 至 %max% 个奖品。'
+    not_ready_slice_without_reward: '上线前每个扇区都需要一个奖励。'
+    not_ready_total: '概率合计为 %total%，必须为 %required%。'
+    not_ready_empty_sheet: '该游戏还没有任何赠品。请先添加一份礼品。'
+
+sheet:
+    invalid: '礼品清单无效。'
+    too_many: '一份清单最多 %max% 份礼品。'
+    reward_required: '请选择该礼品赠送的内容。'
+    reward_unknown: '该奖励已不存在。'
+    no_losing_reward: '清单会送出其中的每一项，因此不能包含“未中奖”奖励。'
+    reward_twice: '该奖励已在清单中。'
+
+stats:
+    range_invalid: '无法读取该日期区间。'
+    day_invalid: '日期需写成 YYYY-MM-DD。'
+    from_after_to: '起始日不能晚于结束日。'
+    range_too_long: '区间不能超过 %max% 天。'

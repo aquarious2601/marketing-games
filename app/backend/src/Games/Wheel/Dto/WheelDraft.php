@@ -1,0 +1,25 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Games\Wheel\Dto;
+
+/**
+ * A validated wheel configuration, as submitted. Nothing constructs one of
+ * these unless every rule in F01 section 6 holds, so anything downstream can
+ * trust it completely.
+ *
+ * @see \App\Games\Wheel\Dto\WheelInputParser
+ */
+final readonly class WheelDraft
+{
+    /**
+     * @param list<PrizeDraft> $prizes in the order the admin wants them
+     */
+    public function __construct(
+        public array $prizes,
+        /** F13 R11. */
+        public bool $includesLosingSlice = false,
+    ) {
+    }
+}

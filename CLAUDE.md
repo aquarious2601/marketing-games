@@ -1,12 +1,18 @@
 # Working in this repository
 
-A repository of small marketing games. Each game is a folder
-(`roulette/` is the first) with the same shape: `backend/` (Symfony +
-Doctrine), `frontend/` (React + TypeScript + Tailwind + Vite) and
-`features/` (one markdown file per feature).
+One application, `app/`, serving several marketing games to one store:
+`backend/` (Symfony + Doctrine), `frontend/` (React + TypeScript + Tailwind
++ Vite) and `features/` (one markdown file per feature).
+
+A game's own code lives in a folder of its own — `backend/src/Games/<Game>/`
+and `frontend/src/games/<game>/` — and everything the games share (the store,
+the players, the reward catalogue, the admin, the login) lives outside those
+folders. [`P05`](./app/features/P05-one-app-a-folder-per-game.md) R4 is the
+test for which a file is: it belongs to a game when a second game would have
+to write it again, differently.
 
 How features are specified and numbered is in
-[`roulette/features/README.md`](./roulette/features/README.md). Read it before
+[`app/features/README.md`](./app/features/README.md). Read it before
 adding behaviour: scope lives in a numbered `Fnn-*.md` file, the tests cite
 its rule numbers, and a feature is not implemented while its file says
 `Draft`.

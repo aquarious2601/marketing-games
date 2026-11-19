@@ -15,6 +15,10 @@
 /*/frontend/dist/
 /*/backend/var/
 /*/backend/public/bundles/
+# Dumped by FrameworkBundle on every debug container rebuild, for IDEs and
+# static analysis only: nothing in the app reads it and prod never writes it.
+# Tracked, it made each cache warm-up look like a change.
+/*/backend/config/reference.php
 
 # Environment & secrets
 .env.local

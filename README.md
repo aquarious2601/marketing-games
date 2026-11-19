@@ -1,35 +1,41 @@
 # Marketing Games
 
-A collection of standalone, browser-based marketing games. Each game is a
-self-contained application in its own subfolder, with its own database,
-its own admin interface and its own deployment.
+One browser-based application serving several marketing games to one store.
+The games share a database, an admin interface and a deployment, because they
+share the shop: its name, its logo, its currency, its reward catalogue and its
+customers.
 
 Nothing here is connected to the AA Shop Manager codebase or data.
 
 ## Games
 
-| Folder | Game | Status |
+| Game | What it is | Status |
 |---|---|---|
-| [`roulette/`](./roulette) | Spin-the-wheel prize roulette | In development |
+| Wheel | Spin-the-wheel prize roulette | In development |
+| Gift sheet | Every reward on the list, one code each | Specified ([F28](./app/features/F28-the-gift-sheet.md)) |
 
 ## Layout
 
 ```
 marketing-games/
-└── roulette/
+└── app/
     ├── features/     # Feature descriptions (the source of truth for scope)
     ├── backend/      # Symfony 7 API
-    └── frontend/     # React 18 + Vite + Tailwind SPA
+    │   └── src/Games/Wheel/      # one game's own code
+    ├── frontend/     # React 19 + Vite + Tailwind SPA
+    │   └── src/games/wheel/      # the same game's own code
+    └── deploy/       # provisioning, release and rollback scripts
 ```
 
-Each game keeps this same shape so a second game can be added without
-touching the first.
+Everything outside a `games/` folder is shared by every game. A second game
+is a folder in each of those two places and nothing else moved
+([P05](./app/features/P05-one-app-a-folder-per-game.md)).
 
 ## Method
 
 This project is built with **Feature Driven Development**. Nothing is
 implemented until there is an agreed feature description for it.
-See [`roulette/features/README.md`](./roulette/features/README.md) for the loop.
+See [`app/features/README.md`](./app/features/README.md) for the loop.
 
 ## Running it
 
@@ -52,7 +58,7 @@ Open **http://localhost:5173/admin** to configure the wheel.
 First time, or after pulling:
 
 ```powershell
-cd roulette\backend ; php C:\xampp\php\composer.phar install
+cd app\backend ; php C:\xampp\php\composer.phar install
 cd ..\frontend ; npm install
 ```
 
@@ -60,11 +66,11 @@ MariaDB must be running (start it from the XAMPP control panel). Then create
 the databases — the app's, and the one the tests use:
 
 ```powershell
-cd roulette\backend ; php bin/console doctrine:database:create --if-not-exists ; php bin/console doctrine:schema:update --force --complete
+cd app\backend ; php bin/console doctrine:database:create --if-not-exists ; php bin/console doctrine:schema:update --force --complete
 ```
 
 ```powershell
-cd roulette\backend ; php bin/console doctrine:database:create --if-not-exists --env=test ; php bin/console doctrine:schema:update --force --complete --env=test
+cd app\backend ; php bin/console doctrine:database:create --if-not-exists --env=test ; php bin/console doctrine:schema:update --force --complete --env=test
 ```
 
 | Database | Used by |
@@ -78,7 +84,7 @@ cd roulette\backend ; php bin/console doctrine:database:create --if-not-exists -
 
 `schema:update` above is for an **empty** database. Once there are prizes and
 spins in one, a new required column cannot simply be added — see
-[P02](./roulette/features/P02-database-upgrades.md). After pulling a version
+[P02](./app/features/P02-database-upgrades.md). After pulling a version
 that changes the schema, run:
 
 ```powershell
