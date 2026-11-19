@@ -376,6 +376,11 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $this->connection->insert('spin', [
             'prize_name' => '5% off your next order',
             'prize_probability' => 25,
+            // F27 R9 here too. Without it a strict database refuses the row
+            // for the wrong reason — NOT NULL before the unique index — and
+            // this test would pass for the wrong one locally, where MariaDB
+            // is lenient and writes a 0.
+            'game_id' => (int) $this->connection->fetchOne('SELECT id FROM game ORDER BY id LIMIT 1'),
             'spun_at' => '2026-11-16 09:01:00',
             'prize_id' => $prizes[1]['id'],
             'reward_type' => RewardType::PercentOff->value,
