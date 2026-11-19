@@ -37,7 +37,7 @@ export const DEFAULT_PRIZES = [
 export async function restoreDefaultWheel(request: APIRequestContext): Promise<void> {
   const catalogue = await rewardIdsByName(request)
 
-  const response = await request.put('/api/admin/wheel', {
+  const response = await request.put(await wheelUri(request), {
     data: {
       includesLosingSlice: true,
       // F26 R12, R13: a slice is its reward and its odds. A name would be
@@ -56,6 +56,37 @@ export async function restoreDefaultWheel(request: APIRequestContext): Promise<v
         `${await response.text()}`,
     )
   }
+}
+
+/**
+ * The store's one game (F27 R26, R32), which is what an upgraded
+ * installation has and therefore what these specs may assume.
+ *
+ * Looked up rather than hard-coded: the id depends on what the database has
+ * been through, and F27 moved every admin path for a game underneath it.
+ */
+export async function theGame(
+  request: APIRequestContext,
+): Promise<{ id: number; linkKey: string }> {
+  const response = await request.get('/api/admin/games')
+
+  if (!response.ok()) {
+    throw new Error(`The end-to-end suite could not read the games (${response.status()}).`)
+  }
+
+  const body = await response.json()
+  const game = body.games[0]
+
+  if (game === undefined) {
+    throw new Error('The end-to-end suite found no game to run against.')
+  }
+
+  return { id: game.id, linkKey: game.linkKey }
+}
+
+/** F27 R40: a wheel is reached through the game whose wheel it is. */
+export async function wheelUri(request: APIRequestContext): Promise<string> {
+  return `/api/admin/games/${(await theGame(request)).id}/wheel`
 }
 
 /** @returns the catalogue's ids, keyed by reward name. */

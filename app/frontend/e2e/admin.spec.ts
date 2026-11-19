@@ -1,6 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { signIn } from './auth'
-import { DEFAULT_PRIZES, restoreDefaultWheel, rewardId, rewardIdsByName } from './wheel'
+import {
+  DEFAULT_PRIZES,
+  restoreDefaultWheel,
+  rewardId,
+  rewardIdsByName,
+  wheelUri,
+} from './wheel'
 
 /**
  * F01 in a real browser, against the real API and a real database.
@@ -87,7 +93,7 @@ test.describe('the admin wheel page', () => {
 
   /** F01 R14 — the frontend palette must agree with the backend's */
   test('colours the slices exactly as the API says', async ({ page, request }) => {
-    const configuration = await (await request.get('/api/admin/wheel')).json()
+    const configuration = await (await request.get(await wheelUri(request))).json()
 
     const rendered = await page
       .getByTestId('wheel-slice')
@@ -261,7 +267,7 @@ test.describe('the wheel API', () => {
     const catalogue = await rewardIdsByName(request)
     const free = rewardId(catalogue, 'Free gift')
 
-    const response = await request.put('/api/admin/wheel', {
+    const response = await request.put(await wheelUri(request), {
       data: {
         prizes: [
           { name: 'A', probability: 60, rewardId: free },
@@ -278,13 +284,13 @@ test.describe('the wheel API', () => {
   })
 
   test('leaves the stored wheel untouched when a save is rejected', async ({ request }) => {
-    const before = await (await request.get('/api/admin/wheel')).json()
+    const before = await (await request.get(await wheelUri(request))).json()
 
-    await request.put('/api/admin/wheel', {
+    await request.put(await wheelUri(request), {
       data: { prizes: [{ probability: 100 }] },
     })
 
-    const after = await (await request.get('/api/admin/wheel')).json()
+    const after = await (await request.get(await wheelUri(request))).json()
     expect(after.prizes).toEqual(before.prizes)
   })
 })
