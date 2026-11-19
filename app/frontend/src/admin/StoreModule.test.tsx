@@ -44,6 +44,7 @@ function branding(overrides: Partial<AdminStore> = {}): AdminStore {
     language: null,
     // F27 R15: never null. The upgrade seeded it from APP_TIMEZONE.
     timezone: 'Europe/Paris',
+    averageBasket: null,
     currency: 'VND',
     currencySymbol: '₫',
     ownCurrency: 'VND',
@@ -142,6 +143,7 @@ describe('saving', () => {
         language: null,
         // F27 R15: the shop's clock, sent as it stands.
         timezone: 'Europe/Paris',
+        averageBasket: null,
       }),
     )
   })
@@ -366,3 +368,47 @@ describe('the logo', () => {
  * mattered most, that clearing the field is how a promotion goes back to no
  * limit at all.
  */
+
+/** F32 R5, R6: the one figure that lets a percentage become money. */
+describe('the average basket', () => {
+  it('saves what the admin typed', async () => {
+    const user = userEvent.setup()
+
+    render(<StoreModule />)
+    await screen.findByTestId('store-section')
+
+    await user.type(screen.getByTestId('store-basket'), '200000')
+    await user.click(screen.getByTestId('save-store'))
+
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ averageBasket: 200000 }),
+      ),
+    )
+  })
+
+  /** R5. Emptying it is how a shop says it no longer stands behind it. */
+  it('clears it when the field is emptied', async () => {
+    const user = userEvent.setup()
+
+    fetchMock.mockResolvedValue(branding({ averageBasket: 200000 }))
+
+    render(<StoreModule />)
+    await screen.findByTestId('store-section')
+
+    await user.clear(screen.getByTestId('store-basket'))
+    await user.click(screen.getByTestId('save-store'))
+
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({ averageBasket: null })),
+    )
+  })
+
+  it('shows the figure the shop already has', async () => {
+    fetchMock.mockResolvedValue(branding({ averageBasket: 150000 }))
+
+    render(<StoreModule />)
+
+    expect(await screen.findByTestId('store-basket')).toHaveValue(150000)
+  })
+})

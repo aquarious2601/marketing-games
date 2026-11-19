@@ -180,7 +180,7 @@ describe('translate', () => {
 
   it('fills a placeholder everywhere it appears', () => {
     expect(translate('en', 'players.capped', { shown: 2, total: 613 })).toBe(
-      'Showing the first 2 of 613 players.',
+      'Showing the first 2 of 613 customers.',
     )
   })
 

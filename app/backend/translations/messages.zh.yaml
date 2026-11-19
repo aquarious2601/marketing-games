@@ -95,6 +95,8 @@ reward:
     amount_too_small: '金额至少为 %min%。'
     amount_too_large: '金额不能超过 %max%。'
     value_not_allowed: '这种奖励不需要数值。'
+    cost_invalid: '成本必须是整数金额，且不能为负。'
+    cost_not_allowed: '未中奖项不需要成本。'
     in_use: '该奖励正在转盘上使用：%slices%。请先将这些扇区指向其他奖励。'
     not_found: '该奖励不存在。'
 
@@ -102,6 +104,7 @@ spin:
     not_claimable: '未中奖的转动无法领取。'
 
 store:
+    basket_invalid: '平均客单价必须是整数金额，且不能为负。'
     language_invalid: '请选择游戏支持的语言之一。'
     timezone_invalid: '服务器无法识别该时区。'
 
@@ -129,3 +132,9 @@ sheet:
     reward_unknown: '该奖励已不存在。'
     no_losing_reward: '清单会送出其中的每一项，因此不能包含“未中奖”奖励。'
     reward_twice: '该奖励已在清单中。'
+
+stats:
+    range_invalid: '无法读取该日期区间。'
+    day_invalid: '日期需写成 YYYY-MM-DD。'
+    from_after_to: '起始日不能晚于结束日。'
+    range_too_long: '区间不能超过 %max% 天。'

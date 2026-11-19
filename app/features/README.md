@@ -196,6 +196,8 @@ what those screens become once several owners share an installation.
 | [F28](./F28-the-gift-sheet.md) | The gift sheet | Both | Agreed |
 | [F29](./F29-the-next-customer.md) | The next customer | Player | Agreed |
 | [F30](./F30-the-theme-belongs-to-the-game.md) | The theme belongs to the game | Both | Agreed |
+| [F31](./F31-claiming-at-the-counter.md) | Claiming at the counter | Admin | Agreed |
+| [F32](./F32-what-the-game-costs-and-brings.md) | What the game costs and brings | Admin | Agreed |
 
 ## Running the tests
 

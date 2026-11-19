@@ -195,6 +195,28 @@ abstract class DatabaseWebTestCase extends WebTestCase
     }
 
     /**
+     * A wheel on which every slice is claimable.
+     *
+     * The default wheel has a losing slice, so a test that needs spins to
+     * *win* cannot use it: the draw is real and roughly one spin in five
+     * would land on nothing. Since F31 R23 the log lists wins only, which
+     * turned that into a flapping count rather than a missing row.
+     *
+     * Assumes the caller is signed in as an admin, because saving a wheel
+     * needs a session (F07 R17).
+     */
+    protected function givenAWheelThatAlwaysWins(): void
+    {
+        $this->put($this->wheelUri(), [
+            'prizes' => [
+                ['name' => 'Free coffee', 'probability' => 50, 'rewardId' => $this->aRewardId()],
+                ['name' => 'Free cake', 'probability' => 50, 'rewardId' => $this->aRewardId('Cake')],
+            ],
+        ]);
+        self::assertResponseIsSuccessful('The test could not set up a winning wheel.');
+    }
+
+    /**
      * A reward id a wheel payload can point at (F13 R7).
      *
      * Every slice has to say what it gives away now, so a test that saves a

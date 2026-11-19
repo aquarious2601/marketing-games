@@ -79,6 +79,9 @@ final class RewardController extends AbstractController
         }
 
         $reward = new Reward($draft->name, $draft->type, $draft->value);
+        // F32 R1. After the constructor, which is what fixes the type the
+        // cost is allowed to exist for (R4).
+        $reward->setCost($draft->cost);
 
         return $this->save($reward, Response::HTTP_CREATED, $currency);
     }
@@ -105,6 +108,7 @@ final class RewardController extends AbstractController
         // away (F13 R3).
         $reward->setType($draft->type);
         $reward->setValue($draft->value);
+        $reward->setCost($draft->cost);
 
         return $this->save($reward, Response::HTTP_OK, $currency);
     }
@@ -199,7 +203,7 @@ final class RewardController extends AbstractController
     }
 
     /**
-     * @return array{id: int|null, name: string, type: string, value: int|null, createdAt: string, usedBy: list<string>}
+     * @return array{id: int|null, name: string, type: string, value: int|null, cost: int|null, createdAt: string, usedBy: list<string>}
      */
     private function present(Reward $reward): array
     {
@@ -208,6 +212,9 @@ final class RewardController extends AbstractController
             'name' => $reward->getName(),
             'type' => $reward->getType()->value,
             'value' => $reward->getValue(),
+            // F32 R7: null is unpriced, and the page shows it as such
+            // rather than as a zero nobody typed.
+            'cost' => $reward->getCost(),
             'createdAt' => $reward->getCreatedAt()->format(\DateTimeInterface::ATOM),
             // So the list can show what is in use, and grey out its delete
             // before the admin presses it and is told no (F13 R6). Slice

@@ -117,6 +117,8 @@ reward:
     amount_too_small: 'An amount must be at least %min%.'
     amount_too_large: 'An amount cannot be more than %max%.'
     value_not_allowed: 'This type of reward does not take a value.'
+    cost_invalid: 'A cost must be a whole amount of money, and cannot be negative.'
+    cost_not_allowed: 'The losing item costs nothing to give away, so it takes no cost.'
     in_use: 'This reward is on the wheel: %slices%. Point those slices at something else first.'
     not_found: 'That reward does not exist.'
 
@@ -124,6 +126,7 @@ spin:
     not_claimable: 'A losing spin cannot be claimed.'
 
 store:
+    basket_invalid: 'An average basket must be a whole amount of money, and cannot be negative.'
     language_invalid: 'Choose one of the languages the game speaks.'
     timezone_invalid: 'That is not a timezone this server recognises.'
 
@@ -151,3 +154,9 @@ sheet:
     reward_unknown: 'That reward no longer exists.'
     no_losing_reward: 'A sheet gives everything on it, so it cannot include the losing reward.'
     reward_twice: 'This reward is already on the sheet.'
+
+stats:
+    range_invalid: 'That range of days cannot be read.'
+    day_invalid: 'A day must be written as YYYY-MM-DD.'
+    from_after_to: 'The first day cannot be after the last.'
+    range_too_long: 'A range cannot be longer than %max% days.'

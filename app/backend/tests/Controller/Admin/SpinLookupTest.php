@@ -160,15 +160,22 @@ final class SpinLookupTest extends DatabaseWebTestCase
     }
 
     /**
-     * F16 R15, the same shape of exclusion as F09 R18's: a filter that asks
-     * about codes cannot show the rows that have none.
+     * F16 R15 as F31 R23 absorbs it.
+     *
+     * A filter that asked about codes could never show the rows that have
+     * none; now nothing shows them. The losing spin is a number beside the
+     * list (R24) rather than a row in it — which is the same exclusion, made
+     * unconditional and admitted on screen.
      */
-    public function testFilteringByCodeLeavesOutTheLosingSpins(): void
+    public function testALosingSpinIsCountedRatherThanListed(): void
     {
         $this->givenASpin('Free coffee', self::CODE);
         $this->givenALosingSpin();
 
-        self::assertSame(2, $this->search('')['total'], 'Both spins are in the log.');
+        $everything = $this->search('');
+
+        self::assertSame(1, $everything['total'], 'The log is wins only.');
+        self::assertSame(1, $everything['wonNothing'], 'And says how many it left out.');
 
         $found = $this->search('A7K3');
 
@@ -194,11 +201,17 @@ final class SpinLookupTest extends DatabaseWebTestCase
         self::assertNotNull($this->decodeResponse()['spin']['claimedAt']);
     }
 
-    /** A filter of nothing is not a filter (F09 R19 still reads the same). */
+    /**
+     * A filter of nothing is not a filter (F09 R19 still reads the same).
+     *
+     * Two wins rather than a win and a losing spin, since F31 R23: the
+     * losing one would be absent for a reason that has nothing to do with
+     * whitespace, which is what this test is about.
+     */
     public function testWhitespaceIsNotAFilter(): void
     {
         $this->givenASpin('Free coffee', self::CODE);
-        $this->givenALosingSpin();
+        $this->givenASpin('Free cake', 'B8M4-N2QR');
 
         self::assertSame(2, $this->search('   ')['total']);
         self::assertCount(2, $this->search('   ')['spins']);

@@ -671,6 +671,106 @@ final class DatabaseUpgradeTest extends KernelTestCase
         );
     }
 
+    // ------------------------------------------ F32: what a reward costs
+
+    /**
+     * F32 R1, R5, R8. The three columns, and every reward unpriced.
+     *
+     * Unpriced rather than zero on purpose (R7): a catalogue that came back
+     * from an upgrade reading "costs nothing" would have the stats totalling
+     * a campaign as free, and nothing on screen to say which of those zeros
+     * anybody had actually looked at.
+     */
+    public function testItAddsTheCostColumnsUnpriced(): void
+    {
+        $this->givenTheDefaultWheel();
+
+        $this->upgrade()->run();
+
+        self::assertNotNull($this->columnOf('reward', 'cost'));
+        self::assertNotNull($this->columnOf('store', 'average_basket'));
+        self::assertNotNull($this->columnOf('spin', 'reward_cost'));
+
+        self::assertSame(
+            0,
+            (int) $this->connection->fetchOne('SELECT COUNT(*) FROM reward WHERE cost IS NOT NULL'),
+            'The upgrade priced a reward nobody has looked at.',
+        );
+    }
+
+    /**
+     * F32 R11. The wins already recorded are priced from the catalogue as it
+     * stands, once, and the step says how many it could not reach.
+     */
+    public function testItPricesTheWinsAlreadyRecorded(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenARecordedSpin('Free gift');
+        $this->givenARecordedSpin('Grand prize');
+
+        // The first run creates the catalogue and the columns; nothing has a
+        // cost yet, so nothing can be priced.
+        $this->upgrade()->run();
+
+        $this->connection->executeStatement(
+            "UPDATE reward SET cost = 25000 WHERE name = 'Free gift'",
+        );
+
+        $this->upgrade()->run();
+
+        self::assertSame(
+            '25000',
+            (string) $this->connection->fetchOne(
+                "SELECT reward_cost FROM spin WHERE prize_name = 'Free gift'",
+            ),
+        );
+        self::assertNull(
+            $this->connection->fetchOne(
+                "SELECT reward_cost FROM spin WHERE prize_name = 'Grand prize'",
+            ) ?: null,
+            'A reward with no cost leaves its wins unpriced.',
+        );
+    }
+
+    /** P02 R2, F32 R9. A second run prices nothing again. */
+    public function testASecondRunLeavesThePricedSpinsAlone(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenARecordedSpin('Free gift');
+
+        $this->upgrade()->run();
+        $this->connection->executeStatement(
+            "UPDATE reward SET cost = 25000 WHERE name = 'Free gift'",
+        );
+        $this->upgrade()->run();
+
+        // Somebody corrects the catalogue afterwards, as R9 allows.
+        $this->connection->executeStatement(
+            "UPDATE reward SET cost = 30000 WHERE name = 'Free gift'",
+        );
+        $this->upgrade()->run();
+
+        self::assertSame(
+            '25000',
+            (string) $this->connection->fetchOne(
+                "SELECT reward_cost FROM spin WHERE prize_name = 'Free gift'",
+            ),
+            'A later run restated a figure somebody had already read.',
+        );
+    }
+
+    /** P02 section 8. A dry run names the pricing and writes nothing. */
+    public function testADryRunPricesNothing(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->givenARecordedSpin('Free gift');
+
+        $this->upgrade()->run(true);
+
+        self::assertNull($this->columnOf('reward', 'cost'), 'The dry run added a column.');
+        self::assertNull($this->columnOf('spin', 'reward_cost'));
+    }
+
     // ------------------------------------------------ F30: the game's theme
 
     /**
@@ -1142,6 +1242,21 @@ final class DatabaseUpgradeTest extends KernelTestCase
     }
 
     /** The six slices every database that exists today was created with. */
+    /**
+     * One spin already in the log, of a slice this wheel has.
+     *
+     * The pre-F13 shape, like every other fixture here: no reward columns
+     * at all, which the earlier steps add and fill before F32's reach it.
+     */
+    private function givenARecordedSpin(string $prizeName): void
+    {
+        $this->connection->insert('spin', [
+            'prize_name' => $prizeName,
+            'prize_probability' => 10,
+            'spun_at' => '2026-11-15 10:00:00',
+        ]);
+    }
+
     private function givenTheDefaultWheel(): void
     {
         $this->givenAWheelWithSlices([

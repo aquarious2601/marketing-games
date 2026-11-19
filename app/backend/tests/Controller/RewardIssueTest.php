@@ -216,6 +216,210 @@ final class RewardIssueTest extends DatabaseWebTestCase
         self::assertSame($first, $this->decodeResponse()['spin']['claimedAt']);
     }
 
+    // ------------------------------------------ F32 R8-R10: the cost snapshot
+
+    /** F32 R8. The cost is written onto the spin as it is won. */
+    public function testASpinRemembersWhatItCost(): void
+    {
+        $reward = $this->givenAPricedFreeProduct('Free coffee', 25_000);
+
+        $id = $this->givenASpin($reward);
+
+        self::assertSame(25_000, $this->costOf($id));
+    }
+
+    /**
+     * F32 R9. The whole reason it is a snapshot: a price corrected next
+     * month must not restate last month's figures. A number an owner read on
+     * Monday has to still be that number on Friday.
+     */
+    public function testCorrectingAPriceLeavesTheSpinsAlreadyRecorded(): void
+    {
+        $reward = $this->givenAPricedFreeProduct('Free coffee', 25_000);
+        $id = $this->givenASpin($reward);
+
+        $this->signInAsAdmin();
+        $this->put('/api/admin/rewards/'.$reward, [
+            'name' => 'Free coffee',
+            'type' => 'free_product',
+            'cost' => 30_000,
+        ]);
+        self::assertResponseIsSuccessful();
+
+        self::assertSame(25_000, $this->costOf($id), 'The recorded spin moved.');
+
+        // And the next win of it carries the new figure, which is the other
+        // half of R9: the correction applies from now on.
+        $this->client->request('POST', '/api/logout');
+        $this->identifyAsPlayer();
+        $this->client->request('POST', self::SPIN_URI);
+        self::assertResponseIsSuccessful();
+
+        $next = $this->entityManager->getRepository(Spin::class)->findOneBy([], ['id' => 'DESC']);
+        self::assertInstanceOf(Spin::class, $next);
+        self::assertSame(30_000, $next->getRewardCost());
+    }
+
+    /**
+     * F32 R10. A reward nobody had priced leaves an unpriced win, and
+     * pricing it afterwards does not reach back: a cost appearing
+     * retrospectively on a prize already handed over is exactly what the
+     * snapshot is for.
+     */
+    public function testAnUnpricedWinStaysUnpriced(): void
+    {
+        $reward = $this->aRewardId('Mystery gift');
+        $id = $this->givenASpin($reward);
+
+        self::assertNull($this->costOf($id));
+
+        $this->signInAsAdmin();
+        $this->put('/api/admin/rewards/'.$reward, [
+            'name' => 'Mystery gift',
+            'type' => 'free_product',
+            'cost' => 25_000,
+        ]);
+        self::assertResponseIsSuccessful();
+
+        self::assertNull($this->costOf($id), 'A cost appeared on a spin from before it.');
+    }
+
+    /**
+     * F32 R4. A losing spin carries no cost at all.
+     *
+     * Through the mostly-losing wheel rather than a wheel of one, because
+     * F14 R5 allows only one losing slice — the same reason
+     * `givenAMostlyLosingWheel` exists at all.
+     */
+    public function testALosingSpinCostsNothingToRecord(): void
+    {
+        $this->givenAMostlyLosingWheel();
+
+        $spin = $this->entityManager->getRepository(Spin::class)->findOneBy([], ['id' => 'DESC']);
+        self::assertInstanceOf(Spin::class, $spin);
+
+        $id = $spin->getId();
+        self::assertIsInt($id);
+
+        self::assertNull($this->costOf($id));
+    }
+
+    private function givenAPricedFreeProduct(string $name, int $cost): int
+    {
+        $id = $this->aRewardId($name);
+
+        $this->signInAsAdmin();
+        $this->put('/api/admin/rewards/'.$id, [
+            'name' => $name,
+            'type' => 'free_product',
+            'cost' => $cost,
+        ]);
+        self::assertResponseIsSuccessful('The test could not price a reward.');
+
+        return $id;
+    }
+
+    private function costOf(int $spin): ?int
+    {
+        $cost = $this->entityManager->getConnection()->fetchOne(
+            'SELECT reward_cost FROM spin WHERE id = :id',
+            ['id' => $spin],
+        );
+
+        return null === $cost || false === $cost ? null : (int) $cost;
+    }
+
+    // ------------------------------------------- F31 R19-R22: who claimed
+
+    /** F31 R19. A hand-over has an author, and it is whoever is signed in. */
+    public function testAClaimRecordsTheAccountThatMadeIt(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('rosa', $this->decodeResponse()['spin']['claimedBy']);
+    }
+
+    /**
+     * F31 R19. A second press keeps the first author, as it keeps the
+     * first moment: the record is of the hand-over, not of the last tap.
+     */
+    public function testASecondPressKeepsTheFirstAuthor(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        $this->signInAsAdmin('minh');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        self::assertSame('rosa', $this->decodeResponse()['spin']['claimedBy']);
+    }
+
+    /** F31 R20. An un-done claim did not happen, author and all. */
+    public function testTakingAClaimBackClearsTheAuthorToo(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+        self::assertSame('rosa', $this->decodeResponse()['spin']['claimedBy']);
+
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => false]);
+
+        $spin = $this->decodeResponse()['spin'];
+
+        self::assertNull($spin['claimedAt']);
+        self::assertNull($spin['claimedBy']);
+    }
+
+    /**
+     * F31 R20, R22. And the next hand-over has its own author, so taking
+     * a claim back does not leave the row bound to whoever pressed it
+     * first.
+     */
+    public function testTheNextClaimHasItsOwnAuthor(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => false]);
+
+        $this->signInAsAdmin('minh');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        self::assertSame('minh', $this->decodeResponse()['spin']['claimedBy']);
+    }
+
+    /**
+     * F31 R22. A claim recorded before F31 has a moment and no author,
+     * and is shown with a dash rather than with a guess.
+     */
+    public function testAClaimFromBeforeThisFeatureHasNoAuthor(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        // Exactly what the upgrade leaves behind: a claim with a time and
+        // a null author (the upgrade deliberately backfills nobody).
+        $this->entityManager->getConnection()->executeStatement(
+            'UPDATE spin SET claimed_at = UTC_TIMESTAMP(), claimed_by_id = NULL WHERE id = :id',
+            ['id' => $id],
+        );
+
+        $this->signInAsAdmin();
+        $this->client->request('GET', '/api/admin/spins');
+
+        $spin = $this->decodeResponse()['spins'][0];
+
+        self::assertNotNull($spin['claimedAt']);
+        self::assertNull($spin['claimedBy']);
+    }
+
     /** F13 R24 */
     public function testALosingSpinCannotBeClaimed(): void
     {

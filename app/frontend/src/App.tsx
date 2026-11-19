@@ -3,8 +3,10 @@ import { AdminLayout } from './admin/AdminLayout'
 import { GameModule } from './admin/GameModule'
 import { GamesModule } from './admin/GamesModule'
 import { StoreModule } from './admin/StoreModule'
+import { CustomerModule } from './admin/CustomerModule'
 import { PlayersModule } from './admin/PlayersModule'
 import { RewardsModule } from './admin/RewardsModule'
+import { StatsModule } from './admin/StatsModule'
 import { SpinsModule } from './admin/SpinsModule'
 import { AdminShell } from './auth/AdminShell'
 import { LoginPage } from './auth/LoginPage'
@@ -67,8 +69,14 @@ function App() {
             the fallback below. */}
         <Route path="game" element={<Navigate to="/admin/games" replace />} />
         <Route path="players" element={<PlayersModule />} />
+        {/* F31 R10. The counter's screen: one customer, and everything they
+            are owed. A page of its own rather than a panel inside the list,
+            because its controls have to be reachable at 375px (R29). */}
+        <Route path="players/:id" element={<CustomerModule />} />
         <Route path="rewards" element={<RewardsModule />} />
         <Route path="spins" element={<SpinsModule />} />
+        {/* F32 R22. The numbers, read at the end of a day or a week. */}
+        <Route path="stats" element={<StatsModule />} />
         {/* F09 R4: an unrecognised module is the Games list, not a dead
             end inside an otherwise working admin. */}
         <Route path="*" element={<Navigate to="/admin/games" replace />} />

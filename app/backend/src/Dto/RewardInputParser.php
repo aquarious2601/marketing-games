@@ -37,12 +37,13 @@ final class RewardInputParser
         $name = $this->parseName($payload, $violations);
         $type = $this->parseType($payload, $violations);
         $value = null === $type ? null : $this->parseValue($payload, $type, $violations);
+        $cost = null === $type ? null : $this->parseCost($payload, $type, $violations);
 
         if ([] !== $violations || null === $name || null === $type) {
             return [null, $violations];
         }
 
-        return [new RewardDraft($name, $type, $value), []];
+        return [new RewardDraft($name, $type, $value, $cost), []];
     }
 
     /**
@@ -96,6 +97,62 @@ final class RewardInputParser
         }
 
         return $type;
+    }
+
+    /**
+     * F32 R1, R3, R4, R7.
+     *
+     * Absent is unpriced and absent is allowed: a shop that has not
+     * worked out what a reward costs it should still be able to save the
+     * reward. A cost on the losing item is **rejected** rather than
+     * dropped, for the reason `parseValue` gives below: a number that
+     * vanishes on save reads as a broken page.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     */
+    private function parseCost(array $payload, RewardType $type, array &$violations): ?int
+    {
+        $raw = $payload['cost'] ?? null;
+
+        if (null === $raw) {
+            return null;
+        }
+
+        if (RewardType::Nothing === $type) {
+            $violations[] = new Violation('cost', $this->translator->trans('reward.cost_not_allowed'));
+
+            return null;
+        }
+
+        // Whole minor units, and not a numeric string, exactly as a value
+        // is read: money in this application is always an integer.
+        if (!\is_int($raw)) {
+            $violations[] = new Violation('cost', $this->translator->trans('reward.cost_invalid'));
+
+            return null;
+        }
+
+        // R3. Zero is allowed and means a reward that genuinely costs
+        // nothing; below zero is not a cost.
+        if ($raw < 0) {
+            $violations[] = new Violation('cost', $this->translator->trans('reward.cost_invalid'));
+
+            return null;
+        }
+
+        // F21 R3's ceiling, for F21 R3's reason: the column is wide but
+        // not infinite, and a message beats a truncated number.
+        if ($raw > RewardType::MAX_AMOUNT) {
+            $violations[] = new Violation(
+                'cost',
+                $this->translator->trans('reward.amount_too_large', ['%max%' => RewardType::MAX_AMOUNT]),
+            );
+
+            return null;
+        }
+
+        return $raw;
     }
 
     /**

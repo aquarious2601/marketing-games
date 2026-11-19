@@ -8,6 +8,7 @@ use App\Entity\Player;
 use App\Entity\Spin;
 use App\Games\Wheel\Entity\Wheel;
 use App\Reward\CodeGenerator;
+use App\Reward\RewardCost;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -33,6 +34,7 @@ final class SpinRecorder
         private readonly PrizeDraw $draw,
         private readonly EntityManagerInterface $entityManager,
         private readonly CodeGenerator $codes,
+        private readonly RewardCost $costs,
     ) {
     }
 
@@ -44,8 +46,17 @@ final class SpinRecorder
     public function spin(Wheel $wheel, Player $player): Spin
     {
         return $this->entityManager->wrapInTransaction(function () use ($wheel, $player): Spin {
-            $spin = Spin::forPrize($this->draw->draw($wheel), $player);
+            $prize = $this->draw->draw($wheel);
+
+            $spin = Spin::forPrize($prize, $player);
             $spin->setGame($wheel->getGame());
+
+            /*
+             * F32 R8. The cost as it is at this moment, snapshotted beside
+             * the type and the value the spin already keeps: a price
+             * corrected next month must not restate this day's figures.
+             */
+            $spin->setRewardCost($this->costs->of($prize->getReward()));
 
             // F16 R1: issued inside the same transaction that records the
             // spin, so a code that exists is always a code somebody won.

@@ -7,7 +7,9 @@ namespace App\Repository;
 use App\Entity\Game;
 use App\Entity\Player;
 use App\Entity\Spin;
+use App\Reward\ClaimState;
 use App\Reward\CodeGenerator;
+use App\Reward\RewardType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -54,6 +56,40 @@ final class SpinRepository extends ServiceEntityRepository
         $spins = $this->createQueryBuilder('s')
             ->where('s.player = :player')
             ->setParameter('player', $player)
+            ->orderBy('s.spunAt', 'DESC')
+            ->addOrderBy('s.id', 'DESC')
+            ->setMaxResults(self::HISTORY_LIMIT)
+            ->getQuery()
+            ->getResult();
+
+        return $spins;
+    }
+
+    /**
+     * One customer's wins, most recent first (F31 R11).
+     *
+     * Wins rather than spins: a losing spin has nothing to hand over, and
+     * the counter is not the place to read about the ones that lost (R13).
+     * The count of those is a number on the page, not a list.
+     *
+     * The game and the claiming account are join-fetched because every card
+     * shows both (R12), and a customer who played all week would otherwise
+     * cost two queries per win.
+     *
+     * @return list<Spin>
+     */
+    public function findWinsForPlayer(Player $player): array
+    {
+        /** @var list<Spin> $spins */
+        $spins = $this->createQueryBuilder('s')
+            ->addSelect('g')
+            ->join('s.game', 'g')
+            ->leftJoin('s.claimedBy', 'u')
+            ->addSelect('u')
+            ->where('s.player = :player')
+            ->andWhere('s.rewardType <> :nothing')
+            ->setParameter('player', $player)
+            ->setParameter('nothing', RewardType::Nothing->value)
             ->orderBy('s.spunAt', 'DESC')
             ->addOrderBy('s.id', 'DESC')
             ->setMaxResults(self::HISTORY_LIMIT)
@@ -182,11 +218,15 @@ final class SpinRepository extends ServiceEntityRepository
     public function listRecent(
         ?string $filter = null,
         ?Game $game = null,
+        ClaimState $state = ClaimState::All,
         int $limit = self::LOG_LIMIT,
     ): array {
         $builder = $this->createQueryBuilder('s')
             ->addSelect('p')
             ->leftJoin('s.player', 'p')
+            // F31 R12: the account that claimed it is on the row now.
+            ->addSelect('u')
+            ->leftJoin('s.claimedBy', 'u')
             // F27 R44: join-fetched, because the log shows the game on every
             // row and without this a 200-row page is 200 extra queries.
             ->addSelect('g')
@@ -200,6 +240,8 @@ final class SpinRepository extends ServiceEntityRepository
 
         $this->applyFilter($builder, $filter);
         $this->applyGame($builder, $game);
+        $this->applyWonSomething($builder);
+        $this->applyState($builder, $state);
 
         /** @var list<Spin> $spins */
         $spins = $builder->getQuery()->getResult();
@@ -210,16 +252,98 @@ final class SpinRepository extends ServiceEntityRepository
     /**
      * How many spins match, which is not how many were returned (F09 R21).
      */
-    public function countMatching(?string $filter = null, ?Game $game = null): int
-    {
+    public function countMatching(
+        ?string $filter = null,
+        ?Game $game = null,
+        ClaimState $state = ClaimState::All,
+    ): int {
         $builder = $this->createQueryBuilder('s')
             ->select('COUNT(s.id)')
             ->leftJoin('s.player', 'p');
 
         $this->applyFilter($builder, $filter);
         $this->applyGame($builder, $game);
+        $this->applyWonSomething($builder);
+        $this->applyState($builder, $state);
 
         return (int) $builder->getQuery()->getSingleScalarResult();
+    }
+
+    /**
+     * How many of the matching spins won nothing (F31 R24).
+     *
+     * The list leaves them out; this is the sentence that admits it. The
+     * same filter and the same game, deliberately — a count taken over a
+     * wider set than the list would be a different question answered in the
+     * same breath.
+     */
+    public function countThatWonNothing(?string $filter = null, ?Game $game = null): int
+    {
+        $builder = $this->createQueryBuilder('s')
+            ->select('COUNT(s.id)')
+            ->leftJoin('s.player', 'p')
+            ->andWhere('s.rewardType = :nothing')
+            ->setParameter('nothing', RewardType::Nothing->value);
+
+        $this->applyFilter($builder, $filter);
+        $this->applyGame($builder, $game);
+
+        return (int) $builder->getQuery()->getSingleScalarResult();
+    }
+
+    /**
+     * F31 R23. The log is what left the shop, not what was drawn.
+     *
+     * This is the one rule in here that hides rows, and it hides the only
+     * rows that cannot be acted on: a losing spin has no code, nothing to
+     * hand over, and no control on it (F13 R15, R24). Its reason for being
+     * on screen was completeness, which F31 moves to a count beside the
+     * list and to the stats.
+     */
+    private function applyWonSomething(QueryBuilder $builder): void
+    {
+        $builder
+            ->andWhere('s.rewardType <> :wonSomething')
+            ->setParameter('wonSomething', RewardType::Nothing->value);
+    }
+
+    /**
+     * Whether a code names a win that belongs to nobody (F31 R7).
+     *
+     * Asked only when a search for a customer came back empty, and only to
+     * tell a true nothing from a prize whose owner the database cannot
+     * name: a spin from before F08, or one whose customer exercised their
+     * right to be deleted (F08 R19). The shop still owes somebody that
+     * prize, so the counter is sent to the one screen that can hand it over
+     * (F09 R15).
+     */
+    public function hasWinWithoutCustomer(?string $filter): bool
+    {
+        $code = null === $filter ? null : CodeGenerator::normalise($filter);
+
+        if (null === $code) {
+            return false;
+        }
+
+        $found = (int) $this->createQueryBuilder('s')
+            ->select('COUNT(s.id)')
+            ->where('s.player IS NULL')
+            ->andWhere('s.rewardCode LIKE :code')
+            ->setParameter('code', $code.'%')
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return $found > 0;
+    }
+
+    /** F31 R25. Everything, what is still owed, or what has been given. */
+    private function applyState(QueryBuilder $builder, ClaimState $state): void
+    {
+        match ($state) {
+            ClaimState::All => null,
+            ClaimState::Open => $builder->andWhere('s.claimedAt IS NULL'),
+            ClaimState::Claimed => $builder->andWhere('s.claimedAt IS NOT NULL'),
+        };
     }
 
     /**

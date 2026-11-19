@@ -23,11 +23,11 @@ const saveGiftsMock = vi.mocked(saveSheetGifts)
 const fetchRewardsMock = vi.mocked(fetchRewards)
 
 const REWARDS = [
-  { id: 1, name: 'Free coffee', type: 'free_product' as const, value: null, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
-  { id: 2, name: 'Ten off', type: 'percent_off' as const, value: 10, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
-  { id: 3, name: 'Tote bag', type: 'free_product' as const, value: null, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
+  { id: 1, name: 'Free coffee', type: 'free_product' as const, value: null, cost: null, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
+  { id: 2, name: 'Ten off', type: 'percent_off' as const, value: 10, cost: null, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
+  { id: 3, name: 'Tote bag', type: 'free_product' as const, value: null, cost: null, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
   // F28 R5: never offered, because a sheet gives everything on it.
-  { id: 4, name: 'Maybe next time', type: 'nothing' as const, value: null, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
+  { id: 4, name: 'Maybe next time', type: 'nothing' as const, value: null, cost: null, createdAt: '2026-11-19T09:00:00+00:00', usedBy: [] },
 ]
 
 function onSheet(...rewardIds: number[]): AdminSheet {

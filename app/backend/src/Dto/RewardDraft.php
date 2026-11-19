@@ -18,6 +18,11 @@ final readonly class RewardDraft
         public string $name,
         public RewardType $type,
         public ?int $value,
+        /**
+         * F32 R1, R7. What handing one over costs the shop, or null for
+         * unpriced — which is not the same as zero.
+         */
+        public ?int $cost = null,
     ) {
     }
 }

@@ -10,6 +10,7 @@ use App\Entity\Spin;
 use App\Games\GiftSheet\Entity\Gift;
 use App\Games\GiftSheet\Repository\GiftRepository;
 use App\Reward\CodeGenerator;
+use App\Reward\RewardCost;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -31,6 +32,7 @@ final class SheetIssuer
         private readonly GiftRepository $gifts,
         private readonly CodeGenerator $codes,
         private readonly EntityManagerInterface $entityManager,
+        private readonly RewardCost $costs,
     ) {
     }
 
@@ -71,6 +73,9 @@ final class SheetIssuer
         $spin = Spin::forGift($gift, $player);
         $spin->setGame($game);
         $spin->setSheetId($sheet);
+
+        // F32 R8, as on the wheel: the cost at the moment it went out.
+        $spin->setRewardCost($this->costs->of($gift->getReward()));
 
         // F16 R1 as F28 R10 extends it: a code per gift, minted inside the
         // transaction that records it, so a code that exists is always a

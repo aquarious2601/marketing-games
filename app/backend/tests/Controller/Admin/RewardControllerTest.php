@@ -50,7 +50,7 @@ final class RewardControllerTest extends DatabaseWebTestCase
 
         self::assertCount(2, $body['rewards']);
         self::assertSame(
-            ['id', 'name', 'type', 'value', 'createdAt', 'usedBy'],
+            ['id', 'name', 'type', 'value', 'cost', 'createdAt', 'usedBy'],
             array_keys($body['rewards'][0]),
         );
 

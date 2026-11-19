@@ -27,6 +27,7 @@ function spin(overrides: Partial<LoggedSpin> = {}): LoggedSpin {
     code: 'A7K3-M9PX',
     claimable: true,
     claimedAt: null,
+    claimedBy: null,
     game: 'Test campaign',
     ...overrides,
   }
@@ -35,7 +36,13 @@ function spin(overrides: Partial<LoggedSpin> = {}): LoggedSpin {
 beforeEach(() => {
   fetchSpinLogMock.mockReset()
   setSpinClaimedMock.mockReset()
-  fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
+  fetchSpinLogMock.mockResolvedValue({
+    spins: [spin()],
+    total: 1,
+    wonNothing: 0,
+    status: 'all' as const,
+    games: [{ id: 1, name: 'Test campaign' }],
+  })
 })
 
 /** F09 R13, R14 */
@@ -51,6 +58,8 @@ describe('the spin log', () => {
         }),
       ],
       total: 2,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -75,6 +84,8 @@ describe('the spin log', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ id: 9, prizeName: 'Newest' }), spin({ id: 8, prizeName: 'Oldest' })],
       total: 2,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -108,6 +119,8 @@ describe('the spin log', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ player: null })],
       total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -134,6 +147,8 @@ describe('the spin log', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ prizeName: 'A prize since deleted' })],
       total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -150,7 +165,13 @@ describe('the spin log', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/spins could not be loaded/i)
 
-    fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin()],
+      total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
     await user.click(screen.getByRole('button', { name: /try again/i }))
 
     expect(await screen.findByTestId('spin-log')).toBeInTheDocument()
@@ -162,7 +183,7 @@ describe('the table itself', () => {
   // F13 added Code and Status; Spun moved along with them.
   // F27 R44 put Game second, beside the prize: the two together are what
   // a row is — what went out, and which promotion gave it away.
-  const HEADERS = ['Prize', 'Game', 'Player', 'Phone', 'Code', 'Spun', 'Status']
+  const HEADERS = ['Prize', 'Game', 'Player', 'Phone', 'Code', 'Spun', 'Status', 'By']
 
   /** F11 R1, R2 */
   it('labels every column', async () => {
@@ -218,6 +239,8 @@ describe('the table itself', () => {
         }),
       ],
       total: 2,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -233,7 +256,13 @@ describe('the table itself', () => {
   /** F11 R4 — a long prize name is truncated, not wrapped, and keeps its title */
   it('keeps a long prize name reachable', async () => {
     const name = 'Twenty per cent off absolutely everything in the shop today'
-    fetchSpinLogMock.mockResolvedValue({ spins: [spin({ prizeName: name })], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin({ prizeName: name })],
+      total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
 
     render(<SpinsModule />)
     await screen.findByTestId('spin-log')
@@ -281,6 +310,8 @@ describe('rewards on a log row', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ rewardType: 'free_product', rewardValue: null, code: null })],
       total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -297,6 +328,8 @@ describe('rewards on a log row', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ rewardType: 'nothing', rewardValue: null, code: null, claimable: false })],
       total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -328,6 +361,8 @@ describe('rewards on a log row', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ claimedAt: '2026-11-15T11:00:00+00:00' })],
       total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
     setSpinClaimedMock.mockResolvedValue(spin({ claimedAt: null }))
@@ -375,15 +410,27 @@ describe('rewards on a log row', () => {
 /** F09 R19 — two different facts, two different messages */
 describe('the empty states', () => {
   it('says nothing has happened yet when the log is empty', async () => {
-    fetchSpinLogMock.mockResolvedValue({ spins: [], total: 0, games: [{ id: 1, name: 'Test campaign' }] })
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [],
+      total: 0,
+      wonNothing: 0,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
 
     render(<SpinsModule />)
 
-    expect(await screen.findByTestId('spins-empty')).toHaveTextContent('No spins yet.')
+    expect(await screen.findByTestId('spins-empty')).toHaveTextContent('Nothing has been won yet.')
   })
 
   it('says nothing matches when the filter is the reason', async () => {
-    fetchSpinLogMock.mockResolvedValue({ spins: [], total: 0, games: [{ id: 1, name: 'Test campaign' }] })
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [],
+      total: 0,
+      wonNothing: 0,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
 
     const user = userEvent.setup()
     render(<SpinsModule />)
@@ -392,7 +439,7 @@ describe('the empty states', () => {
     await user.type(screen.getByTestId('spin-filter'), '0000')
 
     expect(await screen.findByTestId('spins-empty')).toHaveTextContent(
-      'No spins match that number or code.',
+      'No wins match that number or code.',
     )
   })
 })
@@ -427,7 +474,7 @@ describe('the filter', () => {
     await user.type(screen.getByTestId('spin-filter'), 'a7k3m9px')
 
     await waitFor(() =>
-      expect(fetchSpinLogMock).toHaveBeenCalledWith('a7k3m9px', null, expect.anything()),
+      expect(fetchSpinLogMock).toHaveBeenCalledWith('a7k3m9px', null, 'all', expect.anything()),
     )
   })
 
@@ -435,7 +482,13 @@ describe('the filter', () => {
   it('claims the spin a code found', async () => {
     const found = spin({ id: 42, code: 'A7K3-M9PX' })
 
-    fetchSpinLogMock.mockResolvedValue({ spins: [found], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [found],
+      total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
     setSpinClaimedMock.mockResolvedValue({ ...found, claimedAt: '2026-11-16T10:00:00+00:00' })
 
     const user = userEvent.setup()
@@ -443,7 +496,7 @@ describe('the filter', () => {
     await screen.findByTestId('spin-log')
 
     await user.type(screen.getByTestId('spin-filter'), 'A7K3-M9PX')
-    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('A7K3-M9PX', null, expect.anything()))
+    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('A7K3-M9PX', null, 'all', expect.anything(),))
 
     expect(screen.getAllByTestId('spin-row')).toHaveLength(1)
     expect(screen.getByTestId('spin-code')).toHaveTextContent('A7K3-M9PX')
@@ -464,7 +517,7 @@ describe('the filter', () => {
     // Filtered server-side, not in the loaded array: the log is capped, so
     // filtering what happens to be loaded would search the most recent page
     // only.
-    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('5678', null, expect.anything()))
+    await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalledWith('5678', null, 'all', expect.anything()))
   })
 
   it('does not ask once per keystroke', async () => {
@@ -491,6 +544,8 @@ describe('when the log is capped', () => {
     fetchSpinLogMock.mockResolvedValue({
       spins: [spin({ id: 9 }), spin({ id: 8 })],
       total: 1432,
+      wonNothing: 0,
+      status: 'all' as const,
       games: [{ id: 1, name: 'Test campaign' }],
     })
 
@@ -503,11 +558,106 @@ describe('when the log is capped', () => {
   })
 
   it('says nothing when the log is complete', async () => {
-    fetchSpinLogMock.mockResolvedValue({ spins: [spin()], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin()],
+      total: 1,
+      wonNothing: 0,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
 
     render(<SpinsModule />)
     await screen.findByTestId('spin-log')
 
     expect(screen.queryByTestId('spins-capped')).not.toBeInTheDocument()
+  })
+})
+
+/** F31 R23, R24, R25: the log is what left the shop. */
+describe('wins only', () => {
+  it('says how many of the matching spins won nothing', async () => {
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin()],
+      total: 1,
+      wonNothing: 14,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
+
+    render(<SpinsModule />)
+
+    expect(await screen.findByTestId('spins-won-nothing')).toHaveTextContent(
+      '14 more spins won nothing.',
+    )
+  })
+
+  it('counts one of them properly', async () => {
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [spin()],
+      total: 1,
+      wonNothing: 1,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
+
+    render(<SpinsModule />)
+
+    expect(await screen.findByTestId('spins-won-nothing')).toHaveTextContent(
+      '1 more spin won nothing.',
+    )
+  })
+
+  it('says nothing when every spin won something', async () => {
+    render(<SpinsModule />)
+
+    await screen.findByTestId('spin-log')
+
+    expect(screen.queryByTestId('spins-won-nothing')).not.toBeInTheDocument()
+  })
+
+  /** R25. Three views of one list, everything by default. */
+  it('asks the server for what is still to collect', async () => {
+    const user = userEvent.setup()
+
+    render(<SpinsModule />)
+    await screen.findByTestId('spin-log')
+
+    await user.selectOptions(screen.getByTestId('spin-status-filter'), 'open')
+
+    await waitFor(() =>
+      expect(fetchSpinLogMock).toHaveBeenLastCalledWith('', null, 'open', expect.anything()),
+    )
+  })
+
+  it('opens on everything', async () => {
+    render(<SpinsModule />)
+
+    await screen.findByTestId('spin-log')
+
+    expect(screen.getByTestId('spin-status-filter')).toHaveValue('all')
+    expect(fetchSpinLogMock).toHaveBeenCalledWith('', null, 'all', expect.anything())
+  })
+
+  /** R19, R22. The author beside the status, and a dash where there is none. */
+  it('names the account that handed a reward over', async () => {
+    fetchSpinLogMock.mockResolvedValue({
+      spins: [
+        spin({ id: 9, claimedAt: '2026-11-19T08:00:00+00:00', claimedBy: 'rosa' }),
+        spin({ id: 8, claimedAt: '2026-11-19T09:00:00+00:00', claimedBy: null }),
+      ],
+      total: 2,
+      wonNothing: 0,
+      status: 'all' as const,
+      games: [{ id: 1, name: 'Test campaign' }],
+    })
+
+    render(<SpinsModule />)
+
+    await screen.findByTestId('spin-log')
+
+    const cells = screen.getAllByTestId('spin-claimed-by')
+
+    expect(cells[0]).toHaveTextContent('rosa')
+    expect(cells[1]).toHaveTextContent('—')
   })
 })

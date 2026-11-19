@@ -56,6 +56,12 @@ export interface AdminStore extends StoreBranding {
   language: string | null
   /** F27 R15. Never null: the upgrade seeded it and the form requires one. */
   timezone: string
+  /**
+   * F32 R5, R6. What a customer typically spends, or null while nobody has
+   * said. It exists to price a percentage reward and nothing else — see
+   * F32 section 13 on why it is never multiplied by footfall.
+   */
+  averageBasket: number | null
 }
 
 /**
@@ -74,6 +80,8 @@ export interface StoreSubmission {
   language: string | null
   /** F27 R15. Omitted leaves the shop's clock alone. */
   timezone?: string
+  /** F32 R5. Sent at all means set, including to null, which clears it. */
+  averageBasket?: number | null
 }
 
 export async function fetchStore(options?: RequestOptions): Promise<AdminStore> {

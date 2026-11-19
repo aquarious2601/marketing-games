@@ -6,6 +6,7 @@ namespace App\Tests\Controller\Admin;
 
 use App\Entity\Player;
 use App\Repository\SpinRepository;
+use App\Reward\ClaimState;
 use App\Tests\Support\DatabaseWebTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -81,7 +82,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
             // went out today" is ambiguous without saying which gave it.
             [
                 'id', 'prizeName', 'spunAt', 'player', 'rewardType', 'rewardValue',
-                'code', 'claimable', 'claimedAt', 'game',
+                'code', 'claimable', 'claimedAt', 'claimedBy', 'game',
             ],
             array_keys($spin),
         );
@@ -283,6 +284,103 @@ final class SpinControllerTest extends DatabaseWebTestCase
         self::assertSame(0, $this->decodeResponse()['total']);
     }
 
+    // ------------------------------------------- F31 R23-R25: wins only
+
+    /**
+     * F31 R23. The log is what left the shop. A losing spin has no code,
+     * nothing to hand over and no control on it, and at a counter it was
+     * only ever in the way.
+     */
+    public function testItListsOnlyTheSpinsThatWonSomething(): void
+    {
+        $this->givenSpins('0912345678', 3);
+        $this->givenALosingSpinAmongThem();
+
+        $this->signInAsAdmin();
+        $this->client->request('GET', self::LOG_URI);
+
+        $body = $this->decodeResponse();
+
+        self::assertCount(2, $body['spins']);
+        self::assertSame(2, $body['total']);
+
+        foreach ($body['spins'] as $spin) {
+            self::assertNotSame('nothing', $spin['rewardType']);
+        }
+    }
+
+    /** F31 R24. It says what it is leaving out. */
+    public function testItCountsTheSpinsThatWonNothing(): void
+    {
+        $this->givenSpins('0912345678', 3);
+        $this->givenALosingSpinAmongThem();
+
+        $this->signInAsAdmin();
+        $this->client->request('GET', self::LOG_URI);
+
+        self::assertSame(1, $this->decodeResponse()['wonNothing']);
+    }
+
+    /** F31 R24. The same filter, so the number is about the same rows. */
+    public function testTheCountOfLosingSpinsFollowsTheFilter(): void
+    {
+        $this->givenSpins('0912345678', 2);
+        $this->givenALosingSpinAmongThem();
+        $this->givenSpins('0987654321', 1);
+
+        $this->signInAsAdmin();
+
+        $this->client->request('GET', self::LOG_URI.'?search=12');
+        self::assertSame(1, $this->decodeResponse()['wonNothing']);
+
+        $this->client->request('GET', self::LOG_URI.'?search=98');
+        self::assertSame(0, $this->decodeResponse()['wonNothing']);
+    }
+
+    /** F31 R25. Everything, what is owed, what has been given. */
+    public function testTheStatusFilterSeparatesWhatIsOwedFromWhatIsGiven(): void
+    {
+        $this->givenSpins('0912345678', 2);
+
+        $this->signInAsAdmin();
+
+        $this->client->request('GET', self::LOG_URI);
+        $first = $this->decodeResponse()['spins'][0]['id'];
+
+        $this->client->request('PUT', self::LOG_URI.'/'.$first.'/claim');
+        self::assertResponseIsSuccessful();
+
+        $this->client->request('GET', self::LOG_URI.'?status=open');
+        $open = $this->decodeResponse();
+        self::assertSame(1, $open['total']);
+        self::assertNull($open['spins'][0]['claimedAt']);
+
+        $this->client->request('GET', self::LOG_URI.'?status=claimed');
+        $claimed = $this->decodeResponse();
+        self::assertSame(1, $claimed['total']);
+        self::assertSame($first, $claimed['spins'][0]['id']);
+
+        $this->client->request('GET', self::LOG_URI.'?status=all');
+        self::assertSame(2, $this->decodeResponse()['total']);
+    }
+
+    /**
+     * F31 R25. A status is a view of a list, not a question about it: a
+     * bookmark holding a misspelled one shows the log rather than an
+     * error nobody at a counter can act on.
+     */
+    public function testAnUnknownStatusIsEverything(): void
+    {
+        $this->givenSpins('0912345678', 2);
+
+        $this->signInAsAdmin();
+        $this->client->request('GET', self::LOG_URI.'?status=whatever');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(2, $this->decodeResponse()['total']);
+        self::assertSame('all', $this->decodeResponse()['status']);
+    }
+
     // --------------------------------------------------------------- the cap
 
     /**
@@ -304,7 +402,11 @@ final class SpinControllerTest extends DatabaseWebTestCase
         $repository = static::getContainer()->get(SpinRepository::class);
         self::assertInstanceOf(SpinRepository::class, $repository);
 
-        self::assertCount(2, $repository->listRecent(null, null, 2), 'The page must be capped.');
+        self::assertCount(
+            2,
+            $repository->listRecent(null, null, ClaimState::All, 2),
+            'The page must be capped.',
+        );
         self::assertSame(5, $repository->countMatching(), 'The total must not be.');
     }
 
@@ -321,8 +423,35 @@ final class SpinControllerTest extends DatabaseWebTestCase
      * Driven through the API rather than by inserting rows, so the spins are
      * wired to their player exactly as the application wires them.
      */
+    /**
+     * Turns the oldest recorded spin into a losing one.
+     *
+     * Written rather than drawn: a probability is between 1 and 100
+     * (F01), so no wheel can be made to lose on demand, and a test built
+     * on long odds would flap. What is under test is what the log does
+     * with a losing row.
+     */
+    private function givenALosingSpinAmongThem(): void
+    {
+        $this->entityManager->getConnection()->executeStatement(
+            "UPDATE spin SET reward_type = 'nothing', reward_value = NULL, reward_code = NULL "
+            .'ORDER BY id ASC LIMIT 1',
+        );
+    }
+
     private function givenSpins(string $phone, int $spins): void
     {
+        /*
+         * F31 R23: the log lists wins, so these fixtures spin a wheel
+         * that always gives something. Signed out again afterwards —
+         * several tests here assert what a stranger is refused, and a
+         * fixture that left an admin session behind would make them pass
+         * for the wrong reason.
+         */
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+        $this->client->request('POST', '/api/logout');
+
         $this->post('/api/player/register', [
             'phone' => $phone,
             'firstName' => 'Anh',

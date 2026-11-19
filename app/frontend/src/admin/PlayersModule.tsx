@@ -1,13 +1,9 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
-import {
-  fetchPlayerHistory,
-  fetchPlayers,
-  type AdminPlayer,
-  type PlayerSpin,
-} from '../api/players'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { fetchPlayers, type AdminPlayer } from '../api/players'
 import { useT, type Translate } from '../i18n/I18nContext'
-import { Cell, DataTable, Row, SpanningRow, type Column } from './DataTable'
-import { formatDate, formatDateTime } from './tableFormat'
+import { Cell, DataTable, Row, type Column } from './DataTable'
+import { formatDate } from './tableFormat'
 
 /**
  * F11 R2, R3, R5. The widths are percentages of one fixed-layout table, so
@@ -26,10 +22,21 @@ const PLAYER_COLUMNS = (t: Translate): Column[] => [
 
 type LoadPhase = 'loading' | 'ready' | 'failed'
 
-interface OpenPlayer {
-  id: number
-  phase: LoadPhase
-  spins: PlayerSpin[]
+/**
+ * F13 R18's alphabet, and F16 R8's normalising, as the page needs it.
+ *
+ * Only to decide whether what has been typed is a *complete* code, which is
+ * the one thing the page acts on by itself (R6). Matching is the server's
+ * job — this is about whether the ticket in somebody's hand has been typed
+ * in full.
+ */
+const CODE_LENGTH = 8
+const CODE_ALPHABET = /^[A-HJ-KM-NP-Z2-9]+$/
+
+function isACompleteCode(typed: string): boolean {
+  const bare = typed.replace(/[\s-]/g, '').toUpperCase()
+
+  return bare.length === CODE_LENGTH && CODE_ALPHABET.test(bare)
 }
 
 /**
@@ -52,21 +59,38 @@ interface OpenPlayer {
  */
 export function PlayersModule() {
   const t = useT()
+  const navigate = useNavigate()
+  const [search, setSearch] = useSearchParams()
   const [phase, setPhase] = useState<LoadPhase>('loading')
   const [players, setPlayers] = useState<AdminPlayer[]>([])
   // Held apart from `players.length`, because the list is capped and the
   // total is not (F09 R21).
   const [total, setTotal] = useState(0)
-  const [filter, setFilter] = useState('')
-  const [open, setOpen] = useState<OpenPlayer | null>(null)
+  // F31 R7: nothing matched, and the reason is a prize nobody owns.
+  const [orphan, setOrphan] = useState(false)
+
+  /*
+   * The filter lives in the URL (F31 R1, R18).
+   *
+   * Opening a customer is a page of its own now, and F09 R12 kept the
+   * history inside the row precisely so that opening it could not lose the
+   * search somebody typed to find it. Carrying the search in the query
+   * string keeps that true: the customer's page links back with it, and a
+   * staff member can bookmark or reload mid-queue.
+   */
+  const filter = search.get('search') ?? ''
+
+  const setFilter = (typed: string) => {
+    setSearch(typed === '' ? {} : { search: typed }, { replace: true })
+  }
 
   const columns = PLAYER_COLUMNS(t)
 
-  const load = useCallback(async (phone: string, signal?: AbortSignal) => {
+  const load = useCallback(async (typed: string, signal?: AbortSignal) => {
     setPhase('loading')
 
     try {
-      const list = await fetchPlayers(phone, { signal })
+      const list = await fetchPlayers(typed, { signal })
 
       if (signal?.aborted === true) {
         return
@@ -74,6 +98,7 @@ export function PlayersModule() {
 
       setPlayers(list.players)
       setTotal(list.total)
+      setOrphan(list.winWithoutCustomer)
       setPhase('ready')
     } catch {
       if (signal?.aborted === true) {
@@ -104,23 +129,23 @@ export function PlayersModule() {
     }
   }, [filter, load])
 
-  const toggle = async (player: AdminPlayer) => {
-    if (open?.id === player.id) {
-      setOpen(null)
-
+  /**
+   * R6. A ticket is one action: a complete code that found exactly one
+   * customer opens that customer.
+   *
+   * Narrowed to a complete code while building. R6 says "matches exactly
+   * one customer", which taken literally would navigate away mid-typing as
+   * soon as a phone fragment happened to match one person — taking the box
+   * being typed into with it. A code is the case the rule exists for, and
+   * it is the one input that is finished when it matches.
+   */
+  useEffect(() => {
+    if (phase !== 'ready' || players.length !== 1 || !isACompleteCode(filter)) {
       return
     }
 
-    setOpen({ id: player.id, phase: 'loading', spins: [] })
-
-    try {
-      const history = await fetchPlayerHistory(player.id)
-
-      setOpen({ id: player.id, phase: 'ready', spins: history.spins })
-    } catch {
-      setOpen({ id: player.id, phase: 'failed', spins: [] })
-    }
-  }
+    void navigate(customerPath(players[0].id, filter))
+  }, [filter, navigate, phase, players])
 
   return (
     <>
@@ -150,11 +175,12 @@ export function PlayersModule() {
         <label htmlFor="player-filter" className={labelClass}>
           {t('players.filterLabel')}
         </label>
+        {/* F31 R1: one box, a number or a code. `inputMode` is deliberately
+            not `tel` any more — half of what gets typed here is letters. */}
         <input
           id="player-filter"
           name="player-filter"
           type="search"
-          inputMode="tel"
           placeholder={t('players.filterPlaceholder')}
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
@@ -178,9 +204,22 @@ export function PlayersModule() {
         </div>
       )}
 
-      {phase === 'ready' && players.length === 0 && (
+      {phase === 'ready' && players.length === 0 && !orphan && (
         <p className="mt-4 text-sm text-slate-500" data-testid="players-empty">
           {filter.trim() === '' ? t('players.none') : t('players.noMatch')}
+        </p>
+      )}
+
+      {/* F31 R7. The code names a win the database cannot attach to anybody
+          — one from before F08, or one whose customer was deleted. The shop
+          still owes somebody that prize, so this says where it can be
+          handed over instead of reporting a flat nothing. */}
+      {phase === 'ready' && orphan && (
+        <p className="mt-4 text-sm text-slate-700" data-testid="players-orphan-win">
+          {t('players.winWithoutCustomer')}{' '}
+          <Link to="/admin/spins" className="font-medium text-sky-700 underline-offset-2 hover:underline">
+            {t('spins.title')}
+          </Link>
         </p>
       )}
 
@@ -192,22 +231,23 @@ export function PlayersModule() {
           testId="player-list"
         >
           {players.map((player) => (
-            <Fragment key={player.id}>
-              <Row testId="player-row" attrs={{ 'data-phone': player.phone }}>
+            <Row key={player.id} testId="player-row" attrs={{ 'data-phone': player.phone }}>
                 {/* F11 R12: the control that opens the row lives in the
                     first cell. A <button> cannot wrap a <tr>, and putting
                     the handler on the row itself would leave it unreachable
                     from a keyboard. */}
                 <Cell strong>
-                  <button
-                    type="button"
-                    onClick={() => void toggle(player)}
-                    aria-expanded={open?.id === player.id}
+                  {/* F31 R10. A link rather than the row's own expander:
+                      the customer is a page now, because a control somebody
+                      has to press at a counter cannot live inside a table
+                      that scrolls sideways on a phone (R29). */}
+                  <Link
+                    to={customerPath(player.id, filter)}
                     data-testid="player-open"
-                    className="w-full truncate text-left underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="block w-full truncate text-left underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
                     {player.firstName} {player.lastName}
-                  </button>
+                  </Link>
                 </Cell>
                 <Cell mono>{player.phone}</Cell>
                 <Cell numeric muted>
@@ -222,14 +262,7 @@ export function PlayersModule() {
                 <Cell align="right" numeric strong testId="player-spin-count">
                   {player.spinCount}
                 </Cell>
-              </Row>
-
-              {open?.id === player.id && (
-                <SpanningRow columns={columns.length} testId="player-history-row-group">
-                  <History open={open} />
-                </SpanningRow>
-              )}
-            </Fragment>
+            </Row>
           ))}
         </DataTable>
       )}
@@ -245,78 +278,14 @@ export function PlayersModule() {
   )
 }
 
-/** F08 R22. */
-function History({ open }: { open: OpenPlayer }) {
-  const t = useT()
-
-  if (open.phase === 'loading') {
-    return (
-      <p role="status" className="pb-3 text-sm text-slate-500">
-        {t('players.historyLoading')}
-      </p>
-    )
-  }
-
-  if (open.phase === 'failed') {
-    return (
-      <p role="alert" className="pb-3 text-sm text-rose-600">
-        {t('players.historyFailed')}
-      </p>
-    )
-  }
-
-  if (open.spins.length === 0) {
-    return (
-      <p className="pb-3 text-sm text-slate-500" data-testid="player-history-empty">
-        {t('players.historyNone')}
-      </p>
-    )
-  }
-
-  return (
-    // A table of its own, with its own two labelled columns (F11 R2): the
-    // history is a different shape from the list above it, and borrowing
-    // that list's five columns would mean two of them labelled for a player
-    // and three of them empty.
-    <table
-      aria-label={t('players.history')}
-      data-testid="player-history"
-      className="w-full table-fixed border-collapse rounded-md bg-white text-sm"
-    >
-      <colgroup>
-        <col style={{ width: '60%' }} />
-        <col style={{ width: '40%' }} />
-      </colgroup>
-      <thead>
-        <tr className="border-b border-slate-200">
-          <th
-            scope="col"
-            className="pb-1.5 pr-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500"
-          >
-            {t('spins.colPrize')}
-          </th>
-          <th
-            scope="col"
-            className="pb-1.5 text-right text-xs font-semibold uppercase tracking-[0.08em] text-slate-500"
-          >
-            {t('spins.colSpun')}
-          </th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-slate-100">
-        {open.spins.map((spin) => (
-          <tr key={spin.id} data-testid="player-history-row">
-            <td className="truncate py-1.5 pr-3 text-slate-900" title={spin.prizeName}>
-              {spin.prizeName}
-            </td>
-            <td className="truncate py-1.5 text-right text-xs tabular-nums text-slate-500">
-              {formatDateTime(spin.spunAt)}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
+/**
+ * The customer's page, carrying the search that found them (R18).
+ *
+ * One place, because the row's link and R6's automatic open must agree:
+ * two spellings of this would mean the back link worked from one of them.
+ */
+function customerPath(id: number, filter: string): string {
+  return `/admin/players/${id}${filter === '' ? '' : `?search=${encodeURIComponent(filter)}`}`
 }
 
 const sectionClass = 'mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm'

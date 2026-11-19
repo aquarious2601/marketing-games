@@ -6,7 +6,9 @@ namespace App\Controller\Admin;
 
 use App\Entity\Game;
 use App\Repository\GameRepository;
+use App\Reward\ClaimState;
 use App\Entity\Spin;
+use App\Entity\User;
 use App\Player\PlayerPresenter;
 use App\Repository\SpinRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -39,6 +41,13 @@ final class SpinController extends AbstractController
     ) {
     }
 
+    /**
+     * What left the shop, newest first (F09 R13 as F31 R23 amends it).
+     *
+     * Wins only. The spins that won nothing are counted beside the list
+     * (R24) and read properly in the stats; a row with no code, no prize
+     * and no control was only ever here for completeness.
+     */
     #[Route('', name: 'index', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
@@ -56,7 +65,14 @@ final class SpinController extends AbstractController
         $gameId = $request->query->getInt('game');
         $game = 0 === $gameId ? null : $this->games->find($gameId);
 
-        $spins = $this->spins->listRecent($filter, $game);
+        /*
+         * F31 R25. A view of the list rather than a question about it, so
+         * an unknown value falls back to everything instead of refusing to
+         * draw a log because a bookmark is out of date.
+         */
+        $state = ClaimState::fromRequest($request->query->get('status'));
+
+        $spins = $this->spins->listRecent($filter, $game, $state);
 
         return new JsonResponse([
             'spins' => array_map(
@@ -71,7 +87,15 @@ final class SpinController extends AbstractController
              * "the most recent 200 of 1,432" instead of quietly presenting a
              * truncated list as the whole log.
              */
-            'total' => $this->spins->countMatching($filter, $game),
+            'total' => $this->spins->countMatching($filter, $game, $state),
+            /*
+             * F31 R24. The list is wins only now, and this is the sentence
+             * that admits it: the same filter and the same game, so the
+             * number is about the rows that were left out rather than about
+             * some wider set the reader never asked for.
+             */
+            'wonNothing' => $this->spins->countThatWonNothing($filter, $game),
+            'status' => $state->value,
             // F27 R44: the games to filter by, so the page needs no second
             // call to build its selector.
             'games' => array_map(
@@ -119,7 +143,16 @@ final class SpinController extends AbstractController
             ? true === $payload['claimed']
             : true;
 
-        $spin->setClaimed($claimed);
+        /*
+         * F31 R19. The signed-in account, not one the page may name: a
+         * client that could say who handed a prize over could name anybody,
+         * which is the one thing a column built to settle disputes must
+         * not allow. The firewall has already established who this is
+         * (F07 R17).
+         */
+        $by = $this->getUser();
+
+        $spin->setClaimed($claimed, $by instanceof User ? $by : null);
         $this->entityManager->flush();
 
         return new JsonResponse(['spin' => $this->presenter->presentLoggedSpin($spin)]);
