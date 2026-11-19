@@ -17,12 +17,19 @@ import { theGame } from './wheel'
 const ONE_PIXEL_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
+/**
+ * The `background` token of each theme in `src/branding/themes.ts`, which is
+ * the one place that decides them. Copied rather than imported: the e2e
+ * project does not compile src/, and the palette itself is already guarded
+ * by themes.test.ts — what this file is for is proving the chosen one
+ * actually reaches the page.
+ */
 const THEME_BACKGROUNDS: Record<string, string> = {
   plain: 'rgb(248, 250, 252)',
   'black-friday': 'rgb(11, 11, 12)',
-  christmas: 'rgb(11, 61, 46)',
-  'new-year': 'rgb(11, 20, 55)',
-  halloween: 'rgb(26, 11, 46)',
+  christmas: 'rgb(10, 62, 46)',
+  'new-year': 'rgb(10, 19, 53)',
+  halloween: 'rgb(25, 10, 44)',
   birthday: 'rgb(253, 242, 248)',
 }
 
@@ -40,13 +47,22 @@ async function setGame(
 ): Promise<void> {
   const game = await theGame(request)
 
-  await request.put(`/api/admin/games/${game.id}`, {
+  const response = await request.put(`/api/admin/games/${game.id}`, {
     data: { name: fields.name ?? DEFAULT_GAME_NAME, theme: fields.theme ?? 'plain' },
   })
+
+  /*
+   * Checked, because a refusal here is silent and lands on the assertion
+   * instead: a game's name is required since F27 R39, and a save sent
+   * without one looked exactly like a theme that would not paint.
+   */
+  if (!response.ok()) {
+    throw new Error(`The suite could not save the game (${response.status()}).`)
+  }
 }
 
 async function resetBranding(request: APIRequestContext) {
-  await request.delete('/api/admin/branding/logo')
+  await request.delete('/api/admin/store/logo')
   await request.put('/api/admin/store', { data: { companyName: '' } })
   await setGame(request, {})
 }
@@ -64,6 +80,20 @@ async function openGame(page: Page, request: APIRequestContext) {
 /** F27 R20: a game is played at its own link. */
 async function openPlayerPage(page: Page, request: APIRequestContext) {
   await page.goto(`/play/${(await theGame(request)).linkKey}`)
+}
+
+/**
+ * Opens the game's link and identifies there, in that order.
+ *
+ * F27 R28: opening a link releases whoever was identified for the last
+ * game, so identifying first and opening afterwards leaves the page asking
+ * for a phone number — which is what the themed screens are behind (F08
+ * R16). The reload is what picks the identity up.
+ */
+async function playTheGame(page: Page, request: APIRequestContext) {
+  await openPlayerPage(page, request)
+  await identifyPlayer(page.request)
+  await page.reload()
 }
 
 /**
@@ -165,13 +195,11 @@ test.describe('configuring the branding', () => {
 test.describe('the themes on the player page', () => {
   for (const [theme, background] of Object.entries(THEME_BACKGROUNDS)) {
     test(`paints the page for ${theme}`, async ({ page, request }) => {
-      await setGame(request, { name: '', theme })
+      await setGame(request, { theme })
 
       // F08 R16: nothing past the phone-number step exists until the
       // server knows who is playing, and the themed screen is past it.
-      await identifyPlayer(page.request)
-
-      await openPlayerPage(page, request)
+      await playTheGame(page, request)
       await expect(page.getByTestId('wheel-preview')).toBeVisible()
 
       const painted = await page
@@ -186,13 +214,12 @@ test.describe('the themes on the player page', () => {
   test('leaves the slice colours identical across themes', async ({ page, request }) => {
     const colours: Record<string, (string | undefined)[]> = {}
 
-    // F08 R16, as above.
-    await identifyPlayer(page.request)
-
     for (const theme of ['plain', 'halloween']) {
-      await setGame(request, { name: '', theme })
+      await setGame(request, { theme })
 
-      await openPlayerPage(page, request)
+      // F08 R16, as above. Inside the loop because each open re-binds the
+      // session to this game, which is harmless once it is already bound.
+      await playTheGame(page, request)
       await expect(page.getByTestId('wheel-preview')).toBeVisible()
 
       colours[theme] = await page

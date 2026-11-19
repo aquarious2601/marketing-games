@@ -16,8 +16,8 @@ const ADMIN_ROUTES = [
   { method: 'POST', path: '/api/admin/games' },
   { method: 'GET', path: '/api/admin/store' },
   { method: 'PUT', path: '/api/admin/store' },
-  { method: 'POST', path: '/api/admin/branding/logo' },
-  { method: 'DELETE', path: '/api/admin/branding/logo' },
+  { method: 'POST', path: '/api/admin/store/logo' },
+  { method: 'DELETE', path: '/api/admin/store/logo' },
 ] as const
 
 test.describe('a stranger', () => {

@@ -1526,11 +1526,22 @@ final class DatabaseUpgrade
                 return UpgradeStep::done($name, 'would create the shop and one live game on its own link');
             }
 
-            $this->connection->insert('store', [
-                'theme' => 'plain',
+            $row = [
                 'timezone' => $this->appTimezone,
                 'updated_at' => $this->now(),
-            ]);
+            ];
+
+            /*
+             * Only while the column is still there. This step runs before
+             * the one that drops it (F30 R11), so an upgrade in progress
+             * still has it — but a database created straight from the
+             * current schema never did, and naming it would fail.
+             */
+            if ($this->columnExists('store', 'theme')) {
+                $row['theme'] = 'plain';
+            }
+
+            $this->connection->insert('store', $row);
 
             $store = $this->connection->fetchAssociative('SELECT * FROM store ORDER BY id ASC LIMIT 1');
             \assert(false !== $store);
