@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Admin;
 
 use App\Branding\LogoStore;
-use App\Entity\Branding;
+use App\Entity\Store;
 use App\Tests\Support\DatabaseWebTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -28,7 +28,7 @@ final class SvgLogoTest extends DatabaseWebTestCase
         $this->signInAsAdmin();
     }
 
-    private const LOGO_URI = '/api/admin/branding/logo';
+    private const LOGO_URI = '/api/admin/store/logo';
 
     private const CLEAN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">'
         .'<circle cx="20" cy="20" r="18" fill="#E11D48"/></svg>';
@@ -328,9 +328,9 @@ final class SvgLogoTest extends DatabaseWebTestCase
     {
         $this->entityManager->clear();
 
-        $branding = $this->entityManager->getRepository(Branding::class)->findOneBy([]);
+        $store = $this->entityManager->getRepository(Store::class)->findOneBy([]);
 
-        return $branding?->getLogoFilename();
+        return $store?->getLogoFilename();
     }
 
     private function storedFilename(): string

@@ -31,8 +31,12 @@ export interface PrizeSubmission {
   rewardId: number
 }
 
-export async function fetchWheel(options?: RequestOptions): Promise<WheelConfiguration> {
-  return apiGet<WheelConfiguration>('/admin/wheel', options)
+/** F27 R40: one wheel per game, so every call names the game. */
+export async function fetchWheel(
+  gameId: number,
+  options?: RequestOptions,
+): Promise<WheelConfiguration> {
+  return apiGet<WheelConfiguration>(`/admin/games/${gameId}/wheel`, options)
 }
 
 /**
@@ -40,9 +44,14 @@ export async function fetchWheel(options?: RequestOptions): Promise<WheelConfigu
  * caller can place each message against the field that caused it.
  */
 export async function saveWheel(
+  gameId: number,
   prizes: PrizeSubmission[],
   includesLosingSlice: boolean,
   options?: RequestOptions,
 ): Promise<WheelConfiguration> {
-  return apiPut<WheelConfiguration>('/admin/wheel', { prizes, includesLosingSlice }, options)
+  return apiPut<WheelConfiguration>(
+    `/admin/games/${gameId}/wheel`,
+    { prizes, includesLosingSlice },
+    options,
+  )
 }

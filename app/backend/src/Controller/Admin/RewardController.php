@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Admin;
 
-use App\Branding\BrandingProvider;
+use App\Store\StoreProvider;
 use App\Branding\Currency;
 use App\Dto\RewardInputParser;
 use App\Dto\Violation;
@@ -37,7 +37,7 @@ final class RewardController extends AbstractController
         private readonly RewardInputParser $parser,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
-        private readonly BrandingProvider $branding,
+        private readonly StoreProvider $store,
     ) {
     }
 
@@ -150,7 +150,7 @@ final class RewardController extends AbstractController
             // that creates the amount, so the admin's one save is one save
             // and no amount can exist before its currency is known (R13).
             if (null !== $currency) {
-                $this->branding->getOrCreate()->setCurrency($currency);
+                $this->store->getOrCreate()->setCurrency($currency);
             }
 
             $this->entityManager->persist($reward);

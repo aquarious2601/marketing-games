@@ -61,8 +61,11 @@ final class DatabaseUpgradeTest extends KernelTestCase
     {
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
 
-        foreach (['spin', 'prize', 'wheel', 'player', 'branding'] as $table) {
-            $this->connection->executeStatement('DROP TABLE `'.$table.'`');
+        foreach (['spin', 'prize', 'wheel', 'player', 'branding', 'store', 'game'] as $table) {
+            // IF EXISTS since F27: whether this database has `branding` or
+            // `store`, and whether it has reached `game` at all, depends on
+            // how far the upgrade got.
+            $this->connection->executeStatement('DROP TABLE IF EXISTS `'.$table.'`');
         }
 
         $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');
@@ -356,6 +359,9 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $this->connection->insert('spin', [
             'prize_name' => '5% off your next order',
             'prize_probability' => 25,
+            // F27 R9: a spin records its game, and after the upgrade there is
+            // one to record.
+            'game_id' => (int) $this->connection->fetchOne('SELECT id FROM game ORDER BY id LIMIT 1'),
             'spun_at' => '2026-11-16 09:00:00',
             'prize_id' => $prizes[1]['id'],
             'reward_type' => RewardType::PercentOff->value,
@@ -370,6 +376,11 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $this->connection->insert('spin', [
             'prize_name' => '5% off your next order',
             'prize_probability' => 25,
+            // F27 R9 here too. Without it a strict database refuses the row
+            // for the wrong reason — NOT NULL before the unique index — and
+            // this test would pass for the wrong one locally, where MariaDB
+            // is lenient and writes a 0.
+            'game_id' => (int) $this->connection->fetchOne('SELECT id FROM game ORDER BY id LIMIT 1'),
             'spun_at' => '2026-11-16 09:01:00',
             'prize_id' => $prizes[1]['id'],
             'reward_type' => RewardType::PercentOff->value,
@@ -414,12 +425,12 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $this->upgrade()->run();
 
         self::assertNull(
-            $this->connection->fetchOne('SELECT currency FROM branding'),
+            $this->connection->fetchOne('SELECT currency FROM store'),
             'a campaign that predates the column has not chosen a currency',
         );
         self::assertSame(
             'Korean Cosmetics',
-            $this->connection->fetchOne('SELECT company_name FROM branding'),
+            $this->connection->fetchOne('SELECT company_name FROM store'),
             'the branding already there was not disturbed',
         );
     }
@@ -438,7 +449,7 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $steps = $this->upgrade()->run();
 
         self::assertNull(
-            $this->connection->fetchOne('SELECT currency FROM branding'),
+            $this->connection->fetchOne('SELECT currency FROM store'),
             'nobody chose it, so nobody has chosen',
         );
         self::assertStringContainsString('took back', $this->detailOf($steps, 'a currency nobody picked'));
@@ -461,11 +472,11 @@ final class DatabaseUpgradeTest extends KernelTestCase
             'value' => 50000,
             'created_at' => '2026-11-16 09:00:00',
         ]);
-        $this->connection->executeStatement("UPDATE branding SET currency = 'VND'");
+        $this->connection->executeStatement("UPDATE store SET currency = 'VND'");
 
         $steps = $this->upgrade()->run();
 
-        self::assertSame('VND', $this->connection->fetchOne('SELECT currency FROM branding'));
+        self::assertSame('VND', $this->connection->fetchOne('SELECT currency FROM store'));
         self::assertStringContainsString(
             'counted in it',
             $this->detailOf($steps, 'a currency nobody picked'),
@@ -480,7 +491,7 @@ final class DatabaseUpgradeTest extends KernelTestCase
 
         $this->upgrade()->run();
 
-        self::assertSame('EUR', $this->connection->fetchOne('SELECT currency FROM branding'));
+        self::assertSame('EUR', $this->connection->fetchOne('SELECT currency FROM store'));
     }
 
     // ------------------------------------------- P02 R26: an amount that fits
@@ -607,38 +618,56 @@ final class DatabaseUpgradeTest extends KernelTestCase
 
         $this->upgrade()->run();
 
-        $column = $this->columnOf('branding', 'daily_spin_limit');
+        /*
+         * F27 R11, R29. The column is still added to the shop's row — a
+         * database from before F23 has no limit anywhere, and the step that
+         * turns the campaign into a game has to be able to read one — and is
+         * then dropped once the game carries it. Add-then-drop in one run is
+         * not waste: it is what makes the oldest database upgrade correctly.
+         */
+        $column = $this->columnOf('game', 'daily_limit');
 
         self::assertNotNull($column, 'The column was not added.');
         self::assertFalse($column->getNotnull(), 'Null has to stay available: it means no limit.');
         self::assertNull(
-            $this->connection->fetchOne('SELECT daily_spin_limit FROM branding'),
+            $this->connection->fetchOne('SELECT daily_limit FROM game'),
             'an upgraded campaign was given a limit nobody asked for',
+        );
+        self::assertNull(
+            $this->columnOf('store', 'daily_spin_limit'),
+            'the limit stayed on the shop as well as moving to the game',
         );
         self::assertSame(
             'Korean Cosmetics',
-            $this->connection->fetchOne('SELECT company_name FROM branding'),
+            $this->connection->fetchOne('SELECT company_name FROM store'),
             'the branding already there was not disturbed',
         );
     }
 
-    /** P02 R2: running it twice is running it once. */
-    public function testItLeavesADailySpinLimitAlreadySetAlone(): void
+    /**
+     * P02 R2: running it twice is running it once.
+     *
+     * F27 R32: the limit a campaign had is the limit its game has. Set here
+     * before the first run, because after it there is no column to set.
+     */
+    public function testItCarriesADailySpinLimitOverToTheGame(): void
     {
         $this->givenTheDefaultWheel();
-        $this->upgrade()->run();
-
         $this->connection->insert('branding', [
             'theme' => 'plain',
-            'daily_spin_limit' => 3,
             'updated_at' => '2026-11-15 00:44:23',
         ]);
+        $this->connection->executeStatement(
+            'ALTER TABLE branding ADD daily_spin_limit SMALLINT DEFAULT NULL',
+        );
+        $this->connection->executeStatement('UPDATE branding SET daily_spin_limit = 3');
 
+        $this->upgrade()->run();
         $this->upgrade()->run();
 
         self::assertSame(
             3,
-            (int) $this->connection->fetchOne('SELECT daily_spin_limit FROM branding'),
+            (int) $this->connection->fetchOne('SELECT daily_limit FROM game'),
         );
     }
 
@@ -962,7 +991,13 @@ final class DatabaseUpgradeTest extends KernelTestCase
         /** @var list<string> $locales */
         $locales = $container->getParameter('kernel.enabled_locales');
 
-        return new DatabaseUpgrade($this->connection, $translator, $locales);
+        /*
+         * F27 R34: the upgrade seeds the store's clock from APP_TIMEZONE and
+         * nothing reads it afterwards. A fixed zone here rather than the
+         * container's, so these tests say what they expect to be written
+         * instead of inheriting whatever the test environment is set to.
+         */
+        return new DatabaseUpgrade($this->connection, $translator, $locales, 'Europe/Paris');
     }
 
     /** The six slices every database that exists today was created with. */
@@ -997,7 +1032,7 @@ final class DatabaseUpgradeTest extends KernelTestCase
     }
 
     /**
-     * Branding as a database upgraded by R19's first version holds it: the
+     * Store as a database upgraded by R19's first version holds it: the
      * column is there, with a currency in it.
      */
     private function givenBrandingCountedIn(string $currency): void

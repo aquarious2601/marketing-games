@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller\Admin;
 
+use App\Entity\Game;
+use App\Repository\GameRepository;
 use App\Entity\Spin;
 use App\Player\PlayerPresenter;
 use App\Repository\SpinRepository;
@@ -33,6 +35,7 @@ final class SpinController extends AbstractController
         private readonly PlayerPresenter $presenter,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
+        private readonly GameRepository $games,
     ) {
     }
 
@@ -45,7 +48,15 @@ final class SpinController extends AbstractController
         $filter = trim((string) $request->query->get('search', ''));
         $filter = '' === $filter ? null : $filter;
 
-        $spins = $this->spins->listRecent($filter);
+        /*
+         * F27 R44. An id rather than a name: a name would be ambiguous
+         * between two promotions called the same thing, and the page already
+         * has the ids from the games list.
+         */
+        $gameId = $request->query->getInt('game');
+        $game = 0 === $gameId ? null : $this->games->find($gameId);
+
+        $spins = $this->spins->listRecent($filter, $game);
 
         return new JsonResponse([
             'spins' => array_map(
@@ -60,7 +71,13 @@ final class SpinController extends AbstractController
              * "the most recent 200 of 1,432" instead of quietly presenting a
              * truncated list as the whole log.
              */
-            'total' => $this->spins->countMatching($filter),
+            'total' => $this->spins->countMatching($filter, $game),
+            // F27 R44: the games to filter by, so the page needs no second
+            // call to build its selector.
+            'games' => array_map(
+                static fn (Game $each): array => ['id' => $each->getId(), 'name' => $each->getName()],
+                $this->games->allOfTheStore(),
+            ),
         ]);
     }
 

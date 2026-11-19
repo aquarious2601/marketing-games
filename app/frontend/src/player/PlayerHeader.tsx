@@ -39,7 +39,7 @@ export function PlayerHeader({ branding }: PlayerHeaderProps) {
           style={{ color: 'var(--heading)' }}
         >
           {/* F04 R24 */}
-          {branding.campaignName ?? 'Spin to win'}
+          {'' === branding.campaignName.trim() ? 'Spin to win' : branding.campaignName}
         </h1>
 
         {branding.companyName !== null && (

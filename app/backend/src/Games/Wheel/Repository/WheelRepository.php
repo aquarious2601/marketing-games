@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Games\Wheel\Repository;
 
+use App\Entity\Game;
 use App\Games\Wheel\Entity\Wheel;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -19,15 +20,11 @@ final class WheelRepository extends ServiceEntityRepository
     }
 
     /**
-     * There is only ever one wheel (F01 R2). Ordering by id keeps the choice
-     * deterministic even if a stray second row were ever created.
+     * One wheel per game (F27 R6). What used to be "the" wheel is the wheel
+     * of whichever game is being asked about.
      */
-    public function findTheWheel(): ?Wheel
+    public function findForGame(Game $game): ?Wheel
     {
-        return $this->createQueryBuilder('w')
-            ->orderBy('w.id', 'ASC')
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
+        return $this->findOneBy(['game' => $game]);
     }
 }

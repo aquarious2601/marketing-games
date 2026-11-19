@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Entity\Game;
 use App\Entity\Player;
 use App\Entity\Spin;
 use App\Reward\CodeGenerator;
@@ -73,13 +74,93 @@ final class SpinRepository extends ServiceEntityRepository
      * `>=` and no upper bound: the window is "since the day began", and
      * there is no such thing as a spin recorded in the future.
      */
-    public function countForPlayerSince(Player $player, \DateTimeImmutable $since): int
+    /**
+     * How many sheets this person has been given on this game since an
+     * instant (F28 R17).
+     *
+     * Sheets, not rows: a limit of 1 on a sheet of three gifts means one
+     * sheet, and counting rows would refuse the second gift of the first
+     * one. The distinct count is why a sheet carries an identity at all
+     * (R19).
+     */
+    public function countSheetsForPlayerOnGameSince(
+        Player $player,
+        Game $game,
+        \DateTimeImmutable $since,
+    ): int {
+        return (int) $this->createQueryBuilder('s')
+            ->select('COUNT(DISTINCT s.sheetId)')
+            ->where('s.player = :player')
+            ->andWhere('s.game = :game')
+            ->andWhere('s.spunAt >= :since')
+            ->andWhere('s.sheetId IS NOT NULL')
+            ->setParameter('player', $player)
+            ->setParameter('game', $game)
+            ->setParameter('since', $since)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * The rows of this person's most recent sheet on this game, or none.
+     *
+     * F28 R18 keeps these off the refusal screen, but the page that has just
+     * been given a sheet reloads, and this is what it reads back.
+     *
+     * @return list<Spin>
+     */
+    public function latestSheetFor(Player $player, Game $game): array
+    {
+        $sheet = $this->createQueryBuilder('s')
+            ->select('s.sheetId')
+            ->where('s.player = :player')
+            ->andWhere('s.game = :game')
+            ->andWhere('s.sheetId IS NOT NULL')
+            ->setParameter('player', $player)
+            ->setParameter('game', $game)
+            ->orderBy('s.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (null === $sheet) {
+            return [];
+        }
+
+        /** @var list<Spin> $rows */
+        $rows = $this->createQueryBuilder('s')
+            ->where('s.sheetId = :sheet')
+            ->setParameter('sheet', $sheet['sheetId'])
+            ->orderBy('s.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $rows;
+    }
+
+    /** F27 R38. The number in the Games list. */
+    public function countForGame(Game $game): int
     {
         return (int) $this->createQueryBuilder('s')
             ->select('COUNT(s.id)')
+            ->where('s.game = :game')
+            ->setParameter('game', $game)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function countForPlayerOnGameSince(
+        Player $player,
+        Game $game,
+        \DateTimeImmutable $since,
+    ): int {
+        return (int) $this->createQueryBuilder('s')
+            ->select('COUNT(s.id)')
             ->where('s.player = :player')
+            ->andWhere('s.game = :game')
             ->andWhere('s.spunAt >= :since')
             ->setParameter('player', $player)
+            ->setParameter('game', $game)
             ->setParameter('since', $since)
             ->getQuery()
             ->getSingleScalarResult();
@@ -98,11 +179,18 @@ final class SpinRepository extends ServiceEntityRepository
      *
      * @return list<Spin>
      */
-    public function listRecent(?string $filter = null, int $limit = self::LOG_LIMIT): array
-    {
+    public function listRecent(
+        ?string $filter = null,
+        ?Game $game = null,
+        int $limit = self::LOG_LIMIT,
+    ): array {
         $builder = $this->createQueryBuilder('s')
             ->addSelect('p')
             ->leftJoin('s.player', 'p')
+            // F27 R44: join-fetched, because the log shows the game on every
+            // row and without this a 200-row page is 200 extra queries.
+            ->addSelect('g')
+            ->join('s.game', 'g')
             ->orderBy('s.spunAt', 'DESC')
             // Pressing "Spin again" lands several spins in the same second,
             // so the id breaks the tie rather than leaving the order to the
@@ -111,6 +199,7 @@ final class SpinRepository extends ServiceEntityRepository
             ->setMaxResults($limit);
 
         $this->applyFilter($builder, $filter);
+        $this->applyGame($builder, $game);
 
         /** @var list<Spin> $spins */
         $spins = $builder->getQuery()->getResult();
@@ -121,15 +210,32 @@ final class SpinRepository extends ServiceEntityRepository
     /**
      * How many spins match, which is not how many were returned (F09 R21).
      */
-    public function countMatching(?string $filter = null): int
+    public function countMatching(?string $filter = null, ?Game $game = null): int
     {
         $builder = $this->createQueryBuilder('s')
             ->select('COUNT(s.id)')
             ->leftJoin('s.player', 'p');
 
         $this->applyFilter($builder, $filter);
+        $this->applyGame($builder, $game);
 
         return (int) $builder->getQuery()->getSingleScalarResult();
+    }
+
+    /**
+     * F27 R44. One game, or every game.
+     *
+     * Null is deliberately "all of them" rather than "the live one": the
+     * log is a record of what went out, and a promotion being over is no
+     * reason to hide what it gave away.
+     */
+    private function applyGame(QueryBuilder $builder, ?Game $game): void
+    {
+        if (null === $game) {
+            return;
+        }
+
+        $builder->andWhere('s.game = :game')->setParameter('game', $game);
     }
 
     /**

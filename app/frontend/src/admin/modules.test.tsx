@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { fetchSession } from '../api/auth'
-import { fetchBranding } from '../api/branding'
+import { fetchStore } from '../api/branding'
+import { fetchGames } from '../api/games'
 import { fetchPlayers, fetchSpinLog } from '../api/players'
 import { fetchRewards } from '../api/rewards'
 import { fetchWheel } from '../games/wheel/api'
@@ -32,10 +33,15 @@ vi.mock('../games/wheel/api', async (importOriginal) => ({
   saveWheel: vi.fn(),
 }))
 
+vi.mock('../api/games', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/games')>()),
+  fetchGames: vi.fn(),
+}))
+
 vi.mock('../api/branding', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/branding')>()),
-  fetchBranding: vi.fn(),
-  saveBranding: vi.fn(),
+  fetchStore: vi.fn(),
+  saveStore: vi.fn(),
 }))
 
 vi.mock('../api/rewards', async (importOriginal) => ({
@@ -53,7 +59,8 @@ vi.mock('../api/players', async (importOriginal) => ({
 const fetchRewardsMock = vi.mocked(fetchRewards)
 const fetchSessionMock = vi.mocked(fetchSession)
 const fetchWheelMock = vi.mocked(fetchWheel)
-const fetchBrandingMock = vi.mocked(fetchBranding)
+const fetchStoreMock = vi.mocked(fetchStore)
+const fetchGamesMock = vi.mocked(fetchGames)
 const fetchPlayersMock = vi.mocked(fetchPlayers)
 const fetchSpinLogMock = vi.mocked(fetchSpinLog)
 
@@ -68,24 +75,18 @@ const WHEEL = {
   ],
 }
 
-const BRANDING = {
+const STORE = {
   companyName: null,
-  campaignName: null,
-  tagline: 'One spin, one prize. Good luck.',
+  language: null,
+  timezone: 'Europe/Paris',
   theme: 'plain',
   logoUrl: null,
   themes: [{ value: 'plain', label: 'Plain' }],
   currency: 'VND',
   currencySymbol: '₫',
   currencies: [{ value: 'VND', label: 'VND', symbol: '₫' }],
-  ownTagline: null,
   ownCurrency: null,
   defaultCurrency: 'VND',
-  defaultTagline: 'One spin, one prize. Good luck.',
-  // F23 R1: a campaign with no limit, which is every campaign
-  // until an admin sets one.
-  dailySpinLimit: null,
-  maxDailySpinLimit: 99,
 }
 
 const PLAYER = {
@@ -108,6 +109,7 @@ const SPIN = {
   code: 'A7K3-M9PX',
   claimable: true,
   claimedAt: null,
+  game: 'Test campaign',
 }
 
 beforeEach(() => {
@@ -120,15 +122,17 @@ beforeEach(() => {
   })
   fetchSessionMock.mockReset()
   fetchWheelMock.mockReset()
-  fetchBrandingMock.mockReset()
+  fetchStoreMock.mockReset()
+  fetchGamesMock.mockReset()
   fetchPlayersMock.mockReset()
   fetchSpinLogMock.mockReset()
 
   fetchSessionMock.mockResolvedValue({ id: 1, username: 'tester' })
   fetchWheelMock.mockResolvedValue(WHEEL)
-  fetchBrandingMock.mockResolvedValue(BRANDING)
+  fetchStoreMock.mockResolvedValue(STORE)
+  fetchGamesMock.mockResolvedValue({ games: [], types: [{ value: 'wheel', label: 'Prize wheel' }], maxDailyLimit: 99 })
   fetchPlayersMock.mockResolvedValue({ players: [PLAYER], total: 1 })
-  fetchSpinLogMock.mockResolvedValue({ spins: [SPIN], total: 1 })
+  fetchSpinLogMock.mockResolvedValue({ spins: [SPIN], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
 })
 
 function renderAdmin(path = '/admin') {
@@ -151,18 +155,22 @@ function heading(): Promise<HTMLElement> {
 
 describe('which URL opens which module', () => {
   /** F09 R3 — every link and bookmark that predates F09 still works */
-  it('opens the Game module at /admin', async () => {
+  /** F27 R36: /admin opens Games, because that is where the work is. */
+  it('opens the Games module at /admin', async () => {
     renderAdmin('/admin')
 
-    expect(await heading()).toHaveTextContent('Game')
-    expect(await screen.findByTestId('branding-section')).toBeInTheDocument()
+    expect(await heading()).toHaveTextContent('Games')
+    expect(await screen.findByTestId('games-list')).toBeInTheDocument()
   })
 
-  /** F09 R2 */
-  it('opens the Game module at /admin/game', async () => {
+  /**
+   * F27 R36. Where the single Game module used to be: a bookmark from
+   * before this feature lands on the list rather than on a dead end.
+   */
+  it('sends /admin/game to the Games module', async () => {
     renderAdmin('/admin/game')
 
-    expect(await heading()).toHaveTextContent('Game')
+    expect(await heading()).toHaveTextContent('Games')
   })
 
   it('opens the Players module at /admin/players', async () => {
@@ -211,8 +219,10 @@ describe('the tab strip', () => {
     const tabs = screen.getByTestId('admin-tabs')
 
     expect(tabs).toHaveAccessibleName('Admin modules')
-    expect(screen.getByTestId('admin-tab-game')).toHaveTextContent('Game')
-    // F13 added the fourth: the catalogue sits beside Game, because both
+    // F27 R36: five modules. Store first, because every game inherits it.
+    expect(screen.getByTestId('admin-tab-store')).toHaveTextContent('Store')
+    expect(screen.getByTestId('admin-tab-games')).toHaveTextContent('Games')
+    // F13 added the catalogue, which sits beside the games because both
     // are things you set up.
     expect(screen.getByTestId('admin-tab-rewards')).toHaveTextContent('Rewards')
     expect(screen.getByTestId('admin-tab-players')).toHaveTextContent('Players')
@@ -229,7 +239,7 @@ describe('the tab strip', () => {
     await heading()
 
     expect(screen.getByTestId('admin-tab-players')).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByTestId('admin-tab-game')).not.toHaveAttribute('aria-current')
+    expect(screen.getByTestId('admin-tab-games')).not.toHaveAttribute('aria-current')
     expect(screen.getByTestId('admin-tab-spins')).not.toHaveAttribute('aria-current')
   })
 
@@ -242,9 +252,9 @@ describe('the tab strip', () => {
     expect(await heading()).toHaveTextContent('Spins')
     expect(screen.getByTestId('admin-tab-spins')).toHaveAttribute('aria-current', 'page')
 
-    await user.click(screen.getByTestId('admin-tab-game'))
+    await user.click(screen.getByTestId('admin-tab-games'))
 
-    expect(await heading()).toHaveTextContent('Game')
+    expect(await heading()).toHaveTextContent('Games')
   })
 
   it('stays available while a module is in an error state', async () => {
@@ -268,11 +278,11 @@ describe('the tab strip', () => {
  * parent, and nothing on screen would look different when it did.
  */
 describe('a module loads only its own data', () => {
-  it('does not fetch the spin log to show the Game module', async () => {
+  it('does not fetch the spin log to show the Games module', async () => {
     renderAdmin('/admin')
     await heading()
 
-    await waitFor(() => expect(fetchWheelMock).toHaveBeenCalled())
+    await waitFor(() => expect(fetchGamesMock).toHaveBeenCalled())
 
     expect(fetchSpinLogMock).not.toHaveBeenCalled()
     expect(fetchPlayersMock).not.toHaveBeenCalled()
@@ -285,7 +295,7 @@ describe('a module loads only its own data', () => {
     await waitFor(() => expect(fetchSpinLogMock).toHaveBeenCalled())
 
     expect(fetchWheelMock).not.toHaveBeenCalled()
-    expect(fetchBrandingMock).not.toHaveBeenCalled()
+    expect(fetchStoreMock).not.toHaveBeenCalled()
   })
 
   it('does not fetch the wheel to show the Players module', async () => {

@@ -15,6 +15,7 @@ player:
     spin_requires_identity: '请先告诉我们您是谁，然后再转动转盘。'
     spin_already_used: '您已经转过一次了。请按“下一位玩家”把手机传给下一个人。'
     spin_limit_reached: '您今天已经玩过了，明天再来吧。'
+    no_game: '本页需要摊位上的链接。'
     phone_required: '请输入您的手机号码。'
     phone_invalid: '这看起来不像手机号码。需要 %min% 到 %max% 位数字。'
     first_name_required: '请输入您的名字。'
@@ -49,7 +50,6 @@ branding:
     must_be_text: '此项必须是文本。'
     too_long: '此项最多 %max% 个字符。'
     choose_one_of: '请从以下选项中选择：%values%。'
-    daily_spin_limit_invalid: '每日转动次数必须是 1 到 %max% 之间的整数，留空表示不限。'
 
 logo:
     required: '请选择要上传的图片。'
@@ -71,6 +71,7 @@ theme:
 
 tagline:
     default: '一次转动，一份奖品。祝您好运！'
+    sheet_default: '填写信息，礼品即归您所有。'
 
 reward:
     type:
@@ -99,3 +100,32 @@ reward:
 
 spin:
     not_claimable: '未中奖的转动无法领取。'
+
+store:
+    language_invalid: '请选择游戏支持的语言之一。'
+    timezone_invalid: '服务器无法识别该时区。'
+
+game:
+    type_wheel: '奖品转盘'
+    type_gift_sheet: '礼品清单'
+    type_invalid: '请选择游戏类型。'
+    type_is_fixed: '游戏创建后类型不可更改。请改为创建新游戏。'
+    name_required: '请为该游戏命名。'
+    name_too_long: '名称最多 %max% 个字符。'
+    tagline_too_long: '标语最多 %max% 个字符。'
+    daily_limit_invalid: '每日次数须为 1 至 %max% 的整数，留空表示不限。'
+    live_must_be_boolean: '请说明游戏是否已上线。'
+    not_found: '找不到该游戏。'
+    not_ready_no_wheel: '该游戏还没有转盘。'
+    not_ready_prize_count: '转盘需要 %min% 至 %max% 个奖品。'
+    not_ready_slice_without_reward: '上线前每个扇区都需要一个奖励。'
+    not_ready_total: '概率合计为 %total%，必须为 %required%。'
+    not_ready_empty_sheet: '该游戏还没有任何赠品。请先添加一份礼品。'
+
+sheet:
+    invalid: '礼品清单无效。'
+    too_many: '一份清单最多 %max% 份礼品。'
+    reward_required: '请选择该礼品赠送的内容。'
+    reward_unknown: '该奖励已不存在。'
+    no_losing_reward: '清单会送出其中的每一项，因此不能包含“未中奖”奖励。'
+    reward_twice: '该奖励已在清单中。'

@@ -284,7 +284,7 @@ final class RewardIssueTest extends DatabaseWebTestCase
     {
         $this->signInAsAdmin();
 
-        $this->put('/api/admin/wheel', [
+        $this->put($this->wheelUri(), [
             'prizes' => [
                 ['name' => 'This one', 'probability' => 50, 'rewardId' => $rewardId],
                 ['name' => 'Also this one', 'probability' => 50, 'rewardId' => $rewardId],
@@ -315,7 +315,7 @@ final class RewardIssueTest extends DatabaseWebTestCase
     {
         $this->signInAsAdmin();
 
-        $this->put('/api/admin/wheel', [
+        $this->put($this->wheelUri(), [
             'prizes' => [
                 ['name' => 'Maybe next time', 'probability' => 99, 'rewardId' => $this->aLosingRewardId()],
                 ['name' => 'Something', 'probability' => 1, 'rewardId' => $this->aRewardId()],

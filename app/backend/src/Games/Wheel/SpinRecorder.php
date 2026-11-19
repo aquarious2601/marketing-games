@@ -44,7 +44,8 @@ final class SpinRecorder
     public function spin(Wheel $wheel, Player $player): Spin
     {
         return $this->entityManager->wrapInTransaction(function () use ($wheel, $player): Spin {
-            $spin = new Spin($this->draw->draw($wheel), $player);
+            $spin = Spin::forPrize($this->draw->draw($wheel), $player);
+            $spin->setGame($wheel->getGame());
 
             // F16 R1: issued inside the same transaction that records the
             // spin, so a code that exists is always a code somebody won.

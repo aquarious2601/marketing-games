@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
+use App\Entity\Game;
 use App\Entity\Reward;
+use App\Entity\Store;
+use App\Game\GameType;
+use App\Games\Wheel\WheelProvider;
 use App\Entity\User;
 use App\Repository\RewardRepository;
 use App\Reward\RewardType;
@@ -25,12 +29,23 @@ abstract class DatabaseWebTestCase extends WebTestCase
     protected KernelBrowser $client;
     protected EntityManagerInterface $entityManager;
 
+    /**
+     * The store and the one live game every test starts with (F27 R26, R32).
+     *
+     * Seeded here rather than per test because it is what an upgraded
+     * installation looks like: one shop, one live wheel, reachable at `/`.
+     * A test that wants a second game, or none, says so itself.
+     */
+    protected Store $store;
+    protected Game $game;
+
     protected function setUp(): void
     {
         $this->client = static::createClient();
         $this->entityManager = static::getContainer()->get(EntityManagerInterface::class);
 
         $this->emptyDatabase();
+        $this->seedTheStore();
     }
 
     protected function tearDown(): void
@@ -51,14 +66,57 @@ abstract class DatabaseWebTestCase extends WebTestCase
         $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
         $connection->executeStatement('TRUNCATE TABLE spin');
         $connection->executeStatement('TRUNCATE TABLE player');
-        $connection->executeStatement('TRUNCATE TABLE branding');
+        $connection->executeStatement('TRUNCATE TABLE store');
+        $connection->executeStatement('TRUNCATE TABLE game');
         $connection->executeStatement('TRUNCATE TABLE `user`');
         $connection->executeStatement('TRUNCATE TABLE prize');
+        $connection->executeStatement('TRUNCATE TABLE gift');
         $connection->executeStatement('TRUNCATE TABLE reward');
         $connection->executeStatement('TRUNCATE TABLE wheel');
         $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');
 
         $this->entityManager->clear();
+    }
+
+    /**
+     * One shop with one live wheel game, which is what the upgrade leaves
+     * and therefore what every test should be able to assume.
+     */
+    private function seedTheStore(): void
+    {
+        $this->store = new Store();
+        $this->entityManager->persist($this->store);
+
+        $this->game = new Game($this->store, 'Test campaign', GameType::Wheel);
+        $this->game->setLive(true);
+        $this->entityManager->persist($this->game);
+
+        $this->entityManager->flush();
+
+    }
+
+    /**
+     * Gives the seeded game the default wheel (F01 R2), which also seeds the
+     * six default rewards.
+     *
+     * Opt-in rather than part of the fixture: a live game with no wheel is
+     * not what an upgraded installation looks like (F27 R43 refuses to turn
+     * one live), but most tests want an empty catalogue and the provider
+     * fills it.
+     */
+    protected function giveTheGameItsWheel(): void
+    {
+        $wheels = static::getContainer()->get(WheelProvider::class);
+        \assert($wheels instanceof WheelProvider);
+
+        $wheels->getOrCreate($this->game);
+        $this->entityManager->flush();
+    }
+
+    /** The admin path for this game's prize list (F27 R40). */
+    protected function wheelUri(?Game $game = null): string
+    {
+        return '/api/admin/games/'.($game ?? $this->game)->getId().'/wheel';
     }
 
     /**

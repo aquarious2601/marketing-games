@@ -36,6 +36,37 @@ export interface SpinResult {
   spunAt: string
 }
 
+/**
+ * What a link resolves to (F27 R20).
+ *
+ * Calling this is what binds the session to a game, so every request after
+ * it — the wheel, the identification, the spin — is about that game and
+ * nothing the page sends can change which (R27).
+ */
+export interface ResolvedGame {
+  type: string
+  branding: PlayerWheel['branding']
+}
+
+/**
+ * F27 R24, R25. A game that is not live and a key that never existed both
+ * answer 404 with the same body, so the page shows one screen for both and
+ * cannot leak which it was.
+ */
+/**
+ * F27 R26. The game `/` serves, when exactly one is live.
+ *
+ * The same shape `resolvePlay` answers, so the page has one question and two
+ * ways of asking it. 409 when there is no single live game.
+ */
+export async function fetchGameType(options?: RequestOptions): Promise<ResolvedGame> {
+  return apiGet<ResolvedGame>('/game', options)
+}
+
+export async function resolvePlay(key: string, options?: RequestOptions): Promise<ResolvedGame> {
+  return apiGet<ResolvedGame>(`/play/${encodeURIComponent(key)}`, options)
+}
+
 export async function fetchPlayerWheel(options?: RequestOptions): Promise<PlayerWheel> {
   return apiGet<PlayerWheel>('/wheel', options)
 }

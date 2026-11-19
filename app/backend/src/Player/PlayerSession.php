@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Player;
 
+use App\Entity\Game;
 use App\Entity\Player;
 use App\Entity\Spin;
+use App\Repository\GameRepository;
 use App\Repository\PlayerRepository;
 use App\Repository\SpinRepository;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -42,11 +44,75 @@ final class PlayerSession
      */
     private const SPIN_KEY = 'app_player_spin';
 
+    /**
+     * The game this session is playing (F27 R27).
+     *
+     * Here rather than in the request, because the alternative is taking the
+     * game from something the page sends — and a page that could name its
+     * own game could play a promotion the shop has turned off, or spend one
+     * game's allowance on another.
+     */
+    private const GAME_KEY = 'app_player_game';
+
     public function __construct(
         private readonly RequestStack $requests,
         private readonly PlayerRepository $players,
         private readonly SpinRepository $spins,
+        private readonly GameRepository $games,
     ) {
+    }
+
+    /**
+     * F27 R20, R28. Opening a game's link binds the session to that game and
+     * releases whoever was identified for the last one: a player identified
+     * at the wheel has not identified themselves at the door.
+     */
+    public function bindGame(Game $game): void
+    {
+        $id = $game->getId();
+
+        \assert(null !== $id);
+
+        $session = $this->requests->getSession();
+
+        if ($session->get(self::GAME_KEY) !== $id) {
+            $session->remove(self::KEY);
+            $session->remove(self::SPIN_KEY);
+        }
+
+        $session->set(self::GAME_KEY, $id);
+    }
+
+    /**
+     * The game this session is playing, or null when no link has been opened.
+     *
+     * A session naming a game that has since been deleted or turned off is
+     * read as no game at all, which sends the page back to the link it came
+     * from rather than letting it play something nobody is offering.
+     */
+    public function game(): ?Game
+    {
+        $request = $this->requests->getCurrentRequest();
+
+        if (null === $request || !$request->hasPreviousSession()) {
+            return null;
+        }
+
+        $id = $request->getSession()->get(self::GAME_KEY);
+
+        if (!\is_int($id)) {
+            return null;
+        }
+
+        $game = $this->games->find($id);
+
+        if (null === $game || !$game->isLive()) {
+            $request->getSession()->remove(self::GAME_KEY);
+
+            return null;
+        }
+
+        return $game;
     }
 
     public function identify(Player $player): void

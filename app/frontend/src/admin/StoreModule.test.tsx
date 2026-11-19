@@ -2,30 +2,29 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  fetchBranding,
+  fetchStore,
   removeLogo,
-  saveBranding,
+  saveStore,
   uploadLogo,
-  type AdminBranding,
+  type AdminStore,
   type LogoUpload,
 } from '../api/branding'
 import { ApiError, ApiValidationError } from '../api/client'
-import { BrandingSection } from './BrandingSection'
+import { StoreModule } from './StoreModule'
 
 vi.mock('../api/branding', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/branding')>()),
-  fetchBranding: vi.fn(),
-  saveBranding: vi.fn(),
+  fetchStore: vi.fn(),
+  saveStore: vi.fn(),
   uploadLogo: vi.fn(),
   removeLogo: vi.fn(),
 }))
 
-const fetchMock = vi.mocked(fetchBranding)
-const saveMock = vi.mocked(saveBranding)
+const fetchMock = vi.mocked(fetchStore)
+const saveMock = vi.mocked(saveStore)
 const uploadMock = vi.mocked(uploadLogo)
 const removeMock = vi.mocked(removeLogo)
 
-const DEFAULT_TAGLINE = 'One spin, one prize. Good luck.'
 
 const THEMES = [
   { value: 'plain', label: 'Plain' },
@@ -47,17 +46,13 @@ function upload(overrides: Partial<LogoUpload> = {}): LogoUpload {
   return { ...branding(), notice: null, ...overrides }
 }
 
-function branding(overrides: Partial<AdminBranding> = {}): AdminBranding {
+function branding(overrides: Partial<AdminStore> = {}): AdminStore {
   return {
     companyName: null,
-    campaignName: null,
-    tagline: DEFAULT_TAGLINE,
-    ownTagline: null,
-    defaultTagline: DEFAULT_TAGLINE,
-    // F23 R1: a campaign with no limit, which is every campaign
-    // until an admin sets one.
-    dailySpinLimit: null,
-    maxDailySpinLimit: 99,
+    // F27 R17: no choice, which is every shop until somebody picks one.
+    language: null,
+    // F27 R15: never null. The upgrade seeded it from APP_TIMEZONE.
+    timezone: 'Europe/Paris',
     theme: 'plain',
     currency: 'VND',
     currencySymbol: '₫',
@@ -78,30 +73,27 @@ beforeEach(() => {
   fetchMock.mockResolvedValue(branding())
 })
 
-async function renderSection(initial?: Partial<AdminBranding>) {
+async function renderSection(initial?: Partial<AdminStore>) {
   if (initial !== undefined) {
     fetchMock.mockResolvedValue(branding(initial))
   }
 
   const user = userEvent.setup()
-  render(<BrandingSection />)
-  await screen.findByTestId('branding-section')
+  render(<StoreModule />)
+  await screen.findByTestId('store-section')
 
   return user
 }
 
 const companyField = () => screen.getByLabelText(/company name/i)
-const campaignField = () => screen.getByLabelText(/campaign name/i)
-const taglineField = () => screen.getByLabelText(/^tagline$/i)
 const themeField = () => screen.getByLabelText(/^theme$/i)
-const saveButton = () => screen.getByTestId('save-branding')
+const saveButton = () => screen.getByTestId('save-store')
 
 describe('loading', () => {
   it('shows the stored values', async () => {
-    await renderSection({ companyName: 'AA Store', campaignName: 'Noel', theme: 'christmas' })
+    await renderSection({ companyName: 'AA Store', theme: 'christmas' })
 
     expect(companyField()).toHaveValue('AA Store')
-    expect(campaignField()).toHaveValue('Noel')
     expect(themeField()).toHaveValue('christmas')
   })
 
@@ -121,24 +113,23 @@ describe('loading', () => {
     ])
   })
 
-  it('offers a retry when the branding cannot be loaded', async () => {
+  it('offers a retry when the store cannot be loaded', async () => {
     fetchMock.mockRejectedValue(new ApiError('nope', 500))
     const user = userEvent.setup()
-    render(<BrandingSection />)
+    render(<StoreModule />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 
     fetchMock.mockResolvedValue(branding())
     await user.click(screen.getByRole('button', { name: /try again/i }))
 
-    expect(await screen.findByTestId('branding-section')).toBeInTheDocument()
+    expect(await screen.findByTestId('store-section')).toBeInTheDocument()
   })
 
-  it('caps the name fields at sixty characters', async () => {
+  it('caps the company name at sixty characters', async () => {
     await renderSection()
 
     expect(companyField()).toHaveAttribute('maxlength', '60')
-    expect(campaignField()).toHaveAttribute('maxlength', '60')
   })
 })
 
@@ -153,7 +144,7 @@ describe('saving', () => {
     expect(saveButton()).toBeEnabled()
   })
 
-  it('sends the names, the tagline, the theme and the currency', async () => {
+  it('sends the company name, the theme, the currency, the language and the clock', async () => {
     saveMock.mockResolvedValue(branding({ companyName: 'AA Store', theme: 'halloween' }))
     const user = await renderSection()
 
@@ -164,15 +155,13 @@ describe('saving', () => {
     await waitFor(() =>
       expect(saveMock).toHaveBeenCalledWith({
         companyName: 'AA Store',
-        campaignName: '',
-        tagline: '',
         theme: 'halloween',
-        // F15 R10: the currency travels with the rest of the branding.
+        // F15 R10: the currency travels with the rest of the store.
         currency: 'VND',
-        // F23 R1: and the limit, as null, because the field is empty. The
-        // key is always sent from this form — it is the thing that edits
-        // it — so "absent leaves it alone" is for other clients.
-        dailySpinLimit: null,
+        // F27 R17: null, because nothing is chosen and the browser decides.
+        language: null,
+        // F27 R15: the shop's clock, sent as it stands.
+        timezone: 'Europe/Paris',
       }),
     )
   })
@@ -241,39 +230,9 @@ describe('saving', () => {
     })
   })
 
-  it('sends a tagline the admin typed', async () => {
-    saveMock.mockResolvedValue(branding())
-    const user = await renderSection()
 
-    await user.type(taglineField(), 'Spin for a treat!')
-    await user.click(saveButton())
 
-    await waitFor(() =>
-      expect(saveMock).toHaveBeenCalledWith(
-        expect.objectContaining({ tagline: 'Spin for a treat!' }),
-      ),
-    )
-  })
 
-  it('shows the admin their own tagline, not the default', async () => {
-    await renderSection({ ownTagline: 'Spin for a treat!', tagline: 'Spin for a treat!' })
-
-    expect(taglineField()).toHaveValue('Spin for a treat!')
-  })
-
-  it('leaves the field empty when the default is in use, and offers it', async () => {
-    await renderSection()
-
-    expect(taglineField()).toHaveValue('')
-    expect(taglineField()).toHaveAttribute('placeholder', DEFAULT_TAGLINE)
-    expect(screen.getByText(new RegExp(DEFAULT_TAGLINE.replace(/[.!]/g, '\$&')))).toBeInTheDocument()
-  })
-
-  it('caps the tagline at 120 characters', async () => {
-    await renderSection()
-
-    expect(taglineField()).toHaveAttribute('maxlength', '120')
-  })
 
   it('confirms a save and returns to clean', async () => {
     saveMock.mockResolvedValue(branding({ companyName: 'AA Store' }))
@@ -306,11 +265,10 @@ describe('saving', () => {
     saveMock.mockRejectedValue(new TypeError('Failed to fetch'))
     const user = await renderSection()
 
-    await user.type(campaignField(), 'Noel')
+    await user.type(companyField(), 'AA Store')
     await user.click(saveButton())
 
     expect(await screen.findByText(/could not be saved/i)).toBeInTheDocument()
-    expect(campaignField()).toHaveValue('Noel')
   })
 })
 
@@ -422,69 +380,9 @@ describe('the logo', () => {
 })
 
 /** F23 R20, R21 — the campaign's daily spin limit. */
-describe('the daily spin limit', () => {
-  const limitField = () => screen.getByLabelText(/spins per person per day/i)
-
-  /** F23 R1: blank is no limit, and it is the common case. */
-  it('is empty when the campaign has none', async () => {
-    await renderSection({ dailySpinLimit: null })
-
-    expect(limitField()).toHaveValue(null)
-  })
-
-  it('shows the limit the campaign has', async () => {
-    await renderSection({ dailySpinLimit: 3 })
-
-    expect(limitField()).toHaveValue(3)
-  })
-
-  it('saves a limit that was typed in', async () => {
-    const user = await renderSection({ dailySpinLimit: null })
-
-    await user.type(limitField(), '2')
-    await user.click(screen.getByRole('button', { name: /save/i }))
-
-    await waitFor(() =>
-      expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({ dailySpinLimit: 2 })),
-    )
-  })
-
-  /** F23 R1: clearing the field is how a campaign goes back to no limit. */
-  it('sends null when the field is cleared', async () => {
-    const user = await renderSection({ dailySpinLimit: 5 })
-
-    await user.clear(limitField())
-    await user.click(screen.getByRole('button', { name: /save/i }))
-
-    await waitFor(() =>
-      expect(saveMock).toHaveBeenCalledWith(expect.objectContaining({ dailySpinLimit: null })),
-    )
-  })
-
-  /**
-   * F23 R21. The server decides what a valid limit is — one place, because
-   * it is the one that also has to refuse the next client — and its answer
-   * lands on the field that caused it (F01 R12).
-   */
-  it('shows the server violation under the field', async () => {
-    saveMock.mockRejectedValue(
-      new ApiValidationError('The branding is invalid.', [
-        { field: 'dailySpinLimit', message: 'Spins per day must be a whole number from 1 to 99.' },
-      ]),
-    )
-
-    const user = await renderSection({ dailySpinLimit: null })
-
-    await user.type(limitField(), '0')
-    await user.click(screen.getByRole('button', { name: /save/i }))
-
-    expect(await screen.findByText(/whole number from 1 to 99/i)).toBeInTheDocument()
-  })
-
-  /** F23 R2 is the part an admin would not guess from the label. */
-  it('says that it counts the person rather than the phone', async () => {
-    await renderSection({ dailySpinLimit: null })
-
-    expect(screen.getByText(/counts the person, not the phone/i)).toBeInTheDocument()
-  })
-})
+/*
+ * F23's daily-limit tests left with the field. The limit is the game's now
+ * (F27 R29), so they are GameSettings.test.tsx's — including the one that
+ * mattered most, that clearing the field is how a promotion goes back to no
+ * limit at all.
+ */

@@ -166,7 +166,7 @@ final class LocaleTest extends DatabaseWebTestCase
     {
         $this->signInAsAdmin();
 
-        $this->put('/api/admin/wheel', [
+        $this->put($this->wheelUri(), [
             // F26 R1: the admin's words are the reward's name now, so that is
             // where this test has to put them.
             'prizes' => [
@@ -191,14 +191,15 @@ final class LocaleTest extends DatabaseWebTestCase
      */
     public function testTheDefaultTaglineIsTranslated(): void
     {
-        $this->signInAsAdmin();
-
-        $this->client->request('GET', '/api/admin/branding', server: [
+        $this->client->request('GET', '/api/wheel', server: [
             'HTTP_ACCEPT_LANGUAGE' => 'fr',
         ]);
 
         self::assertResponseIsSuccessful();
-        self::assertSame('Un tour, un lot. Bonne chance !', $this->decodeResponse()['defaultTagline']);
+        self::assertSame(
+            'Un tour, un lot. Bonne chance !',
+            $this->decodeResponse()['branding']['tagline'],
+        );
     }
 
     /** F12 R9 — the theme names the admin picks from */
@@ -206,7 +207,7 @@ final class LocaleTest extends DatabaseWebTestCase
     {
         $this->signInAsAdmin();
 
-        $this->client->request('GET', '/api/admin/branding', server: [
+        $this->client->request('GET', '/api/admin/store', server: [
             'HTTP_ACCEPT_LANGUAGE' => 'fr',
         ]);
 

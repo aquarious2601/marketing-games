@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Games\Wheel\Controller;
 
 use App\Branding\BrandingPresenter;
-use App\Branding\BrandingProvider;
+use App\Game\GameResolver;
+use App\Game\GameType;
+use App\Store\StoreProvider;
 use App\Games\Wheel\PlayerWheelPresenter;
 use App\Games\Wheel\SpinRecorder;
 use App\Games\Wheel\WheelProvider;
@@ -37,11 +39,12 @@ final class PlayerController extends AbstractController
         private readonly WheelProvider $provider,
         private readonly PlayerWheelPresenter $presenter,
         private readonly SpinRecorder $recorder,
-        private readonly BrandingProvider $branding,
+        private readonly StoreProvider $store,
         private readonly BrandingPresenter $brandingPresenter,
         private readonly PlayerSession $session,
         private readonly PlayerPresenter $playerPresenter,
         private readonly SpinAllowance $allowance,
+        private readonly GameResolver $resolver,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -49,17 +52,53 @@ final class PlayerController extends AbstractController
     #[Route('/api/wheel', name: 'api_wheel', methods: ['GET'])]
     public function wheel(): JsonResponse
     {
-        // Branding travels with the wheel so the player page still loads in
-        // one request (F04 section 8).
+        $game = $this->resolver->currentOfType(GameType::Wheel);
+
+        if (null === $game) {
+            return $this->noGame();
+        }
+
+        // Store travels with the wheel so the player page still loads in
+        // one request (F04 section 8). Since F27 the campaign's name and
+        // phrase in it are the game's (R11), which is why the payload has
+        // the shape it always had.
         return new JsonResponse([
-            ...$this->presenter->present($this->provider->getOrCreate()),
-            'branding' => $this->brandingPresenter->present($this->branding->getOrCreate()),
+            ...$this->presenter->present($this->provider->getOrCreate($game)),
+            'branding' => $this->brandingPresenter->presentForGame($this->store->getOrCreate(), $game),
         ]);
+    }
+
+    /**
+     * F27 R27. No game in the session and no single live one to fall back
+     * on, so there is nothing to serve: the page sends the visitor back to
+     * the link they came from.
+     *
+     * A 409 rather than a 404: the request is understood and the
+     * installation is working — what is missing is a game, which is state
+     * rather than a wrong address.
+     */
+    private function noGame(): JsonResponse
+    {
+        return new JsonResponse(
+            [
+                'error' => [
+                    'status' => Response::HTTP_CONFLICT,
+                    'message' => $this->translator->trans('player.no_game'),
+                ],
+            ],
+            Response::HTTP_CONFLICT,
+        );
     }
 
     #[Route('/api/spin', name: 'api_spin', methods: ['POST'])]
     public function spin(): JsonResponse
     {
+        $game = $this->resolver->currentOfType(GameType::Wheel);
+
+        if (null === $game) {
+            return $this->noGame();
+        }
+
         $player = $this->session->current();
 
         /**
@@ -119,7 +158,7 @@ final class PlayerController extends AbstractController
          * Before the draw, so a refused request costs the shop no prize and
          * mints no code (F16 R1).
          */
-        if ($this->allowance->isExhausted($player)) {
+        if ($this->allowance->isExhausted($player, $game)) {
             return new JsonResponse(
                 [
                     'error' => [
@@ -131,7 +170,7 @@ final class PlayerController extends AbstractController
             );
         }
 
-        $spin = $this->recorder->spin($this->provider->getOrCreate(), $player);
+        $spin = $this->recorder->spin($this->provider->getOrCreate($game), $player);
         $prize = $spin->getPrize();
 
         // The prize cannot be null here: it was just drawn from the wheel and

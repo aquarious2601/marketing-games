@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Games\GiftSheet\Entity\Gift;
 use App\Games\Wheel\Entity\Prize;
 use App\Repository\SpinRepository;
 use App\Reward\RewardType;
@@ -64,8 +65,17 @@ class Spin
     #[ORM\Column(name: 'prize_name', length: Reward::NAME_MAX_LENGTH)]
     private string $prizeName;
 
-    #[ORM\Column(name: 'prize_probability', type: 'smallint')]
-    private int $prizeProbability;
+    /**
+     * How likely the slice was, or null for a gift (F28 §7): a sheet hands
+     * over everything on it, so there is nothing to have been likely.
+     *
+     * The mapping has to say `nullable` as well as the type: a `?int`
+     * property with a non-null column is a mismatch Doctrine's diff does not
+     * report, and the first gift row would be refused by a strict database
+     * (which production is and this machine is not).
+     */
+    #[ORM\Column(name: 'prize_probability', type: 'smallint', nullable: true)]
+    private ?int $prizeProbability = null;
 
     /**
      * The reward, by value (F13 R25).
@@ -106,28 +116,109 @@ class Spin
     #[ORM\Column(name: 'claimed_at', nullable: true)]
     private ?\DateTimeImmutable $claimedAt = null;
 
+    /**
+     * F27 R9. Recorded rather than read through the prize, so the log still
+     * says where a spin came from after a game is turned off or another is
+     * added beside it.
+     */
+    #[ORM\ManyToOne(targetEntity: Game::class)]
+    #[ORM\JoinColumn(name: 'game_id', nullable: false, onDelete: 'CASCADE')]
+    private ?Game $game = null;
+
+    /**
+     * The sheet this row was part of (F28 R19), or null for a wheel spin.
+     *
+     * One value shared by a sheet's rows, so "how many sheets today" is a
+     * count and "the same sheet again" is a lookup rather than a guess from
+     * timestamps — which would group two sheets issued in the same second.
+     */
+    #[ORM\Column(name: 'sheet_id', length: 12, nullable: true)]
+    private ?string $sheetId = null;
+
     #[ORM\Column(name: 'spun_at')]
     private \DateTimeImmutable $spunAt;
 
-    public function __construct(Prize $prize, ?Player $player = null)
+    /**
+     * Private since F28: a row is either a slice that was drawn or a gift
+     * that was handed over, and the two have different invariants — a spin
+     * has a prize and a probability, a gift has neither and has a sheet
+     * instead. One constructor taking both could not say what it required.
+     *
+     * Doctrine instantiates entities without calling this, so hydration is
+     * unaffected.
+     */
+    private function __construct()
     {
-        $this->prize = $prize;
-        $this->player = $player;
+        $this->spunAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+    }
+
+    /** One play of the wheel (F02 R9). */
+    public static function forPrize(Prize $prize, ?Player $player = null): self
+    {
+        $spin = new self();
+
+        $spin->prize = $prize;
+        $spin->player = $player;
         // F26 R6: still a snapshot. The label now comes from the reward, so
         // renaming that reward tomorrow must not rewrite what this player was
         // told they had won today.
-        $this->prizeName = $prize->getLabel();
-        $this->prizeProbability = $prize->getProbability();
+        $spin->prizeName = $prize->getLabel();
+        $spin->prizeProbability = $prize->getProbability();
 
         $reward = $prize->getReward();
-        $this->rewardType = ($reward?->getType() ?? RewardType::FreeProduct)->value;
-        $this->rewardValue = $reward?->getValue();
-        $this->spunAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $spin->rewardType = ($reward?->getType() ?? RewardType::FreeProduct)->value;
+        $spin->rewardValue = $reward?->getValue();
+
+        return $spin;
+    }
+
+    /**
+     * One gift from a sheet (F28 R12).
+     *
+     * No prize and no probability: a gift was not drawn — the sheet hands
+     * over everything on it (R10) — so the column says null rather than a
+     * number that would read as odds.
+     */
+    public static function forGift(Gift $gift, Player $player): self
+    {
+        $spin = new self();
+
+        $spin->player = $player;
+        // F28 R4: a gift's name is its reward's name, snapshotted here for
+        // the same reason a slice's is (F26 R6).
+        $spin->prizeName = $gift->getLabel();
+
+        $reward = $gift->getReward();
+        $spin->rewardType = $reward->getType()->value;
+        $spin->rewardValue = $reward->getValue();
+
+        return $spin;
     }
 
     public function getId(): ?int
     {
         return $this->id;
+    }
+
+    /** F28 R19. Null for a wheel spin. */
+    public function getSheetId(): ?string
+    {
+        return $this->sheetId;
+    }
+
+    public function setSheetId(string $sheetId): void
+    {
+        $this->sheetId = $sheetId;
+    }
+
+    public function getGame(): Game
+    {
+        return $this->game ?? throw new \LogicException('A spin always records its game (F27 R9).');
+    }
+
+    public function setGame(Game $game): void
+    {
+        $this->game = $game;
     }
 
     public function getPrize(): ?Prize
@@ -145,7 +236,8 @@ class Spin
         return $this->prizeName;
     }
 
-    public function getPrizeProbability(): int
+    /** Null for a gift: it was handed over, not drawn (F28 R10). */
+    public function getPrizeProbability(): ?int
     {
         return $this->prizeProbability;
     }

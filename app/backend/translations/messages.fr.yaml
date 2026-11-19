@@ -15,6 +15,7 @@ player:
     spin_requires_identity: 'Dites-nous qui vous êtes avant de tourner la roue.'
     spin_already_used: 'Vous avez déjà tourné la roue. Appuyez sur Joueur suivant pour passer le téléphone.'
     spin_limit_reached: "Vous avez déjà joué aujourd'hui. Revenez demain."
+    no_game: 'Cette page a besoin du lien affiché sur le stand.'
     phone_required: 'Saisissez votre numéro de téléphone.'
     phone_invalid: "Cela ne ressemble pas à un numéro de téléphone. Il faut entre %min% et %max% chiffres."
     first_name_required: 'Saisissez votre prénom.'
@@ -49,7 +50,6 @@ branding:
     must_be_text: 'Ceci doit être du texte.'
     too_long: 'Ceci ne peut pas dépasser %max% caractères.'
     choose_one_of: 'Choisissez parmi : %values%.'
-    daily_spin_limit_invalid: 'Le nombre de tours par jour doit être un entier de 1 à %max%, ou vide pour aucune limite.'
 
 logo:
     required: 'Choisissez une image à envoyer.'
@@ -71,6 +71,7 @@ theme:
 
 tagline:
     default: 'Un tour, un lot. Bonne chance !'
+    sheet_default: 'Remplissez ceci et les cadeaux sont à vous.'
 
 reward:
     type:
@@ -99,3 +100,32 @@ reward:
 
 spin:
     not_claimable: 'Un tour perdant ne peut pas être réclamé.'
+
+store:
+    language_invalid: 'Choisissez une des langues du jeu.'
+    timezone_invalid: 'Ce n''est pas un fuseau horaire reconnu par le serveur.'
+
+game:
+    type_wheel: 'Roue des prix'
+    type_gift_sheet: 'Liste de cadeaux'
+    type_invalid: 'Choisissez le type de jeu.'
+    type_is_fixed: 'Un jeu garde le type avec lequel il a été créé. Créez plutôt un autre jeu.'
+    name_required: 'Donnez un nom à ce jeu.'
+    name_too_long: 'Un nom peut contenir au maximum %max% caractères.'
+    tagline_too_long: 'Une accroche peut contenir au maximum %max% caractères.'
+    daily_limit_invalid: 'Le nombre de parties par jour doit être un entier de 1 à %max%, ou vide pour illimité.'
+    live_must_be_boolean: 'Indiquez si le jeu est en ligne.'
+    not_found: 'Ce jeu est introuvable.'
+    not_ready_no_wheel: 'Ce jeu n''a pas encore de roue.'
+    not_ready_prize_count: 'Une roue doit avoir entre %min% et %max% prix.'
+    not_ready_slice_without_reward: 'Chaque case doit avoir une récompense avant la mise en ligne.'
+    not_ready_total: 'Le total des probabilités est %total%. Il doit être de %required%.'
+    not_ready_empty_sheet: 'Ce jeu n''offre encore rien. Ajoutez d''abord un cadeau.'
+
+sheet:
+    invalid: 'La liste de cadeaux est invalide.'
+    too_many: 'Une liste peut contenir au maximum %max% cadeaux.'
+    reward_required: 'Choisissez ce que ce cadeau offre.'
+    reward_unknown: 'Cette récompense n''existe plus.'
+    no_losing_reward: 'Une liste offre tout ce qu''elle contient : la récompense « perdu » n''y a pas sa place.'
+    reward_twice: 'Cette récompense est déjà dans la liste.'

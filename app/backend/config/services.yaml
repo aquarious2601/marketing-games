@@ -37,11 +37,11 @@ services:
     # injected into SvgSanitiser (F05 R5).
     enshrined\svgSanitize\Sanitizer: ~
 
-    # Bound here rather than through a global `string $timezone` bind, so
-    # the only class that gets it is the one whose job it is (F23 R7).
-    App\Campaign\CampaignDay:
+    # F27 R34: the last thing APP_TIMEZONE is for. The upgrade seeds the
+    # store's clock from it, and after that the store is the only answer.
+    App\Schema\DatabaseUpgrade:
         arguments:
-            $timezone: '%app.timezone%'
+            $appTimezone: '%app.timezone%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

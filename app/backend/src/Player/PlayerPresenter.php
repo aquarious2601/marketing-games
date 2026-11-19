@@ -136,6 +136,9 @@ final class PlayerPresenter
             'code' => $spin->getRewardCode(),
             'claimable' => $spin->isClaimable(),
             'claimedAt' => $spin->getClaimedAt()?->format(\DateTimeInterface::ATOM),
+            // F27 R44. The game's name rather than its id, because the
+            // column is read by a person and the id means nothing to them.
+            'game' => $spin->getGame()->getName(),
         ];
     }
 

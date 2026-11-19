@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import {
   fetchIdentity,
   fetchPlayerWheel,
+  resolvePlay,
   forgetPlayer,
   spin,
   type PlayerIdentity,
@@ -23,6 +25,14 @@ type LoadState =
   | { phase: 'loading' }
   | { phase: 'ready' }
   | { phase: 'failed' }
+  /**
+   * F27 R24, R25. The link named a game that is not live, or no game at
+   * all. One screen for both: a customer holding a printed link must not be
+   * able to tell a finished promotion from a typo.
+   */
+  | { phase: 'gone' }
+  /** F27 R26. `/` with no single live game: this page needs a link. */
+  | { phase: 'needsLink' }
 
 /**
  * F02: the player's page.
@@ -38,13 +48,16 @@ type LoadState =
  * answered without asking the player anything (F08 R13).
  */
 export function PlayerPage() {
+  const { key: playKey } = useParams<{ key: string }>()
   const t = useT()
   const [load, setLoad] = useState<LoadState>({ phase: 'loading' })
   const [wheel, setWheel] = useState<PlayerWheel>({
     prizes: [],
     branding: {
       companyName: null,
-      campaignName: null,
+      // Empty rather than null: since F27 the name comes from the game, and
+      // the first paint has not resolved one yet.
+      campaignName: '',
       // Replaced the moment the wheel loads; this only covers the first paint.
       tagline: t('player.tagline'),
       theme: 'plain',
@@ -124,10 +137,31 @@ export function PlayerPage() {
   const loadWheel = useCallback(async (signal?: AbortSignal) => {
     setLoad({ phase: 'loading' })
 
+    /*
+     * F27 R20. The key comes first and on its own: resolving it is what
+     * binds the session to a game, so the two requests below are about the
+     * right game rather than about whatever was open last.
+     */
+    if (playKey !== undefined) {
+      try {
+        await resolvePlay(playKey, { signal })
+      } catch {
+        if (signal?.aborted !== true) {
+          setLoad({ phase: 'gone' })
+        }
+
+        return
+      }
+    }
+
     const [loaded, identity] = await Promise.all([
       fetchPlayerWheel({ signal }).then(
-        (value) => ({ ok: true as const, value }),
-        () => ({ ok: false as const, value: null }),
+        (value) => ({ ok: true as const, value, status: 200 }),
+        (caught: unknown) => ({
+          ok: false as const,
+          value: null,
+          status: caught instanceof ApiError ? caught.status : 0,
+        }),
       ),
       fetchIdentity({ signal }).then(
         (value) => value,
@@ -158,14 +192,20 @@ export function PlayerPage() {
     }
 
     if (!loaded.ok) {
-      setLoad({ phase: 'failed' })
+      /*
+       * F27 R26, R27. A 409 means the server understood and has no game to
+       * serve — nothing in the session and no single live one to fall back
+       * on — which is a sentence to show rather than a fault to report.
+       */
+      setLoad({ phase: 409 === loaded.status ? 'needsLink' : 'failed' })
 
       return
     }
 
     setWheel(loaded.value)
     setLoad({ phase: 'ready' })
-  }, [])
+    // playKey, because a different link is a different game.
+  }, [playKey])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -337,6 +377,35 @@ export function PlayerPage() {
     // F02 R2: the player is never shown the odds, and never receives them.
     probability: null,
   }))
+
+  /*
+   * F27 R24, R25. A game that has been turned off, and a key that was never
+   * minted, land here together — same words, same markup, no company name,
+   * no logo and no theme.
+   *
+   * Plain on purpose twice over: the unknown case has no branding to carry,
+   * and if the two pages looked different the one would tell you the other
+   * existed.
+   */
+  if (load.phase === 'gone' || load.phase === 'needsLink') {
+    const ended = 'gone' === load.phase
+
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center bg-slate-50 px-4"
+        data-testid={ended ? 'promotion-ended' : 'needs-link'}
+      >
+        <div className="max-w-sm text-center">
+          <h1 className="text-lg font-semibold text-slate-900">
+            {t(ended ? 'player.promotionEnded' : 'player.needsLink')}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            {t(ended ? 'player.promotionEndedHint' : 'player.needsLinkHint')}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (load.phase === 'failed') {
     return (

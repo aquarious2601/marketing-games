@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Schema;
 
+use App\Entity\Game;
 use App\Entity\Reward;
+use App\Game\GameType;
+use App\Game\LinkKey;
 use App\Player\PhoneMatch;
 use App\Reward\RewardProvider;
 use App\Reward\RewardType;
@@ -39,6 +42,20 @@ final class DatabaseUpgrade
     private const PRIZE_REWARD_INDEX = 'IDX_51C88BC1E466ACA1';
     private const SPIN_CODE_INDEX = 'UNIQ_120A248F7604A003';
 
+    /** F27's keys, taken from what doctrine:schema:update asks for. */
+    private const GAME_STORE_FK = 'FK_232B318CB092A811';
+    private const GAME_STORE_INDEX = 'IDX_232B318CB092A811';
+    private const WHEEL_GAME_FK = 'FK_61D0AF74E48FD905';
+    private const WHEEL_GAME_INDEX = 'UNIQ_61D0AF74E48FD905';
+    private const SPIN_GAME_FK = 'FK_120A248FE48FD905';
+    private const SPIN_GAME_INDEX = 'IDX_120A248FE48FD905';
+
+    /** F28's keys, likewise taken from what the schema diff asks for. */
+    private const GIFT_GAME_FK = 'FK_A47C990DE48FD905';
+    private const GIFT_GAME_INDEX = 'IDX_A47C990DE48FD905';
+    private const GIFT_REWARD_FK = 'FK_A47C990DE466ACA1';
+    private const GIFT_REWARD_INDEX = 'IDX_A47C990DE466ACA1';
+
     /**
      * Named in the mapping rather than generated, like `uniq_player_phone`
      * beside it, so this is the name the entity asks for and not a hash
@@ -53,6 +70,7 @@ final class DatabaseUpgrade
         private readonly Connection $connection,
         private readonly TranslatorInterface $translator,
         private readonly array $enabledLocales,
+        private readonly string $appTimezone,
     ) {
     }
 
@@ -94,6 +112,15 @@ final class DatabaseUpgrade
             $this->addBrandingDailySpinLimit($dryRun),
             $this->widenNamesToTheCatalogueLimit($dryRun),
             $this->dropPrizeName($dryRun),
+            $this->renameBrandingToStore($dryRun),
+            $this->addStoreLanguageAndClock($dryRun),
+            $this->createGameTable($dryRun),
+            $this->makeTodaysCampaignAGame($dryRun),
+            $this->addWheelGame($dryRun),
+            $this->addSpinGame($dryRun),
+            $this->dropWhatMovedToTheGame($dryRun),
+            $this->createGiftTable($dryRun),
+            $this->addSheetToSpins($dryRun),
         ];
     }
 
@@ -227,13 +254,28 @@ final class DatabaseUpgrade
     {
         $name = 'branding.daily_spin_limit';
 
-        if ($this->columnExists('branding', 'daily_spin_limit')) {
+        $shop = $this->shopTable();
+
+        /*
+         * F27 R11 moved the limit to the game, and the step that drops it
+         * from the shop runs after this one. Without this guard the two would
+         * take turns for ever: added here, dropped there, every run.
+         *
+         * The game table existing is the signal, because that is what the
+         * move leaves behind. Before it exists this step is still the only
+         * thing that gives an old database a limit to carry over (R32).
+         */
+        if ($this->tableExists('game')) {
+            return UpgradeStep::skipped($name, "the game carries it now");
+        }
+
+        if ($this->columnExists($shop, 'daily_spin_limit')) {
             return UpgradeStep::skipped($name);
         }
 
         if (!$dryRun) {
             $this->connection->executeStatement(
-                'ALTER TABLE branding ADD daily_spin_limit SMALLINT DEFAULT NULL',
+                'ALTER TABLE '.$shop.' ADD daily_spin_limit SMALLINT DEFAULT NULL',
             );
         }
 
@@ -387,7 +429,9 @@ final class DatabaseUpgrade
     {
         $name = 'branding.currency';
 
-        if ($this->columnExists('branding', 'currency')) {
+        $shop = $this->shopTable();
+
+        if ($this->columnExists($shop, 'currency')) {
             return UpgradeStep::skipped($name);
         }
 
@@ -397,7 +441,7 @@ final class DatabaseUpgrade
             // never chosen. Seeding it with a currency here would be this
             // code deciding what a shop trades in.
             $this->connection->executeStatement(
-                'ALTER TABLE branding ADD currency VARCHAR(3) DEFAULT NULL',
+                'ALTER TABLE '.$shop.' ADD currency VARCHAR(3) DEFAULT NULL',
             );
         }
 
@@ -424,12 +468,14 @@ final class DatabaseUpgrade
         $name = 'a currency nobody picked';
         $written = 'VND';
 
-        if (!$this->tableExists('reward') || !$this->columnExists('branding', 'currency')) {
+        $shop = $this->shopTable();
+
+        if (!$this->tableExists('reward') || !$this->columnExists($shop, 'currency')) {
             return UpgradeStep::skipped($name, 'there is no currency to take back');
         }
 
         $candidates = (int) $this->connection->fetchOne(
-            'SELECT COUNT(*) FROM branding WHERE currency = :written',
+            'SELECT COUNT(*) FROM '.$shop.' WHERE currency = :written',
             ['written' => $written],
         );
 
@@ -455,7 +501,7 @@ final class DatabaseUpgrade
         }
 
         $this->connection->executeStatement(
-            'UPDATE branding SET currency = NULL WHERE currency = :written',
+            'UPDATE '.$shop.' SET currency = NULL WHERE currency = :written',
             ['written' => $written],
         );
 
@@ -1200,6 +1246,468 @@ final class DatabaseUpgrade
         ]);
 
         return (int) $this->connection->lastInsertId();
+    }
+
+    /** F28 R1. */
+    private function createGiftTable(bool $dryRun): UpgradeStep
+    {
+        $name = 'gift table';
+
+        if ($this->tableExists('gift')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$this->tableExists('game') || !$this->tableExists('reward')) {
+            return UpgradeStep::done($name, 'would create it (the tables it points at do not exist yet)');
+        }
+
+        if (!$dryRun) {
+            // Exactly what doctrine:schema:update asks for, generated names
+            // included, so an upgraded database reports no difference after.
+            $this->connection->executeStatement(
+                'CREATE TABLE gift ('
+                .'id INT AUTO_INCREMENT NOT NULL, '
+                .'position SMALLINT NOT NULL, '
+                .'game_id INT NOT NULL, '
+                .'reward_id INT NOT NULL, '
+                // R2 and R6 held by the database rather than only by a form.
+                .'UNIQUE INDEX uniq_gift_game_reward (game_id, reward_id), '
+                .'UNIQUE INDEX uniq_gift_game_position (game_id, position), '
+                .'INDEX '.self::GIFT_GAME_INDEX.' (game_id), '
+                .'INDEX '.self::GIFT_REWARD_INDEX.' (reward_id), '
+                .'PRIMARY KEY (id)'
+                .') DEFAULT CHARACTER SET utf8mb4 ENGINE = InnoDB',
+            );
+            $this->connection->executeStatement(
+                'ALTER TABLE gift ADD CONSTRAINT '.self::GIFT_GAME_FK
+                .' FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE',
+            );
+            /*
+             * No ON DELETE on the reward, unlike the game: F13 decides what
+             * deleting a reward does, and a cascade here would quietly take
+             * gifts with it and change a sheet nobody edited.
+             */
+            $this->connection->executeStatement(
+                'ALTER TABLE gift ADD CONSTRAINT '.self::GIFT_REWARD_FK
+                .' FOREIGN KEY (reward_id) REFERENCES reward (id)',
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'create it', 'created'));
+    }
+
+    /**
+     * F28 R19 and section 7: a spin learns which sheet it was part of, and
+     * its probability learns to be absent.
+     *
+     * The probability is the interesting half. Every row until now was drawn
+     * and had one; a gift is handed over and has none, and the column has to
+     * allow that before the first sheet is issued — on this machine MariaDB
+     * would quietly write a 0 and nobody would notice, and in production it
+     * would refuse the insert (see the ROADMAP's strict-database entry).
+     */
+    private function addSheetToSpins(bool $dryRun): UpgradeStep
+    {
+        $name = 'a spin can be a gift';
+
+        if (!$this->tableExists('spin')) {
+            return UpgradeStep::skipped($name, 'there is no spin table');
+        }
+
+        $sheet = !$this->columnExists('spin', 'sheet_id');
+        $probability = 'NO' === $this->nullabilityOf('spin', 'prize_probability');
+
+        if (!$sheet && !$probability) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            if ($sheet) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE spin ADD sheet_id VARCHAR(12) DEFAULT NULL',
+                );
+            }
+
+            if ($probability) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE spin CHANGE prize_probability prize_probability SMALLINT DEFAULT NULL',
+                );
+            }
+        }
+
+        $what = [];
+
+        if ($sheet) {
+            $what[] = 'sheet_id';
+        }
+
+        if ($probability) {
+            $what[] = 'a probability that may be absent';
+        }
+
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            'add '.implode(' and ', $what),
+            'added '.implode(' and ', $what),
+        ));
+    }
+
+    /** 'YES', 'NO', or null when there is no such column. */
+    private function nullabilityOf(string $table, string $column): ?string
+    {
+        $answer = $this->connection->fetchOne(
+            'SELECT is_nullable FROM information_schema.columns '
+            .'WHERE table_schema = DATABASE() AND table_name = :table AND column_name = :column',
+            ['table' => $table, 'column' => $column],
+        );
+
+        return \is_string($answer) ? $answer : null;
+    }
+
+    /**
+     * Whichever table the shop is in (F27 R1).
+     *
+     * Every step older than F27 was written against `branding`. They still
+     * have to run on a database that has already been renamed, because
+     * running the upgrade twice has to be running it once (P02 R2) — and a
+     * step that named a table which no longer exists would throw rather than
+     * skip. So they ask.
+     */
+    private function shopTable(): string
+    {
+        return $this->tableExists('store') ? 'store' : 'branding';
+    }
+
+    /**
+     * F27 R1. The one branding row is the shop, so the table says so.
+     *
+     * A rename rather than a create-and-copy: the row has a logo filename in
+     * it that points at a file on disk, and a new row with a new id would
+     * leave every existing spin's history hanging off nothing.
+     */
+    private function renameBrandingToStore(bool $dryRun): UpgradeStep
+    {
+        $name = 'the branding row is the store';
+
+        if ($this->tableExists('store')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$this->tableExists('branding')) {
+            return UpgradeStep::skipped($name, 'there is no branding table to rename');
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement('RENAME TABLE branding TO store');
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'rename it', 'renamed'));
+    }
+
+    /**
+     * F27 R15, R17, R34. The store learns which language its player pages
+     * open in and which clock its day is counted on.
+     *
+     * The timezone is seeded from APP_TIMEZONE in the same statement that
+     * adds it, and only then: an admin who later picks UTC on purpose must
+     * not have a deployment setting put back over the top of their choice.
+     */
+    private function addStoreLanguageAndClock(bool $dryRun): UpgradeStep
+    {
+        $name = 'the store has a language and a clock';
+
+        if (!$this->tableExists('store')) {
+            return UpgradeStep::done($name, 'would add them (the store table does not exist yet)');
+        }
+
+        $language = !$this->columnExists('store', 'language');
+        $timezone = !$this->columnExists('store', 'timezone');
+
+        if (!$language && !$timezone) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            if ($language) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE store ADD language VARCHAR(2) DEFAULT NULL',
+                );
+            }
+
+            if ($timezone) {
+                $this->connection->executeStatement(
+                    "ALTER TABLE store ADD timezone VARCHAR(64) DEFAULT 'UTC' NOT NULL",
+                );
+                $this->connection->executeStatement(
+                    'UPDATE store SET timezone = :zone',
+                    ['zone' => $this->appTimezone],
+                );
+            }
+        }
+
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            sprintf('add them, with the clock on %s', $this->appTimezone),
+            sprintf('added, with the clock on %s', $this->appTimezone),
+        ));
+    }
+
+    /** F27 R3. */
+    private function createGameTable(bool $dryRun): UpgradeStep
+    {
+        $name = 'game table';
+
+        if ($this->tableExists('game')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            // Exactly what doctrine:schema:update would emit, generated
+            // index and constraint names included, so an upgraded database
+            // reports no pending difference afterwards.
+            $this->connection->executeStatement(
+                'CREATE TABLE game ('
+                .'id INT AUTO_INCREMENT NOT NULL, '
+                .'name VARCHAR('.Game::NAME_MAX_LENGTH.') NOT NULL, '
+                .'type VARCHAR(32) NOT NULL, '
+                .'tagline VARCHAR('.Game::TAGLINE_MAX_LENGTH.') DEFAULT NULL, '
+                .'daily_limit SMALLINT DEFAULT NULL, '
+                .'link_key VARCHAR(16) NOT NULL, '
+                .'is_live TINYINT DEFAULT 0 NOT NULL, '
+                .'created_at DATETIME NOT NULL, '
+                .'updated_at DATETIME NOT NULL, '
+                .'store_id INT NOT NULL, '
+                .'UNIQUE INDEX uniq_game_link_key (link_key), '
+                .'INDEX '.self::GAME_STORE_INDEX.' (store_id), '
+                .'PRIMARY KEY (id)'
+                .') DEFAULT CHARACTER SET utf8mb4 ENGINE = InnoDB',
+            );
+            $this->connection->executeStatement(
+                'ALTER TABLE game ADD CONSTRAINT '.self::GAME_STORE_FK
+                .' FOREIGN KEY (store_id) REFERENCES store (id) ON DELETE CASCADE',
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'create it', 'created'));
+    }
+
+    /**
+     * F27 R32, R33. Today's campaign becomes one live wheel game.
+     *
+     * Live, and the only one, which is what keeps `/` serving the player
+     * page (R26) so every existing link, bookmark and manual test survives
+     * the upgrade.
+     */
+    private function makeTodaysCampaignAGame(bool $dryRun): UpgradeStep
+    {
+        $name = "today's campaign is a game";
+
+        if (!$this->tableExists('game') || !$this->tableExists('store')) {
+            return UpgradeStep::done($name, 'would make one (the tables do not exist yet)');
+        }
+
+        if ((int) $this->connection->fetchOne('SELECT COUNT(*) FROM game') > 0) {
+            return UpgradeStep::skipped($name, 'there is already a game');
+        }
+
+        $store = $this->connection->fetchAssociative('SELECT * FROM store ORDER BY id ASC LIMIT 1');
+
+        /*
+         * A shop that never saved its branding has no row at all — which is
+         * the database this step matters most for, because its wheel and its
+         * spins still need a game to belong to. The application creates the
+         * row on first read (F04 R1); the upgrade cannot wait for somebody to
+         * open the admin.
+         */
+        if (false === $store) {
+            if ($dryRun) {
+                return UpgradeStep::done($name, 'would create the shop and one live game on its own link');
+            }
+
+            $this->connection->insert('store', [
+                'theme' => 'plain',
+                'timezone' => $this->appTimezone,
+                'updated_at' => $this->now(),
+            ]);
+
+            $store = $this->connection->fetchAssociative('SELECT * FROM store ORDER BY id ASC LIMIT 1');
+            \assert(false !== $store);
+        }
+
+        // Whatever the campaign was called, then the company, then a word
+        // that at least names the game: a row in a list has to be clickable
+        // and nobody is present to be asked (R33).
+        $title = $this->firstNonEmpty([
+            $store['campaign_name'] ?? null,
+            $store['company_name'] ?? null,
+        ]) ?? 'Wheel';
+
+        $key = LinkKey::mint();
+
+        if ($dryRun) {
+            return UpgradeStep::done($name, sprintf('would create "%s", live, on its own link', $title));
+        }
+
+        $this->connection->insert('game', [
+            'store_id' => (int) $store['id'],
+            'name' => $title,
+            'type' => GameType::Wheel->value,
+            'tagline' => $store['tagline'] ?? null,
+            'daily_limit' => $store['daily_spin_limit'] ?? null,
+            'link_key' => $key,
+            'is_live' => 1,
+            'created_at' => $this->now(),
+            'updated_at' => $this->now(),
+        ]);
+
+        return UpgradeStep::done($name, sprintf('created "%s", live at /play/%s', $title, $key));
+    }
+
+    /** F27 R6. The wheel that was the installation's is this game's. */
+    private function addWheelGame(bool $dryRun): UpgradeStep
+    {
+        return $this->pointAtTheGame(
+            $dryRun,
+            'the wheel belongs to a game',
+            'wheel',
+            self::WHEEL_GAME_FK,
+            self::WHEEL_GAME_INDEX,
+            unique: true,
+        );
+    }
+
+    /** F27 R9. Every spin already recorded happened on that game. */
+    private function addSpinGame(bool $dryRun): UpgradeStep
+    {
+        return $this->pointAtTheGame(
+            $dryRun,
+            'every spin names its game',
+            'spin',
+            self::SPIN_GAME_FK,
+            self::SPIN_GAME_INDEX,
+            unique: false,
+        );
+    }
+
+    /**
+     * Adds `game_id` to a table that already has rows in it, which is the
+     * interleaving a schema diff cannot do: the column goes on nullable, the
+     * existing rows are pointed at the game the step before created, and only
+     * then is it constrained (P02 R4).
+     */
+    private function pointAtTheGame(
+        bool $dryRun,
+        string $name,
+        string $table,
+        string $foreignKey,
+        string $index,
+        bool $unique,
+    ): UpgradeStep {
+        if (!$this->tableExists($table) || !$this->tableExists('game')) {
+            return UpgradeStep::done($name, 'would point it at the game (the tables do not exist yet)');
+        }
+
+        /*
+         * The index rather than the constraint: MySQL satisfies the foreign
+         * key with the index created beside it and never lists one of its
+         * own, so a guard on the constraint's name would be false every time
+         * and this step would try to create the index twice.
+         */
+        if ($this->columnExists($table, 'game_id') && $this->indexExists($table, $index)) {
+            return UpgradeStep::skipped($name);
+        }
+
+        $game = $this->connection->fetchOne('SELECT id FROM game ORDER BY id ASC LIMIT 1');
+
+        if (false === $game || null === $game) {
+            return UpgradeStep::skipped($name, 'there is no game to point it at');
+        }
+
+        $rows = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM '.$table);
+
+        if ($dryRun) {
+            return UpgradeStep::done($name, sprintf('would point %d row(s) at it', $rows));
+        }
+
+        if (!$this->columnExists($table, 'game_id')) {
+            $this->connection->executeStatement('ALTER TABLE '.$table.' ADD game_id INT DEFAULT NULL');
+        }
+
+        $this->connection->executeStatement(
+            'UPDATE '.$table.' SET game_id = :game WHERE game_id IS NULL',
+            ['game' => (int) $game],
+        );
+        $this->connection->executeStatement('ALTER TABLE '.$table.' CHANGE game_id game_id INT NOT NULL');
+
+        if (!$this->indexExists($table, $index)) {
+            $this->connection->executeStatement(
+                'CREATE '.($unique ? 'UNIQUE ' : '').'INDEX '.$index.' ON '.$table.' (game_id)',
+            );
+            $this->connection->executeStatement(
+                'ALTER TABLE '.$table.' ADD CONSTRAINT '.$foreignKey
+                .' FOREIGN KEY (game_id) REFERENCES game (id) ON DELETE CASCADE',
+            );
+        }
+
+        return UpgradeStep::done($name, sprintf('pointed %d row(s) at it', $rows));
+    }
+
+    /**
+     * F27 R11. The three columns that describe a promotion rather than a shop
+     * leave the store, now that a game carries them.
+     *
+     * Last, and only once every game has what it needs: a dropped column is
+     * the one thing in this list that cannot be undone by running it again.
+     */
+    private function dropWhatMovedToTheGame(bool $dryRun): UpgradeStep
+    {
+        $name = 'the store keeps only what every game shows';
+
+        if (!$this->tableExists('store')) {
+            return UpgradeStep::skipped($name, 'there is no store table');
+        }
+
+        $moved = array_values(array_filter(
+            ['campaign_name', 'tagline', 'daily_spin_limit'],
+            fn (string $column): bool => $this->columnExists('store', $column),
+        ));
+
+        if ([] === $moved) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$this->tableExists('game')
+            || 0 === (int) $this->connection->fetchOne('SELECT COUNT(*) FROM game')) {
+            return UpgradeStep::skipped($name, 'no game holds them yet');
+        }
+
+        if (!$dryRun) {
+            foreach ($moved as $column) {
+                $this->connection->executeStatement('ALTER TABLE store DROP '.$column);
+            }
+        }
+
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            sprintf('drop %s', implode(', ', $moved)),
+            sprintf('dropped %s', implode(', ', $moved)),
+        ));
+    }
+
+    /**
+     * @param list<string|null> $candidates
+     */
+    private function firstNonEmpty(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            $trimmed = trim((string) $candidate);
+
+            if ('' !== $trimmed) {
+                return $trimmed;
+            }
+        }
+
+        return null;
     }
 
     /**

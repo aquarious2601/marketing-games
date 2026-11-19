@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Branding\BrandingProvider;
+use App\Store\StoreProvider;
 use App\Branding\LogoStore;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -22,7 +22,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final class LogoController extends AbstractController
 {
     public function __construct(
-        private readonly BrandingProvider $provider,
+        private readonly StoreProvider $provider,
         private readonly LogoStore $logos,
     ) {
     }
@@ -30,8 +30,8 @@ final class LogoController extends AbstractController
     #[Route('/api/branding/logo', name: 'api_branding_logo', methods: ['GET'])]
     public function __invoke(): Response
     {
-        $branding = $this->provider->getOrCreate();
-        $filename = $branding->getLogoFilename();
+        $store = $this->provider->getOrCreate();
+        $filename = $store->getLogoFilename();
 
         if (null === $filename || !$this->logos->exists($filename)) {
             throw $this->createNotFoundException('No logo has been set.');
@@ -39,7 +39,7 @@ final class LogoController extends AbstractController
 
         $response = new BinaryFileResponse($this->logos->pathFor($filename));
 
-        $contentType = $branding->getLogoContentType() ?? 'application/octet-stream';
+        $contentType = $store->getLogoContentType() ?? 'application/octet-stream';
 
         $response->headers->set('Content-Type', $contentType);
         $response->headers->set('X-Content-Type-Options', 'nosniff');

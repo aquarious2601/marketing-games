@@ -19,11 +19,12 @@ final class CampaignDayTest extends TestCase
     /** F23 R7: the default, and what an unconfigured deployment gets. */
     public function testItTreatsUtcMidnightAsTheBoundaryByDefault(): void
     {
-        $day = new CampaignDay('UTC');
+        $day = new CampaignDay();
+        $zone = new \DateTimeZone('UTC');
 
         self::assertSame(
             '2026-11-17T00:00:00+00:00',
-            $day->startOfToday(self::at('2026-11-17T09:30:00+00:00'))->format(\DateTimeInterface::ATOM),
+            $day->startOfToday($zone, self::at('2026-11-17T09:30:00+00:00'))->format(\DateTimeInterface::ATOM),
         );
     }
 
@@ -33,11 +34,12 @@ final class CampaignDayTest extends TestCase
      */
     public function testTheDayBeginsAtLocalMidnightNotUtcMidnight(): void
     {
-        $day = new CampaignDay('Europe/Paris');
+        $day = new CampaignDay();
+        $zone = new \DateTimeZone('Europe/Paris');
 
         self::assertSame(
             '2026-11-16T23:00:00+00:00',
-            $day->startOfToday(self::at('2026-11-17T09:30:00+00:00'))->format(\DateTimeInterface::ATOM),
+            $day->startOfToday($zone, self::at('2026-11-17T09:30:00+00:00'))->format(\DateTimeInterface::ATOM),
         );
     }
 
@@ -51,24 +53,26 @@ final class CampaignDayTest extends TestCase
      */
     public function testJustAfterLocalMidnightTheDayHasAlreadyTurned(): void
     {
-        $day = new CampaignDay('Europe/Paris');
+        $day = new CampaignDay();
+        $zone = new \DateTimeZone('Europe/Paris');
 
         self::assertSame(
             '2026-11-16T23:00:00+00:00',
-            $day->startOfToday(self::at('2026-11-16T23:30:00+00:00'))->format(\DateTimeInterface::ATOM),
+            $day->startOfToday($zone, self::at('2026-11-16T23:30:00+00:00'))->format(\DateTimeInterface::ATOM),
         );
     }
 
     /** The other direction: a stall in Vietnam, seven hours ahead. */
     public function testItWorksEastOfUtcToo(): void
     {
-        $day = new CampaignDay('Asia/Ho_Chi_Minh');
+        $day = new CampaignDay();
+        $zone = new \DateTimeZone('Asia/Ho_Chi_Minh');
 
         // 06:00 UTC is 13:00 in Ho Chi Minh City, so the local day began at
         // 17:00 UTC the day before.
         self::assertSame(
             '2026-11-16T17:00:00+00:00',
-            $day->startOfToday(self::at('2026-11-17T06:00:00+00:00'))->format(\DateTimeInterface::ATOM),
+            $day->startOfToday($zone, self::at('2026-11-17T06:00:00+00:00'))->format(\DateTimeInterface::ATOM),
         );
     }
 
@@ -78,31 +82,22 @@ final class CampaignDayTest extends TestCase
         foreach (['UTC', 'Europe/Paris', 'Asia/Ho_Chi_Minh', 'America/New_York'] as $zone) {
             self::assertSame(
                 'UTC',
-                (new CampaignDay($zone))->startOfToday()->getTimezone()->getName(),
+                (new CampaignDay())->startOfToday(new \DateTimeZone($zone))->getTimezone()->getName(),
                 $zone.' did not come back in UTC.',
             );
         }
     }
 
-    /**
-     * F23 R8. The alternative — falling back to UTC — is a campaign whose
-     * day silently rolls over at the wrong hour, which nobody notices.
+    /*
+     * F23 R8's two tests — an unknown zone and an empty one, both fatal at
+     * construction — went with the setting they guarded. F27 R15 moved the
+     * clock onto the store, so a zone this runtime does not recognise is now
+     * a refused save with a violation against the field (R34), and it is
+     * StoreControllerTest and the Store entity that say so.
+     *
+     * The class itself can no longer be constructed wrongly: it holds no
+     * zone to be wrong about.
      */
-    public function testAnUnknownTimezoneRefusesToBeConstructed(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/APP_TIMEZONE/');
-
-        new CampaignDay('Not/APlace');
-    }
-
-    /** An empty setting is as wrong as a misspelled one, and as loud. */
-    public function testAnEmptyTimezoneRefusesToBeConstructed(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-
-        new CampaignDay('');
-    }
 
     private static function at(string $instant): \DateTimeImmutable
     {

@@ -23,14 +23,13 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $this->signInAsAdmin();
     }
 
-    private const URI = '/api/admin/wheel';
 
     // ---------------------------------------------------------------- GET
 
     /** F01 R2 */
     public function testItCreatesTheDefaultWheelOnFirstRead(): void
     {
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
 
         self::assertResponseIsSuccessful();
         self::assertResponseHeaderSame('Content-Type', 'application/json');
@@ -49,7 +48,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
 
     public function testTheDefaultWheelIsOrderedAndColoured(): void
     {
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
 
         $prizes = $this->decodeResponse()['prizes'];
 
@@ -66,10 +65,10 @@ final class WheelControllerTest extends DatabaseWebTestCase
     /** F01 R2 — exactly one wheel */
     public function testReadingTwiceDoesNotCreateASecondWheel(): void
     {
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         $first = $this->decodeResponse();
 
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         $second = $this->decodeResponse();
 
         self::assertSame($first['id'], $second['id']);
@@ -88,11 +87,11 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $prizes = $this->currentPrizes();
         $prizes[0]['name'] = 'Better luck next time';
 
-        $this->put(self::URI, ['prizes' => $this->asPayload($prizes)]);
+        $this->put($this->wheelUri(), ['prizes' => $this->asPayload($prizes)]);
 
         self::assertResponseIsSuccessful();
 
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         self::assertArrayNotHasKey('name', $this->decodeResponse()['prizes'][0]);
     }
 
@@ -102,7 +101,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $before = $this->currentPrizes();
         $idsBefore = array_column($before, 'id');
 
-        $this->put(self::URI, ['prizes' => $this->asPayload($before)]);
+        $this->put($this->wheelUri(), ['prizes' => $this->asPayload($before)]);
 
         self::assertResponseIsSuccessful();
         self::assertSame($idsBefore, array_column($this->decodeResponse()['prizes'], 'id'));
@@ -114,11 +113,11 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $prizes = $this->currentPrizes();
         $reversed = array_reverse($prizes);
 
-        $this->put(self::URI, ['prizes' => $this->asPayload($reversed)]);
+        $this->put($this->wheelUri(), ['prizes' => $this->asPayload($reversed)]);
 
         self::assertResponseIsSuccessful();
 
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         $saved = $this->decodeResponse()['prizes'];
 
         self::assertSame([0, 1, 2, 3, 4, 5], array_column($saved, 'position'));
@@ -137,7 +136,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $firstColour = $prizes[0]['colour'];
         $lastReward = $prizes[5]['rewardId'];
 
-        $this->put(self::URI, ['prizes' => $this->asPayload(array_reverse($prizes))]);
+        $this->put($this->wheelUri(), ['prizes' => $this->asPayload(array_reverse($prizes))]);
 
         $saved = $this->decodeResponse()['prizes'];
 
@@ -152,7 +151,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $rewardId = $this->aRewardId('Mystery box');
         $prizes[] = ['probability' => 5, 'rewardId' => $rewardId];
 
-        $this->put(self::URI, ['prizes' => $prizes]);
+        $this->put($this->wheelUri(), ['prizes' => $prizes]);
 
         self::assertResponseIsSuccessful();
 
@@ -168,7 +167,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         array_splice($prizes, 2, 1);          // drop "10% off"
         $prizes[0]['probability'] = 55;       // keep the total at 100
 
-        $this->put(self::URI, ['prizes' => $prizes]);
+        $this->put($this->wheelUri(), ['prizes' => $prizes]);
 
         self::assertResponseIsSuccessful();
 
@@ -180,12 +179,12 @@ final class WheelControllerTest extends DatabaseWebTestCase
 
     public function testItUpdatesTheTimestampOnSave(): void
     {
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         $before = $this->decodeResponse();
 
         $prizes = $this->asPayload($this->currentPrizes());
         $prizes[0]['name'] = 'Changed';
-        $this->put(self::URI, ['prizes' => $prizes]);
+        $this->put($this->wheelUri(), ['prizes' => $prizes]);
 
         self::assertGreaterThanOrEqual(
             $before['updatedAt'],
@@ -201,7 +200,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $prizes = $this->asPayload($this->currentPrizes());
         $prizes[0]['probability'] = 37;
 
-        $this->put(self::URI, ['prizes' => $prizes]);
+        $this->put($this->wheelUri(), ['prizes' => $prizes]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertResponseHeaderSame('Content-Type', 'application/json');
@@ -220,10 +219,10 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $broken = $this->asPayload($original);
         $broken[0]['probability'] = 37;
 
-        $this->put(self::URI, ['prizes' => $broken]);
+        $this->put($this->wheelUri(), ['prizes' => $broken]);
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
 
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         $after = $this->decodeResponse();
 
         self::assertSame(
@@ -242,12 +241,12 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $payload = $this->asPayload($original);
         $payload[1]['id'] = 99999;
 
-        $this->put(self::URI, ['prizes' => $payload]);
+        $this->put($this->wheelUri(), ['prizes' => $payload]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertSame('prizes[1].id', $this->decodeResponse()['error']['violations'][0]['field']);
 
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         self::assertSame(
             array_column($original, 'name'),
             array_column($this->decodeResponse()['prizes'], 'name'),
@@ -257,7 +256,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
     /** F01 R1 */
     public function testItRejectsFewerThanTwoPrizes(): void
     {
-        $this->put(self::URI, ['prizes' => [['name' => 'Everyone wins', 'probability' => 100, 'rewardId' => $this->aRewardId()]]]);
+        $this->put($this->wheelUri(), ['prizes' => [['name' => 'Everyone wins', 'probability' => 100, 'rewardId' => $this->aRewardId()]]]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
     }
@@ -271,7 +270,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
             $prizes[] = ['name' => 'Prize '.$i, 'probability' => 0 === $i ? 88 : 1, 'rewardId' => $this->aRewardId()];
         }
 
-        $this->put(self::URI, ['prizes' => $prizes]);
+        $this->put($this->wheelUri(), ['prizes' => $prizes]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
     }
@@ -280,7 +279,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
     {
         $this->client->request(
             'PUT',
-            self::URI,
+            $this->wheelUri(),
             server: ['CONTENT_TYPE' => 'application/json'],
             content: 'not json at all',
         );
@@ -293,7 +292,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
     {
         self::assertSame(0, $this->countRows('wheel'));
 
-        $this->put(self::URI, ['prizes' => [['name' => 'Only one', 'probability' => 100, 'rewardId' => $this->aRewardId()]]]);
+        $this->put($this->wheelUri(), ['prizes' => [['name' => 'Only one', 'probability' => 100, 'rewardId' => $this->aRewardId()]]]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertSame(0, $this->countRows('wheel'), 'A rejected request should store nothing at all.');
@@ -315,7 +314,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
         $prizes = $this->asPayload($this->currentPrizes());
         $prizes[1]['rewardId'] = $this->aRewardId('<script>alert(1)</script>');
 
-        $this->put(self::URI, ['prizes' => $prizes]);
+        $this->put($this->wheelUri(), ['prizes' => $prizes]);
         self::assertResponseIsSuccessful();
 
         $this->client->request('GET', '/api/wheel');
@@ -328,7 +327,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
 
     public function testItAcceptsTheBoundaryValues(): void
     {
-        $this->put(self::URI, ['prizes' => [
+        $this->put($this->wheelUri(), ['prizes' => [
             [
                 'probability' => Wheel::REQUIRED_TOTAL_PROBABILITY - 1,
                 'rewardId' => $this->aRewardId(),
@@ -346,7 +345,7 @@ final class WheelControllerTest extends DatabaseWebTestCase
      */
     private function currentPrizes(): array
     {
-        $this->client->request('GET', self::URI);
+        $this->client->request('GET', $this->wheelUri());
         self::assertResponseIsSuccessful();
 
         return $this->decodeResponse()['prizes'];

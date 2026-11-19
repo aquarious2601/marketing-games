@@ -300,7 +300,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::LIST_URI.'/'.$id);
         $won = $this->decodeResponse()['spins'][0]['prizeName'];
 
-        $this->put('/api/admin/wheel', [
+        $this->put($this->wheelUri(), [
             'prizes' => [
                 ['name' => 'Something else', 'probability' => 50, 'rewardId' => $this->aRewardId()],
                 ['name' => 'Another thing', 'probability' => 50, 'rewardId' => $this->aRewardId()],

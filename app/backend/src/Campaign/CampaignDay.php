@@ -7,7 +7,7 @@ namespace App\Campaign;
 /**
  * When the shop's day begins and ends (F23 R6).
  *
- * Its own namespace, and deliberately not another class under Branding:
+ * Its own namespace, and deliberately not another class under Store:
  * "campaign" is the concept this codebase keeps needing and does not have —
  * the currency and now the spin limit both live on the `branding` row for
  * want of somewhere better (F23 section 13). This is the first piece of the
@@ -20,38 +20,19 @@ namespace App\Campaign;
  */
 final class CampaignDay
 {
-    private readonly \DateTimeZone $timezone;
-
+    /**
+     * F27 R31. The zone is handed in rather than held, because it is the
+     * store's and the store can change it between two requests.
+     *
+     * F23 R8's fatal check went with it: an identifier the runtime does not
+     * recognise is now refused when the admin saves it (F27 R34), which is a
+     * better place to catch it than a deploy that will not serve.
+     */
     private readonly \DateTimeZone $utc;
 
-    public function __construct(string $timezone)
+    public function __construct()
     {
         $this->utc = new \DateTimeZone('UTC');
-
-        try {
-            $this->timezone = new \DateTimeZone($timezone);
-        } catch (\Exception $invalid) {
-            /*
-             * F23 R8. Loud, and fatal.
-             *
-             * The tempting alternative is to fall back to UTC and carry on,
-             * which would leave a campaign quietly resetting its daily limit
-             * in the middle of the trading day — a fault nobody reports
-             * because nobody can see it. A deployment that will not serve is
-             * caught by P03 R5's health check and rolled back within the
-             * minute, which is the cheaper failure by a wide margin.
-             */
-            throw new \InvalidArgumentException(sprintf(
-                'APP_TIMEZONE is "%s", which this runtime does not recognise. '
-                .'It must be an IANA identifier such as Europe/Paris or Asia/Ho_Chi_Minh.',
-                $timezone,
-            ), 0, $invalid);
-        }
-    }
-
-    public function timezone(): \DateTimeZone
-    {
-        return $this->timezone;
     }
 
     /**
@@ -65,9 +46,9 @@ final class CampaignDay
      * local. That is the correct answer to "when did today start" in a place
      * where 00:00 did not happen.
      */
-    public function startOfToday(?\DateTimeImmutable $now = null): \DateTimeImmutable
+    public function startOfToday(\DateTimeZone $timezone, ?\DateTimeImmutable $now = null): \DateTimeImmutable
     {
-        $local = ($now ?? new \DateTimeImmutable('now', $this->utc))->setTimezone($this->timezone);
+        $local = ($now ?? new \DateTimeImmutable('now', $this->utc))->setTimezone($timezone);
 
         return $local->setTime(0, 0)->setTimezone($this->utc);
     }

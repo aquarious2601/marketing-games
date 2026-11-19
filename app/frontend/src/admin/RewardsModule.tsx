@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchBranding, type CurrencyOption } from '../api/branding'
+import { fetchStore, type CurrencyOption } from '../api/branding'
 import { ApiValidationError, type ApiViolation } from '../api/client'
 import {
   createReward,
@@ -15,7 +15,7 @@ import {
   type RewardTypeOption,
 } from '../api/rewards'
 import { useT, type Translate } from '../i18n/I18nContext'
-import { CurrencySelect, symbolFor } from './CurrencySelect'
+import { symbolFor } from './CurrencySelect'
 import { Cell, DataTable, Row, type Column } from './DataTable'
 import { formatDate } from './tableFormat'
 
@@ -66,7 +66,7 @@ export function RewardsModule() {
       // say what the number means is not worth rendering (F13 R28).
       const [catalogue, branding] = await Promise.all([
         fetchRewards({ signal }),
-        fetchBranding({ signal }),
+        fetchStore({ signal }),
       ])
 
       if (signal?.aborted === true) {
@@ -264,11 +264,6 @@ function RewardEditor({
 }: EditorProps) {
   const t = useT()
 
-  // F15 R8, R9: starts on the campaign's effective currency and is saved
-  // with the reward. Held here rather than in the draft because it is a
-  // property of the campaign, not of this reward (F13 R27).
-  const [chosenCurrency, setChosenCurrency] = useState(currency)
-
   const [draft, setDraft] = useState<RewardDraft>(() =>
     reward === null
       ? BLANK
@@ -301,12 +296,13 @@ function RewardEditor({
       ? { name: draft.name, type: draft.type, value: draft.value ?? 0 }
       : { name: draft.name, type: draft.type }
 
-    // F15 R9: and the currency only for the one counted in money, so a
-    // save the admin made about a free product cannot move what the shop
-    // trades in.
-    if (takesCurrency(draft.type)) {
-      payload.currency = chosenCurrency
-    }
+    /*
+     * F27 R16. No currency goes up any more. F15 R9 had an amount-off save
+     * set the campaign's currency, which was a reasonable way to answer
+     * "nobody has chosen yet" while the currency was the campaign's — and is
+     * the wrong place to answer it now that one shop's choice re-labels every
+     * game. The Store module is where it is chosen.
+     */
 
     try {
       if (reward === null) {
@@ -383,7 +379,7 @@ function RewardEditor({
               {t('rewards.value')}
               {draft.type === 'percent_off'
                 ? ' (%)'
-                : ` (${symbolFor(currencies, chosenCurrency)})`}
+                : ` (${symbolFor(currencies, currency)})`}
             </label>
             {/* F15 section 9: the amount and what it is counted in are one
                 answer, so they are one line. The suffix above follows the
@@ -404,14 +400,20 @@ function RewardEditor({
                 data-testid="reward-value-input"
                 className={`${inputClass} min-w-0 flex-1`}
               />
+              {/*
+                F27 R16. The shop's currency, said rather than offered. A
+                picker here would re-label every reward of every game from
+                inside a form about one reward — which is what it used to do
+                (F15 R9), and what stopped making sense when the currency
+                became the store's.
+              */}
               {takesCurrency(draft.type) && (
-                <CurrencySelect
-                  id="reward-currency"
-                  value={chosenCurrency}
-                  options={currencies}
-                  onChange={setChosenCurrency}
-                  aria-label={t('rewards.currency')}
-                />
+                <span
+                  data-testid="reward-currency"
+                  className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                >
+                  {symbolFor(currencies, currency)} {currency}
+                </span>
               )}
             </div>
             {problem('value') !== undefined && (

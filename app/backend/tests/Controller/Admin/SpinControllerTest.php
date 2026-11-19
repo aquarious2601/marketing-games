@@ -77,7 +77,12 @@ final class SpinControllerTest extends DatabaseWebTestCase
         self::assertSame(
             // F13 R25: the reward snapshot, the code and the claim ride
             // along with every log row now.
-            ['id', 'prizeName', 'spunAt', 'player', 'rewardType', 'rewardValue', 'code', 'claimable', 'claimedAt'],
+            // F27 R44 adds `game`: with two promotions in one log, "what
+            // went out today" is ambiguous without saying which gave it.
+            [
+                'id', 'prizeName', 'spunAt', 'player', 'rewardType', 'rewardValue',
+                'code', 'claimable', 'claimedAt', 'game',
+            ],
             array_keys($spin),
         );
         self::assertNotSame('', $spin['prizeName']);
@@ -163,7 +168,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::LOG_URI);
         $won = $this->decodeResponse()['spins'][0]['prizeName'];
 
-        $this->put('/api/admin/wheel', [
+        $this->put($this->wheelUri(), [
             'prizes' => [
                 ['name' => 'Something else', 'probability' => 50, 'rewardId' => $this->aRewardId()],
                 ['name' => 'Another thing', 'probability' => 50, 'rewardId' => $this->aRewardId()],
@@ -299,7 +304,7 @@ final class SpinControllerTest extends DatabaseWebTestCase
         $repository = static::getContainer()->get(SpinRepository::class);
         self::assertInstanceOf(SpinRepository::class, $repository);
 
-        self::assertCount(2, $repository->listRecent(null, 2), 'The page must be capped.');
+        self::assertCount(2, $repository->listRecent(null, null, 2), 'The page must be capped.');
         self::assertSame(5, $repository->countMatching(), 'The total must not be.');
     }
 

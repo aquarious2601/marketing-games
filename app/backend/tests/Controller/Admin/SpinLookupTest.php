@@ -255,10 +255,22 @@ final class SpinLookupTest extends DatabaseWebTestCase
             $this->entityManager->persist($reward);
         }
 
-        $wheel = new Wheel();
-        $prize = new Prize(100, 0, $reward);
+        /*
+         * F27 R6: one wheel per game, so every spin in this fixture hangs off
+         * the same one rather than off a wheel of its own. The unique index
+         * on game_id would refuse the second anyway.
+         */
+        $wheel = $this->entityManager->getRepository(Wheel::class)
+            ->findOneBy(['game' => $this->game]);
+
+        if (!$wheel instanceof Wheel) {
+            $wheel = new Wheel();
+            $wheel->setGame($this->game);
+            $this->entityManager->persist($wheel);
+        }
+
+        $prize = new Prize(100, $wheel->getPrizes()->count(), $reward);
         $wheel->addPrize($prize);
-        $this->entityManager->persist($wheel);
         $this->entityManager->persist($prize);
 
         // Reused, because a number identifies a player (F08) and two spins
@@ -270,7 +282,9 @@ final class SpinLookupTest extends DatabaseWebTestCase
             $this->entityManager->persist($player);
         }
 
-        $spin = new Spin($prize, $player);
+        $spin = Spin::forPrize($prize, $player);
+        // F27 R9: a spin records the game it was played on.
+        $spin->setGame($this->game);
 
         if (null !== $code) {
             $spin->setRewardCode($code);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Games\Wheel\Entity;
 
+use App\Entity\Game;
 use App\Games\Wheel\Repository\WheelRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -33,6 +34,14 @@ class Wheel
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
+
+    /**
+     * F27 R6. One wheel per game: the row that used to be "the" wheel is
+     * now the wheel of the game the upgrade created.
+     */
+    #[ORM\OneToOne(targetEntity: Game::class)]
+    #[ORM\JoinColumn(name: 'game_id', nullable: false, unique: true, onDelete: 'CASCADE')]
+    private ?Game $game = null;
 
     #[ORM\Column(name: 'updated_at')]
     private \DateTimeImmutable $updatedAt;
@@ -69,6 +78,16 @@ class Wheel
     public function getId(): ?int
     {
         return $this->id;
+    }
+
+    public function getGame(): Game
+    {
+        return $this->game ?? throw new \LogicException('A wheel always belongs to a game (F27 R6).');
+    }
+
+    public function setGame(Game $game): void
+    {
+        $this->game = $game;
     }
 
     public function getUpdatedAt(): \DateTimeImmutable

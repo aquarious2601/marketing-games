@@ -26,6 +26,7 @@ player:
     spin_requires_identity: 'Tell us who you are before you spin.'
     spin_already_used: 'You have already had your spin. Press Next player to pass the phone on.'
     spin_limit_reached: 'You have already played today. Come back tomorrow.'
+    no_game: 'This page needs the link from the stall.'
     phone_required: 'Enter your phone number.'
     phone_invalid: 'That does not look like a phone number. It needs between %min% and %max% digits.'
     first_name_required: 'Enter your first name.'
@@ -65,7 +66,6 @@ branding:
     must_be_text: 'This must be text.'
     too_long: 'This can be at most %max% characters.'
     choose_one_of: 'Choose one of: %values%.'
-    daily_spin_limit_invalid: 'Spins per day must be a whole number from 1 to %max%, or blank for no limit.'
 
 logo:
     required: 'Choose an image to upload.'
@@ -91,6 +91,7 @@ theme:
 # their own, so it is ours to translate. An admin's own tagline never is.
 tagline:
     default: 'One spin, one prize. Good luck.'
+    sheet_default: 'Fill this in and the gifts are yours.'
 
 # F13: the reward catalogue. The type names and the defaults are the
 # application's own words; a reward the admin has renamed is not (F13 R29).
@@ -121,3 +122,32 @@ reward:
 
 spin:
     not_claimable: 'A losing spin cannot be claimed.'
+
+store:
+    language_invalid: 'Choose one of the languages the game speaks.'
+    timezone_invalid: 'That is not a timezone this server recognises.'
+
+game:
+    type_wheel: 'Prize wheel'
+    type_gift_sheet: 'Gift sheet'
+    type_invalid: 'Choose what kind of game this is.'
+    type_is_fixed: 'A game keeps the kind it was created as. Create another game instead.'
+    name_required: 'Give this game a name.'
+    name_too_long: 'A name can be at most %max% characters.'
+    tagline_too_long: 'A tagline can be at most %max% characters.'
+    daily_limit_invalid: 'Plays per day must be a whole number from 1 to %max%, or blank for no limit.'
+    live_must_be_boolean: 'Say whether the game is live.'
+    not_found: 'No such game.'
+    not_ready_no_wheel: 'This game has no wheel yet.'
+    not_ready_prize_count: 'A wheel needs between %min% and %max% prizes.'
+    not_ready_slice_without_reward: 'Every slice needs a reward before this game can go live.'
+    not_ready_total: 'The probabilities total %total%. They must total %required%.'
+    not_ready_empty_sheet: 'This game gives nothing away yet. Add a gift first.'
+
+sheet:
+    invalid: 'The gift list is invalid.'
+    too_many: 'A sheet can hold at most %max% gifts.'
+    reward_required: 'Choose what this gift gives away.'
+    reward_unknown: 'That reward no longer exists.'
+    no_losing_reward: 'A sheet gives everything on it, so it cannot include the losing reward.'
+    reward_twice: 'This reward is already on the sheet.'
