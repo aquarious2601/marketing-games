@@ -109,6 +109,7 @@ const SPIN = {
   code: 'A7K3-M9PX',
   claimable: true,
   claimedAt: null,
+  claimedBy: null,
   game: 'Test campaign',
 }
 
@@ -136,8 +137,14 @@ beforeEach(() => {
     themes: [{ value: 'plain', label: 'Plain' }],
     maxDailyLimit: 99,
   })
-  fetchPlayersMock.mockResolvedValue({ players: [PLAYER], total: 1 })
-  fetchSpinLogMock.mockResolvedValue({ spins: [SPIN], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
+  fetchPlayersMock.mockResolvedValue({ players: [PLAYER], total: 1, winWithoutCustomer: false })
+  fetchSpinLogMock.mockResolvedValue({
+    spins: [SPIN],
+    total: 1,
+    wonNothing: 0,
+    status: 'all',
+    games: [{ id: 1, name: 'Test campaign' }],
+  })
 })
 
 function renderAdmin(path = '/admin') {
@@ -181,7 +188,7 @@ describe('which URL opens which module', () => {
   it('opens the Players module at /admin/players', async () => {
     renderAdmin('/admin/players')
 
-    expect(await heading()).toHaveTextContent('Players')
+    expect(await heading()).toHaveTextContent('Customers')
     expect(await screen.findByTestId('players-section')).toBeInTheDocument()
 
     // The point of splitting the page: the other module is not merely
@@ -230,7 +237,7 @@ describe('the tab strip', () => {
     // F13 added the catalogue, which sits beside the games because both
     // are things you set up.
     expect(screen.getByTestId('admin-tab-rewards')).toHaveTextContent('Rewards')
-    expect(screen.getByTestId('admin-tab-players')).toHaveTextContent('Players')
+    expect(screen.getByTestId('admin-tab-players')).toHaveTextContent('Customers')
     expect(screen.getByTestId('admin-tab-spins')).toHaveTextContent('Spins')
   })
 
@@ -271,7 +278,7 @@ describe('the tab strip', () => {
 
     // The admin can leave a broken module (F09 section 10).
     await user.click(screen.getByTestId('admin-tab-players'))
-    expect(await heading()).toHaveTextContent('Players')
+    expect(await heading()).toHaveTextContent('Customers')
   })
 })
 

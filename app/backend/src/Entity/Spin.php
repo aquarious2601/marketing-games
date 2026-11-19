@@ -117,6 +117,20 @@ class Spin
     private ?\DateTimeImmutable $claimedAt = null;
 
     /**
+     * F31 R19. Who handed it over, beside when.
+     *
+     * `SET NULL` rather than `CASCADE`: an account that leaves the shop must
+     * not take the record of the prizes it handed over with it. Null also
+     * covers every claim made before F31, which was a moment with no author
+     * (R22) — and the two cases are deliberately the same value, because
+     * neither can name anybody and inventing a name is the one thing a
+     * column built to settle a dispute must never do.
+     */
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'claimed_by_id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $claimedBy = null;
+
+    /**
      * F27 R9. Recorded rather than read through the prize, so the log still
      * says where a spin came from after a game is turned off or another is
      * added beside it.
@@ -283,19 +297,35 @@ class Spin
         return $this->getRewardType()->isClaimable();
     }
 
+    public function getClaimedBy(): ?User
+    {
+        return $this->claimedBy;
+    }
+
     /**
-     * F13 R23. Idempotent on the way in: claiming something already claimed
-     * keeps the original moment rather than quietly moving it, so a second
-     * tap at the counter cannot rewrite when it happened.
+     * F13 R23, F31 R19, R20. Idempotent on the way in: claiming something
+     * already claimed keeps the original moment rather than quietly moving
+     * it, so a second tap at the counter cannot rewrite when it happened —
+     * and, since F31, cannot rewrite who did it either. The author belongs
+     * to the hand-over, not to the last press.
+     *
+     * Un-claiming clears both (R20): an un-done claim did not happen, and a
+     * time without an author is what a pre-F31 claim already looks like.
      */
-    public function setClaimed(bool $claimed): void
+    public function setClaimed(bool $claimed, ?User $by = null): void
     {
         if (!$claimed) {
             $this->claimedAt = null;
+            $this->claimedBy = null;
 
             return;
         }
 
-        $this->claimedAt ??= new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        if (null !== $this->claimedAt) {
+            return;
+        }
+
+        $this->claimedAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $this->claimedBy = $by;
     }
 }

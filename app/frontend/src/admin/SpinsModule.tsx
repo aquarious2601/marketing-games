@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchSpinLog, setSpinClaimed, type LoggedSpin } from '../api/players'
+import {
+  fetchSpinLog,
+  setSpinClaimed,
+  type ClaimState,
+  type LoggedSpin,
+} from '../api/players'
 import { useT, type Translate } from '../i18n/I18nContext'
 import { Cell, DataTable, Row, type Column } from './DataTable'
 import { EMPTY, formatDateTime } from './tableFormat'
@@ -19,8 +24,11 @@ const SPIN_COLUMNS = (t: Translate): Column[] => [
   { key: 'player', label: t('spins.colPlayer'), width: '14%' },
   { key: 'phone', label: t('spins.colPhone'), width: '14%' },
   { key: 'code', label: t('spins.colCode'), width: '12%' },
-  { key: 'spun', label: t('spins.colSpun'), width: '16%' },
+  { key: 'spun', label: t('spins.colSpun'), width: '14%' },
   { key: 'status', label: t('spins.colStatus'), width: '12%' },
+  // F31 R19. Beside the status, because the two are one fact: handed
+  // over, and by whom.
+  { key: 'claimedBy', label: t('spins.colClaimedBy'), width: '12%' },
 ]
 
 type LoadPhase = 'loading' | 'ready' | 'failed'
@@ -32,12 +40,14 @@ type LoadPhase = 'loading' | 'ready' | 'failed'
  * today", asked at the end of a shift with no particular person in mind. See
  * F09 R12 for why both exist.
  *
- * Deliberately without a row of totals at the top. Spins today, unique
- * players and prizes given are the obvious next thing to want, and they are
- * the Dashboard feature; "unique players" in particular cannot be counted
- * honestly yet, because F08 canonicalises phone numbers loosely and one
- * person with two spellings is two rows. A number that is wrong in a way
- * nobody can see is worse than no number.
+ * Wins only, since F31 R23: a losing spin has no code, nothing to hand
+ * over and no control on it, and its reason for being here was
+ * completeness. The header says how many were left out (R24), and the
+ * stats are where they are read properly.
+ *
+ * Still deliberately without a row of totals at the top. Customers,
+ * collection rates and what a campaign costs are F32, which counts them
+ * per day and per game rather than as three numbers over a log.
  */
 export function SpinsModule() {
   const t = useT()
@@ -52,6 +62,12 @@ export function SpinsModule() {
   const [game, setGame] = useState<number | null>(null)
   const [games, setGames] = useState<Array<{ id: number; name: string }>>([])
   const [claimError, setClaimError] = useState<string | null>(null)
+  // F31 R24. How many of the matching spins won nothing: the rows this
+  // list no longer carries, counted so it cannot pretend to be complete.
+  const [wonNothing, setWonNothing] = useState(0)
+  // F31 R25. Everything by default: the module's question is what went
+  // out, and the counter's question has a screen of its own now.
+  const [status, setStatus] = useState<ClaimState>('all')
 
   const columns = SPIN_COLUMNS(t)
 
@@ -73,11 +89,16 @@ export function SpinsModule() {
   }
 
   const load = useCallback(
-    async (phone: string, forGame: number | null, signal?: AbortSignal) => {
+    async (
+      phone: string,
+      forGame: number | null,
+      forStatus: ClaimState,
+      signal?: AbortSignal,
+    ) => {
       setPhase('loading')
 
       try {
-        const log = await fetchSpinLog(phone, forGame, { signal })
+        const log = await fetchSpinLog(phone, forGame, forStatus, { signal })
 
         if (signal?.aborted === true) {
           return
@@ -85,6 +106,7 @@ export function SpinsModule() {
 
         setSpins(log.spins)
         setTotal(log.total)
+        setWonNothing(log.wonNothing)
         // F27 R44: the selector's options come with the log.
         setGames(log.games)
         setPhase('ready')
@@ -111,7 +133,7 @@ export function SpinsModule() {
   useEffect(() => {
     const controller = new AbortController()
     const timer = setTimeout(
-      () => void load(filter, game, controller.signal),
+      () => void load(filter, game, status, controller.signal),
       filter === '' ? 0 : 250,
     )
 
@@ -119,7 +141,7 @@ export function SpinsModule() {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [filter, game, load])
+  }, [filter, game, load, status])
 
   return (
     <>
@@ -171,6 +193,25 @@ export function SpinsModule() {
           </div>
         )}
 
+        {/* F31 R25. Three views of one list: what went out, what is
+            still owed, and what has been handed over. */}
+        <div className="mt-4">
+          <label htmlFor="spin-status" className={labelClass}>
+            {t('spins.statusLabel')}
+          </label>
+          <select
+            id="spin-status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as ClaimState)}
+            data-testid="spin-status-filter"
+            className={`${inputClass} bg-white`}
+          >
+            <option value="all">{t('spins.statusAll')}</option>
+            <option value="open">{t('spins.statusOpen')}</option>
+            <option value="claimed">{t('spins.statusClaimed')}</option>
+          </select>
+        </div>
+
         <div className="mt-4">
           <label htmlFor="spin-filter" className={labelClass}>
             {t('spins.filterLabel')}
@@ -201,7 +242,7 @@ export function SpinsModule() {
             <p className="text-sm text-rose-600">{t('spins.loadFailed')}</p>
             <button
               type="button"
-              onClick={() => void load(filter, game)}
+              onClick={() => void load(filter, game, status)}
               className={secondaryButtonClass}
             >
               {t('common.tryAgain')}
@@ -283,6 +324,13 @@ export function SpinsModule() {
                     </button>
                   )}
                 </Cell>
+
+                {/* F31 R22: a dash for a claim nobody signed — every one
+                    made before F31 — rather than a name nobody can
+                    stand behind. */}
+                <Cell muted testId="spin-claimed-by">
+                  {spin.claimedBy ?? EMPTY}
+                </Cell>
               </Row>
             ))}
           </DataTable>
@@ -291,6 +339,16 @@ export function SpinsModule() {
         {claimError !== null && (
           <p role="alert" className="mt-3 text-sm text-rose-600" data-testid="spins-claim-error">
             {claimError}
+          </p>
+        )}
+
+        {/* F31 R24. The list is wins only, and this is what stops that
+            being a log quietly leaving things out. */}
+        {phase === 'ready' && wonNothing > 0 && (
+          <p className="mt-3 text-xs text-slate-500" data-testid="spins-won-nothing">
+            {wonNothing === 1
+              ? t('spins.wonNothingOne')
+              : t('spins.wonNothing', { count: wonNothing })}
           </p>
         )}
 

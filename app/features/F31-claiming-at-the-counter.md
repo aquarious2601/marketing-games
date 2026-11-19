@@ -162,6 +162,21 @@ exist. What is missing is a screen built for the person standing at the till.
 | R29 | The customer's page works at 375px with no horizontal scroll, and the hand-over control is reachable without one. Staff at a stall hold a phone, not a laptop — the same discipline the player page is held to. |
 | R30 | Both modules stay behind a session ([F07](./F07-admin-login.md) R17, R22). |
 
+**Corrected while building (R6).** The rule says a filter matching exactly
+one customer opens that customer. Taken literally it navigates away
+mid-typing, as soon as a phone fragment happens to match one person — taking
+the box being typed into with it. What ships opens the customer only when
+what has been typed is a **complete code**, which is the case the rule was
+written for and the one input that is finished the moment it matches. Any
+single row is still one click away.
+
+**Also while building: the search lives in the URL.** The customer is a page
+now, and [F09](./F09-admin-modules.md) R12 kept the history inside the row
+precisely so that opening it could not lose the search somebody typed to
+find it. The filter travels as `?search=`, the customer's page links back
+with it, and R18 stays true for a page: `/admin/players?search=A7K3` is also
+something a staff member can reload or bookmark mid-queue.
+
 ## 7. Data model
 
 One column.
@@ -232,51 +247,76 @@ table keeps [F11](./F11-admin-tables.md)'s horizontal scroll.
 
 ## 11. Acceptance criteria
 
-- [ ] Given a customer whose win has the code `A7K3-M9PX`, when staff type
+- [x] Given a customer whose win has the code `A7K3-M9PX`, when staff type
       `a7k3m9px` into the Customers filter, then that customer's page opens.
-- [ ] Given the same customer, when staff type `A7K3`, then they are the only
+- [x] Given the same customer, when staff type `A7K3`, then they are the only
       one listed.
-- [ ] Given a phone number typed into the filter, then customers are matched
+- [x] Given a phone number typed into the filter, then customers are matched
       by number and a code is not needed.
-- [ ] Given a customer with two wins to collect and one already collected,
+- [x] Given a customer with two wins to collect and one already collected,
       when their page is opened, then the two are listed first under *to
       collect* and the third under *collected*.
-- [ ] Given a customer who has played twelve times and won three, when their
+- [x] Given a customer who has played twelve times and won three, when their
       page is opened, then three wins are listed and the page says they
       played twelve times.
-- [ ] Given a win to collect, when staff press hand over, then it moves to
-      *collected* without a reload and the search is still in the box.
-- [ ] Given a collected win, then it names the admin account that claimed it
+- [x] Given a win to collect, when staff press hand over, then it moves to
+      *collected* without the customer being fetched again, and the link back
+      to the list still carries the search that found them. (Written as "the
+      search is still in the box"; on a page of its own that is what it
+      means.)
+- [x] Given a collected win, then it names the admin account that claimed it
       and when.
-- [ ] Given a claim recorded before this feature, then it shows its time and
+- [x] Given a claim recorded before this feature, then it shows its time and
       a dash for the account.
-- [ ] Given a collected win, when staff take the claim back, then both the
+- [x] Given a collected win, when staff take the claim back, then both the
       time and the account are cleared.
-- [ ] Given one gift sheet that issued six rewards, when the customer's page
+- [x] Given one gift sheet that issued six rewards, when the customer's page
       is opened, then the six are grouped under that sheet and each has its
       own control.
-- [ ] Given a code whose spin has no customer, when it is typed into the
+- [x] Given a code whose spin has no customer, when it is typed into the
       Customers filter, then the message names the Spins module rather than
       saying nothing matched.
-- [ ] Given a wheel whose spins mostly lost, when the Spins module is opened,
+- [x] Given a wheel whose spins mostly lost, when the Spins module is opened,
       then only the spins that won something are listed and the header says
       how many won nothing.
-- [ ] Given the Spins module, when the status filter is set to *to collect*,
+- [x] Given the Spins module, when the status filter is set to *to collect*,
       then every row listed is an uncollected win.
-- [ ] Given a win recorded before F16 and so without a code, then it is
+- [x] Given a win recorded before F16 and so without a code, then it is
       listed on its customer's page and can be collected.
 - [ ] Given a customer's page at 375px, then there is no horizontal scroll
       and every hand-over control is reachable.
-- [ ] Every label this feature adds exists in English, French, Chinese and
+- [x] Every label this feature adds exists in English, French, Chinese and
       Vietnamese.
-- [ ] The four fast suites pass.
+- [x] The four fast suites pass.
 - [ ] Checked by hand: a ticket's code typed at 375px, the hand-over, and the
       name of the account that made it.
 
 ## 12. Verification
 
-Written when the feature is built, naming the suites and the tests that
-carry each rule.
+`php vendor/bin/phpunit` — 657 tests. `PlayerControllerTest` covers R1 to R7
+and R10 to R14 against the real database, including the regression the code
+search invites: a customer found by a code still counts every play, where
+matching on the join that counts spins would have said one.
+`RewardIssueTest` covers R19 to R22 through the claim endpoint, with two
+accounts, so "a second press keeps the first author" is a fact about the
+rule rather than about one session. `SpinControllerTest` and `SpinLookupTest`
+cover R23 to R27. `DatabaseUpgradeTest` covers the step: the column, its
+key, and that it backfills nobody.
+
+`npm test` — 648 tests. `CustomerModule.test.tsx` covers R10 to R22 — the
+two groups and their order, the sheet grouping, a win with no code, the
+hand-over in place, the dash for an unsigned claim, and the undo.
+`PlayersModule.test.tsx` covers R1 to R9 including R6 as narrowed above and
+R7's message. `SpinsModule.test.tsx` covers R23 to R25 and the author's
+column. `npm run typecheck` and `npm run lint` are clean — lint reports the
+same `set-state-in-effect` warning every module in this admin reports.
+
+**Not looked at in a browser.** Every screen here is behind the admin
+login, and the account's password is not this session's to type. So R29 —
+375px, no horizontal scroll, the hand-over control reachable — is the one
+criterion the suites cannot answer, and it is left unticked rather than
+assumed. The cards are a flex column at 375px by construction, which is why
+they are cards and not rows in [F11](./F11-admin-tables.md)'s table.
 
 ## 13. Decisions and risks
 

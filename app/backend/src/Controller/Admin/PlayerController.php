@@ -39,7 +39,13 @@ final class PlayerController extends AbstractController
     #[Route('', name: 'index', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
-        $filter = trim((string) $request->query->get('phone', ''));
+        /*
+         * F31 R1. `search` rather than `phone`, because the box takes a
+         * code as well — the same rename F16 made on the spins endpoint,
+         * and for the same reason: a parameter named after one of the two
+         * things it accepts lies to whoever reads it next.
+         */
+        $filter = trim((string) $request->query->get('search', ''));
 
         // Filtered on the stored form, not the canonical one: the admin is
         // typing a fragment — the last four digits off a receipt — and
@@ -61,24 +67,45 @@ final class PlayerController extends AbstractController
              * otherwise.
              */
             'total' => $this->players->countMatching($filter),
+            /*
+             * F31 R7. True when nothing matched because the code names a
+             * win that belongs to nobody — a spin from before F08, or one
+             * whose customer was deleted. The page says so and names the
+             * Spins module instead of reporting a flat nothing: the shop
+             * still owes somebody that prize.
+             */
+            'winWithoutCustomer' => [] === $rows
+                && $this->spins->hasWinWithoutCustomer($filter),
         ]);
     }
 
-    /** F08 R22. */
+    /**
+     * One customer, and everything they are owed (F08 R22, F31 R10-R14).
+     *
+     * The counter's screen. Both counts come from the database rather
+     * than from the array above, because the array is wins only now and
+     * counting it would say a customer who lost nine times played three.
+     */
     #[Route('/{id}', name: 'show', methods: ['GET'], requirements: ['id' => '\d+'])]
     public function show(#[MapEntity(id: 'id')] Player $player): JsonResponse
     {
-        $spins = $this->spins->findForPlayer($player);
+        $wins = $this->spins->findWinsForPlayer($player);
+        $played = $this->players->countSpins($player);
 
         return new JsonResponse([
-            // Counted from the history that was just loaded rather than with
-            // a second query, since the limit is far above what a stall
-            // produces and the two must agree on screen.
-            'player' => $this->presenter->presentForAdmin($player, \count($spins)),
-            'spins' => array_map(
-                fn ($spin): array => $this->presenter->presentSpin($spin),
-                $spins,
+            'player' => $this->presenter->presentForAdmin($player, $played),
+            /*
+             * F31 R11. Their wins, not their spins. The losing ones are the
+             * two counts below — R13: a page that says "played 12, won 3"
+             * and lists three is hiding nothing, where a page that lists
+             * three and says nothing about the other nine is.
+             */
+            'wins' => array_map(
+                fn ($spin): array => $this->presenter->presentWin($spin),
+                $wins,
             ),
+            'played' => $played,
+            'won' => \count($wins),
         ]);
     }
 }

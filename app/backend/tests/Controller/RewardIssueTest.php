@@ -216,6 +216,97 @@ final class RewardIssueTest extends DatabaseWebTestCase
         self::assertSame($first, $this->decodeResponse()['spin']['claimedAt']);
     }
 
+    // ------------------------------------------- F31 R19-R22: who claimed
+
+    /** F31 R19. A hand-over has an author, and it is whoever is signed in. */
+    public function testAClaimRecordsTheAccountThatMadeIt(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('rosa', $this->decodeResponse()['spin']['claimedBy']);
+    }
+
+    /**
+     * F31 R19. A second press keeps the first author, as it keeps the
+     * first moment: the record is of the hand-over, not of the last tap.
+     */
+    public function testASecondPressKeepsTheFirstAuthor(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        $this->signInAsAdmin('minh');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        self::assertSame('rosa', $this->decodeResponse()['spin']['claimedBy']);
+    }
+
+    /** F31 R20. An un-done claim did not happen, author and all. */
+    public function testTakingAClaimBackClearsTheAuthorToo(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+        self::assertSame('rosa', $this->decodeResponse()['spin']['claimedBy']);
+
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => false]);
+
+        $spin = $this->decodeResponse()['spin'];
+
+        self::assertNull($spin['claimedAt']);
+        self::assertNull($spin['claimedBy']);
+    }
+
+    /**
+     * F31 R20, R22. And the next hand-over has its own author, so taking
+     * a claim back does not leave the row bound to whoever pressed it
+     * first.
+     */
+    public function testTheNextClaimHasItsOwnAuthor(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        $this->signInAsAdmin('rosa');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => false]);
+
+        $this->signInAsAdmin('minh');
+        $this->put('/api/admin/spins/'.$id.'/claim', ['claimed' => true]);
+
+        self::assertSame('minh', $this->decodeResponse()['spin']['claimedBy']);
+    }
+
+    /**
+     * F31 R22. A claim recorded before F31 has a moment and no author,
+     * and is shown with a dash rather than with a guess.
+     */
+    public function testAClaimFromBeforeThisFeatureHasNoAuthor(): void
+    {
+        $id = $this->givenASpin($this->aDiscountRewardId('Ten off', 10));
+
+        // Exactly what the upgrade leaves behind: a claim with a time and
+        // a null author (the upgrade deliberately backfills nobody).
+        $this->entityManager->getConnection()->executeStatement(
+            'UPDATE spin SET claimed_at = UTC_TIMESTAMP(), claimed_by_id = NULL WHERE id = :id',
+            ['id' => $id],
+        );
+
+        $this->signInAsAdmin();
+        $this->client->request('GET', '/api/admin/spins');
+
+        $spin = $this->decodeResponse()['spins'][0];
+
+        self::assertNotNull($spin['claimedAt']);
+        self::assertNull($spin['claimedBy']);
+    }
+
     /** F13 R24 */
     public function testALosingSpinCannotBeClaimed(): void
     {

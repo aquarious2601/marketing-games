@@ -19,15 +19,41 @@ export interface AdminPlayer {
   spinCount: number
 }
 
-export interface PlayerSpin {
+/**
+ * One win on a customer's page (F31 R11, R12).
+ *
+ * A win rather than a spin: the counter hands prizes over, and a losing
+ * spin has none to hand (F13 R15). The ones that lost are the two counts on
+ * `CustomerDetail`, not rows here (R13).
+ */
+export interface CustomerWin {
   id: number
   /** The spin's own snapshot (F02 R10), so a deleted prize still has a name. */
   prizeName: string
   spunAt: string
+  rewardType: 'free_product' | 'percent_off' | 'amount_off' | 'nothing'
+  rewardValue: number | null
+  /** F16 R5: null for a win recorded before codes existed. */
+  code: string | null
+  /** F13 R21: null until somebody at the counter hands it over. */
+  claimedAt: string | null
+  /** F31 R19, R22: null for a claim nobody signed, shown as a dash. */
+  claimedBy: string | null
+  /** F27 R44: which promotion it was won on, by name. */
+  game: string
+  /** F28 R19: the sheet this win was part of, or null for a wheel spin. */
+  sheetId: string | null
 }
 
 export interface PlayerList {
   players: AdminPlayer[]
+  /**
+   * F31 R7. True when nothing matched *because* the code names a win that
+   * belongs to nobody — one from before F08, or one whose customer was
+   * deleted. The shop still owes somebody that prize, so the page says
+   * where it can still be handed over instead of reporting a flat nothing.
+   */
+  winWithoutCustomer: boolean
   /**
    * How many players match, which is **not** `players.length` (F09 R21): the
    * list is capped server-side, so the two differ as soon as a shop has more
@@ -58,6 +84,8 @@ export interface LoggedSpin {
   claimable: boolean
   /** F13 R21: null until somebody at the counter says otherwise. */
   claimedAt: string | null
+  /** F31 R19, R22: the account that handed it over, or null for a dash. */
+  claimedBy: string | null
   /** F27 R44: which promotion this row came from, by name. */
   game: string
   /**
@@ -68,10 +96,21 @@ export interface LoggedSpin {
   player: SpinPlayer | null
 }
 
+/** F31 R25. Everything, what is still owed, or what has been given. */
+export type ClaimState = 'all' | 'open' | 'claimed'
+
 export interface SpinLog {
   spins: LoggedSpin[]
   /** As above: how many match, not how many came back (F09 R16). */
   total: number
+  /**
+   * F31 R24. How many of the matching spins won nothing — the rows the list
+   * no longer carries (R23). On screen beside the list, because a list that
+   * leaves rows out has to say so.
+   */
+  wonNothing: number
+  /** Which view the server answered with, so the page cannot disagree. */
+  status: ClaimState
   /** F27 R44: the games to filter by, so the page needs no second call. */
   games: Array<{ id: number; name: string }>
 }
@@ -105,6 +144,7 @@ export async function setSpinClaimed(
 export async function fetchSpinLog(
   search: string,
   game: number | null = null,
+  status: ClaimState = 'all',
   options?: RequestOptions,
 ): Promise<SpinLog> {
   const parameters = new URLSearchParams()
@@ -117,30 +157,42 @@ export async function fetchSpinLog(
     parameters.set('game', String(game))
   }
 
+  // F31 R25. Sent only when it is not the default, so the common URL stays
+  // the short one a shop may bookmark.
+  if (status !== 'all') {
+    parameters.set('status', status)
+  }
+
   const query = parameters.toString()
 
   return apiGet<SpinLog>(`/admin/spins${query === '' ? '' : `?${query}`}`, options)
 }
 
-export interface PlayerHistory {
+/** One customer and everything they are owed (F31 R10-R14). */
+export interface CustomerDetail {
   player: AdminPlayer
-  spins: PlayerSpin[]
+  wins: CustomerWin[]
+  /** F31 R13: how many times they played, wins and losses together. */
+  played: number
+  /** And how many of those won something, which is `wins.length`. */
+  won: number
 }
 
 /**
- * F08 R20, R21. `phone` matches any part of the stored number, so the admin
- * can type the last four digits off a receipt.
+ * F08 R20, R21 with F31 R1. `search` matches any part of the stored number
+ * — the last four digits off a receipt — or the start of a code off a
+ * ticket. The server decides which of the two it was given.
  */
-export async function fetchPlayers(phone: string, options?: RequestOptions): Promise<PlayerList> {
-  const query = phone.trim() === '' ? '' : `?phone=${encodeURIComponent(phone.trim())}`
+export async function fetchPlayers(search: string, options?: RequestOptions): Promise<PlayerList> {
+  const query = search.trim() === '' ? '' : `?search=${encodeURIComponent(search.trim())}`
 
   return apiGet<PlayerList>(`/admin/players${query}`, options)
 }
 
-/** F08 R22. */
-export async function fetchPlayerHistory(
+/** F08 R22, F31 R10. */
+export async function fetchCustomer(
   id: number,
   options?: RequestOptions,
-): Promise<PlayerHistory> {
-  return apiGet<PlayerHistory>(`/admin/players/${id}`, options)
+): Promise<CustomerDetail> {
+  return apiGet<CustomerDetail>(`/admin/players/${id}`, options)
 }

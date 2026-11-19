@@ -111,6 +111,31 @@ final class PlayerPresenter
     }
 
     /**
+     * One win on a customer's page (F31 R11, R12, R14).
+     *
+     * Not `presentLoggedSpin`: that one carries the customer on every
+     * row, which is exactly the thing a customer's own page already says
+     * at the top. What it carries instead is the sheet, because a gift
+     * sheet issued six of these at once and the page groups them under it
+     * (R14) rather than showing six unexplained cards.
+     *
+     * @return array{id: int|null, prizeName: string, spunAt: string, rewardType: string, rewardValue: int|null, code: string|null, claimedAt: string|null, claimedBy: string|null, game: string, sheetId: string|null}
+     */
+    public function presentWin(Spin $spin): array
+    {
+        return [
+            ...$this->presentSpin($spin),
+            'rewardType' => $spin->getRewardType()->value,
+            'rewardValue' => $spin->getRewardValue(),
+            'code' => $spin->getRewardCode(),
+            'claimedAt' => $spin->getClaimedAt()?->format(\DateTimeInterface::ATOM),
+            'claimedBy' => $spin->getClaimedBy()?->getUsername(),
+            'game' => $spin->getGame()->getName(),
+            'sheetId' => $spin->getSheetId(),
+        ];
+    }
+
+    /**
      * A spin for the whole log, which has to say who made it (F09 R14).
      *
      * `player` is null for an anonymous spin and the key is still present
@@ -118,7 +143,7 @@ final class PlayerPresenter
      * deleted, is a prize that left the shop and belongs in the log. The page
      * reads one shape either way.
      *
-     * @return array{id: int|null, prizeName: string, spunAt: string, player: array{id: int|null, phone: string, firstName: string, lastName: string}|null, rewardType: string, rewardValue: int|null, code: string|null, claimable: bool, claimedAt: string|null}
+     * @return array{id: int|null, prizeName: string, spunAt: string, player: array{id: int|null, phone: string, firstName: string, lastName: string}|null, rewardType: string, rewardValue: int|null, code: string|null, claimable: bool, claimedAt: string|null, claimedBy: string|null}
      */
     public function presentLoggedSpin(Spin $spin): array
     {
@@ -136,6 +161,9 @@ final class PlayerPresenter
             'code' => $spin->getRewardCode(),
             'claimable' => $spin->isClaimable(),
             'claimedAt' => $spin->getClaimedAt()?->format(\DateTimeInterface::ATOM),
+            // F31 R19, R22. Null for a claim nobody signed — every one
+            // made before F31 — and shown as a dash rather than guessed at.
+            'claimedBy' => $spin->getClaimedBy()?->getUsername(),
             // F27 R44. The game's name rather than its id, because the
             // column is read by a person and the id means nothing to them.
             'game' => $spin->getGame()->getName(),

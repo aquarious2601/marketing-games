@@ -126,7 +126,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
 
         $this->signInAsAdmin();
 
-        $this->client->request('GET', self::LIST_URI.'?phone=5678');
+        $this->client->request('GET', self::LIST_URI.'?search=5678');
 
         self::assertResponseIsSuccessful();
         self::assertSame(1, $this->decodeResponse()['total']);
@@ -145,7 +145,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
 
         $this->signInAsAdmin();
 
-        $this->client->request('GET', self::LIST_URI.'?phone=0614');
+        $this->client->request('GET', self::LIST_URI.'?search=0614');
 
         self::assertResponseIsSuccessful();
         self::assertSame(1, $this->decodeResponse()['total']);
@@ -157,7 +157,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->givenAPlayer('0912345678');
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LIST_URI.'?phone=234');
+        $this->client->request('GET', self::LIST_URI.'?search=234');
 
         self::assertSame(1, $this->decodeResponse()['total']);
     }
@@ -167,7 +167,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->givenAPlayer('0912345678');
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LIST_URI.'?phone=0000');
+        $this->client->request('GET', self::LIST_URI.'?search=0000');
 
         self::assertResponseIsSuccessful();
         self::assertSame(0, $this->decodeResponse()['total']);
@@ -190,7 +190,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::LIST_URI);
         self::assertSame(3, $this->decodeResponse()['total']);
 
-        $this->client->request('GET', self::LIST_URI.'?phone=5678');
+        $this->client->request('GET', self::LIST_URI.'?search=5678');
         self::assertSame(1, $this->decodeResponse()['total'], 'The total must follow the filter.');
 
         $repository = static::getContainer()->get(PlayerRepository::class);
@@ -205,7 +205,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->givenAPlayer('0987654321');
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LIST_URI.'?phone=');
+        $this->client->request('GET', self::LIST_URI.'?search=');
 
         self::assertSame(2, $this->decodeResponse()['total']);
     }
@@ -220,7 +220,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->givenAPlayer('0912345678');
 
         $this->signInAsAdmin();
-        $this->client->request('GET', self::LIST_URI.'?phone=%');
+        $this->client->request('GET', self::LIST_URI.'?search=%');
 
         self::assertResponseIsSuccessful();
         self::assertSame(0, $this->decodeResponse()['total']);
@@ -242,19 +242,90 @@ final class PlayerControllerTest extends DatabaseWebTestCase
 
         self::assertSame('0912345678', $body['player']['phone']);
         self::assertSame(3, $body['player']['spinCount']);
-        self::assertCount(3, $body['spins']);
-        self::assertSame(['id', 'prizeName', 'spunAt'], array_keys($body['spins'][0]));
+
+        // F31 R13. Three plays, and however many of them won: the wheel
+        // decides that, and what this asserts is that the two numbers are
+        // about the same three spins.
+        self::assertSame(3, $body['played']);
+        self::assertCount($body['won'], $body['wins']);
+        self::assertLessThanOrEqual($body['played'], $body['won']);
     }
 
-    /** F08 R22 — most recent first */
-    public function testTheHistoryIsNewestFirst(): void
+    /** F31 R11, R12. Every win, and what a card needs to draw one. */
+    public function testTheWinsCarryWhatTheCounterNeeds(): void
     {
-        $id = $this->givenAPlayer(spins: 4);
-
         $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+
+        $id = $this->givenAPlayer(spins: 2);
+
         $this->client->request('GET', self::LIST_URI.'/'.$id);
 
-        $ids = array_column($this->decodeResponse()['spins'], 'id');
+        $body = $this->decodeResponse();
+
+        self::assertSame(2, $body['played']);
+        self::assertSame(2, $body['won']);
+        self::assertSame(
+            [
+                'id',
+                'prizeName',
+                'spunAt',
+                'rewardType',
+                'rewardValue',
+                'code',
+                'claimedAt',
+                'claimedBy',
+                'game',
+                'sheetId',
+            ],
+            array_keys($body['wins'][0]),
+        );
+        self::assertNull($body['wins'][0]['claimedAt'], 'Nothing is collected yet.');
+        self::assertNull($body['wins'][0]['claimedBy']);
+    }
+
+    /**
+     * F31 R13. The spins that won nothing are counted and not listed, and
+     * the count is what stops that being a page hiding something.
+     */
+    public function testItCountsThePlaysThatWonNothingWithoutListingThem(): void
+    {
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+
+        $id = $this->givenAPlayer(spins: 3);
+
+        /*
+         * The rows are turned into losing ones rather than drawn as losing
+         * ones. A probability is between 1 and 100 (F01), so no wheel can be
+         * made to lose every time, and a test built on 99 against 1 would
+         * flap. What is being checked is what the page does with a losing
+         * row, which this produces exactly.
+         */
+        $this->entityManager->getConnection()->executeStatement(
+            "UPDATE spin SET reward_type = 'nothing', reward_value = NULL, reward_code = NULL",
+        );
+
+        $this->client->request('GET', self::LIST_URI.'/'.$id);
+
+        $body = $this->decodeResponse();
+
+        self::assertSame(3, $body['played']);
+        self::assertSame(0, $body['won']);
+        self::assertSame([], $body['wins']);
+    }
+
+    /** F08 R22, F31 R11 — most recent first */
+    public function testTheHistoryIsNewestFirst(): void
+    {
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+
+        $id = $this->givenAPlayer(spins: 4);
+
+        $this->client->request('GET', self::LIST_URI.'/'.$id);
+
+        $ids = array_column($this->decodeResponse()['wins'], 'id');
 
         // Asserted on the ids rather than the timestamps: pressing "Spin
         // again" lands several spins in the same second, and a tie would
@@ -275,7 +346,9 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::LIST_URI.'/'.$id);
 
         self::assertResponseIsSuccessful();
-        self::assertSame([], $this->decodeResponse()['spins']);
+        self::assertSame([], $this->decodeResponse()['wins']);
+        self::assertSame(0, $this->decodeResponse()['played']);
+        self::assertSame(0, $this->decodeResponse()['won']);
         self::assertSame(0, $this->decodeResponse()['player']['spinCount']);
     }
 
@@ -293,12 +366,13 @@ final class PlayerControllerTest extends DatabaseWebTestCase
      */
     public function testTheHistoryStillNamesAPrizeThatHasSinceBeenDeleted(): void
     {
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+
         $id = $this->givenAPlayer(spins: 1);
 
-        $this->signInAsAdmin();
-
         $this->client->request('GET', self::LIST_URI.'/'.$id);
-        $won = $this->decodeResponse()['spins'][0]['prizeName'];
+        $won = $this->decodeResponse()['wins'][0]['prizeName'];
 
         $this->put($this->wheelUri(), [
             'prizes' => [
@@ -310,7 +384,125 @@ final class PlayerControllerTest extends DatabaseWebTestCase
 
         $this->client->request('GET', self::LIST_URI.'/'.$id);
 
-        self::assertSame($won, $this->decodeResponse()['spins'][0]['prizeName']);
+        self::assertSame($won, $this->decodeResponse()['wins'][0]['prizeName']);
+    }
+
+    // --------------------------------------- F31 R1-R7: a code finds them
+
+    /** F31 R1, R5. The ticket in the customer's hand finds the customer. */
+    public function testItFindsACustomerByACodeTheyWon(): void
+    {
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+
+        $this->givenAPlayer('0912345678', spins: 1);
+        $this->givenAPlayer('0987654321', 'Binh');
+
+        $code = $this->aStoredCode();
+
+        $this->client->request('GET', self::LIST_URI.'?search='.$code);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $this->decodeResponse()['total']);
+        self::assertSame('0912345678', $this->decodeResponse()['players'][0]['phone']);
+    }
+
+    /** F31 R2, R3. Read aloud, typed carelessly, found anyway. */
+    public function testItFindsThemByACodeTypedCarelessly(): void
+    {
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+        $this->givenAPlayer('0912345678', spins: 1);
+
+        $code = $this->aStoredCode();
+        $careless = strtolower(str_replace('-', ' ', $code));
+
+        $this->client->request('GET', self::LIST_URI.'?search='.urlencode($careless));
+        self::assertSame(1, $this->decodeResponse()['total'], 'Lower case with a space.');
+
+        $this->client->request('GET', self::LIST_URI.'?search='.substr($code, 0, 4));
+        self::assertSame(1, $this->decodeResponse()['total'], 'The first four characters.');
+    }
+
+    /**
+     * F31 R1. The search counts a customer once, and their spins properly.
+     *
+     * The regression this guards is the tempting implementation: matching
+     * the code on the join that counts spins, which would make everybody
+     * found by a code look like they had played exactly once.
+     */
+    public function testACustomerFoundByACodeStillCountsEveryPlay(): void
+    {
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+        $this->givenAPlayer('0912345678', spins: 3);
+
+        $this->client->request('GET', self::LIST_URI.'?search='.$this->aStoredCode());
+
+        self::assertSame(1, $this->decodeResponse()['total']);
+        self::assertSame(3, $this->decodeResponse()['players'][0]['spinCount']);
+    }
+
+    /** F31 R4. A number is not a code, and is searched as a number. */
+    public function testInputThatCannotBeACodeIsSearchedAsANumber(): void
+    {
+        $this->givenAPlayer('0912345678');
+
+        $this->signInAsAdmin();
+
+        // `0` and `1` are not in the code alphabet (F13 R18), so this can
+        // only be a phone fragment — and still finds the customer.
+        $this->client->request('GET', self::LIST_URI.'?search=0912');
+
+        self::assertSame(1, $this->decodeResponse()['total']);
+    }
+
+    /** F31 R7. A prize the shop owes somebody nobody can name. */
+    public function testACodeWhoseWinHasNoCustomerSaysSo(): void
+    {
+        $this->signInAsAdmin();
+        $this->givenAWheelThatAlwaysWins();
+        $this->givenAPlayer('0912345678', spins: 1);
+
+        $code = $this->aStoredCode();
+
+        // The spin outlives its customer (F08 R19): the prize left the shop
+        // and the log still has to say so (F09 R15).
+        $this->entityManager->getConnection()->executeStatement('UPDATE spin SET player_id = NULL');
+
+        $this->client->request('GET', self::LIST_URI.'?search='.$code);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $this->decodeResponse()['total']);
+        self::assertTrue(
+            $this->decodeResponse()['winWithoutCustomer'],
+            'The counter must be told where that prize can still be handed over.',
+        );
+    }
+
+    /** The ordinary nothing stays an ordinary nothing. */
+    public function testAFilterMatchingNothingSaysNothingAboutOrphanWins(): void
+    {
+        $this->givenAPlayer('0912345678');
+
+        $this->signInAsAdmin();
+        $this->client->request('GET', self::LIST_URI.'?search=KKKK');
+
+        self::assertSame(0, $this->decodeResponse()['total']);
+        self::assertFalse($this->decodeResponse()['winWithoutCustomer']);
+    }
+
+
+    /** The code of the one win in the log, as it is stored. */
+    private function aStoredCode(): string
+    {
+        $code = $this->entityManager->getConnection()->fetchOne(
+            'SELECT reward_code FROM spin WHERE reward_code IS NOT NULL ORDER BY id DESC LIMIT 1',
+        );
+
+        self::assertIsString($code, 'The test expected a win with a code.');
+
+        return $code;
     }
 
     /**

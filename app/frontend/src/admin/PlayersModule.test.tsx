@@ -1,18 +1,38 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
-import { fetchPlayerHistory, fetchPlayers, type AdminPlayer } from '../api/players'
+import { fetchPlayers, type AdminPlayer } from '../api/players'
 import { PlayersModule } from './PlayersModule'
 
 vi.mock('../api/players', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/players')>()),
   fetchPlayers: vi.fn(),
-  fetchPlayerHistory: vi.fn(),
 }))
 
 const fetchPlayersMock = vi.mocked(fetchPlayers)
-const fetchHistoryMock = vi.mocked(fetchPlayerHistory)
+
+/**
+ * F31 R1, R18. The module reads its filter from the URL and links to a
+ * customer's own page, so every render needs a router — and the stand-in
+ * page below is what a test asserts navigation against.
+ */
+function renderList(at = '/admin/players') {
+  return render(
+    <MemoryRouter initialEntries={[at]}>
+      <Routes>
+        <Route path="/admin/players" element={<PlayersModule />} />
+        <Route path="/admin/players/:id" element={<CustomerStandIn />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+/** Stands in for the customer's page, which has its own tests. */
+function CustomerStandIn() {
+  return <p data-testid="customer-page">the customer</p>
+}
 
 const ANH: AdminPlayer = {
   id: 1,
@@ -36,14 +56,13 @@ const BINH: AdminPlayer = {
 
 beforeEach(() => {
   fetchPlayersMock.mockReset()
-  fetchHistoryMock.mockReset()
-  fetchPlayersMock.mockResolvedValue({ players: [ANH, BINH], total: 2 })
+  fetchPlayersMock.mockResolvedValue({ players: [ANH, BINH], total: 2, winWithoutCustomer: false })
 })
 
 /** F08 R20 */
 describe('the player list', () => {
   it('shows every player with their number and spin count', async () => {
-    render(<PlayersModule />)
+    renderList()
 
     await screen.findByTestId('player-list')
 
@@ -58,13 +77,13 @@ describe('the player list', () => {
   })
 
   it('counts a player with one spin', async () => {
-    fetchPlayersMock.mockResolvedValue({ players: [{ ...ANH, spinCount: 1 }], total: 1 })
+    fetchPlayersMock.mockResolvedValue({ players: [{ ...ANH, spinCount: 1 }], total: 1, winWithoutCustomer: false })
 
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
     expect(screen.getByTestId('player-spin-count')).toHaveTextContent('1')
-    expect(screen.getByTestId('players-total')).toHaveTextContent('1 player')
+    expect(screen.getByTestId('players-total')).toHaveTextContent('1 customer')
   })
 
   /**
@@ -73,21 +92,21 @@ describe('the player list', () => {
    * than the cap would have read the cap forever.
    */
   it('reports the number of players that match, not the number shown', async () => {
-    fetchPlayersMock.mockResolvedValue({ players: [ANH, BINH], total: 613 })
+    fetchPlayersMock.mockResolvedValue({ players: [ANH, BINH], total: 613, winWithoutCustomer: false })
 
-    render(<PlayersModule />)
+    renderList()
 
     await screen.findByTestId('player-list')
 
-    expect(screen.getByTestId('players-total')).toHaveTextContent('613 players')
+    expect(screen.getByTestId('players-total')).toHaveTextContent('613 customers')
     expect(screen.getByTestId('players-capped')).toHaveTextContent(
-      'Showing the first 2 of 613 players.',
+      'Showing the first 2 of 613 customers.',
     )
   })
 
   /** F09 R16 — and it keeps quiet when the list really is everything */
   it('says nothing about a cap when the list is complete', async () => {
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
     expect(screen.queryByTestId('players-capped')).not.toBeInTheDocument()
@@ -100,7 +119,7 @@ describe('the player list', () => {
    * feature removed.
    */
   it('shows the birthday in its own column, formatted', async () => {
-    render(<PlayersModule />)
+    renderList()
 
     await screen.findByTestId('player-list')
 
@@ -116,9 +135,9 @@ describe('the player list', () => {
   })
 
   it('says so when nobody has played', async () => {
-    fetchPlayersMock.mockResolvedValue({ players: [], total: 0 })
+    fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: false })
 
-    render(<PlayersModule />)
+    renderList()
 
     expect(await screen.findByTestId('players-empty')).toHaveTextContent(/nobody has played yet/i)
   })
@@ -127,11 +146,11 @@ describe('the player list', () => {
     fetchPlayersMock.mockRejectedValueOnce(new ApiError('offline', 500))
 
     const user = userEvent.setup()
-    render(<PlayersModule />)
+    renderList()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 
-    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1 })
+    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
     await user.click(screen.getByRole('button', { name: /try again/i }))
 
     expect(await screen.findByTestId('player-list')).toBeInTheDocument()
@@ -150,7 +169,7 @@ describe('the table itself', () => {
 
   /** F11 R1, R2 */
   it('labels every column', async () => {
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
     const headers = screen.getAllByRole('columnheader')
@@ -166,19 +185,19 @@ describe('the table itself', () => {
 
   /** F11 R1 */
   it('is a real table, not a list of rows', async () => {
-    render(<PlayersModule />)
+    renderList()
 
     const table = await screen.findByTestId('player-list')
 
     expect(table.tagName).toBe('TABLE')
-    expect(table).toHaveAccessibleName('Players')
+    expect(table).toHaveAccessibleName('Customers')
     expect(table.querySelector('thead')).not.toBeNull()
     expect(table.querySelector('tbody')).not.toBeNull()
   })
 
   /** F11 R3 */
   it('declares a width for every column and fixes the layout', async () => {
-    render(<PlayersModule />)
+    renderList()
 
     const table = await screen.findByTestId('player-list')
 
@@ -205,9 +224,10 @@ describe('the table itself', () => {
         { ...BINH, firstName: 'Maximilian-Alexander', lastName: 'Van Der Westhuizen' },
       ],
       total: 2,
+      winWithoutCustomer: false,
     })
 
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
     const indexOfPhone = (row: HTMLElement, phone: string) =>
@@ -221,7 +241,7 @@ describe('the table itself', () => {
 
   /** F11 R5 — a count is a number, and its header agrees with its cells */
   it('right-aligns the spin count and its header', async () => {
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
     expect(screen.getByTestId('th-spins')).toHaveClass('text-right')
@@ -236,7 +256,7 @@ describe('the table itself', () => {
 
   /** F11 R4 */
   it('keeps the full value reachable when a cell truncates', async () => {
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
     const phone = screen.getAllByTestId('player-row')[0].querySelectorAll('td')[1]
@@ -250,10 +270,10 @@ describe('the table itself', () => {
 describe('the phone filter', () => {
   it('asks the server for the filtered list', async () => {
     const user = userEvent.setup()
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
-    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1 })
+    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
     await user.type(screen.getByTestId('player-filter'), '5678')
 
     // Filtered server-side, not in the loaded array: the list is capped, so
@@ -265,19 +285,19 @@ describe('the phone filter', () => {
 
   it('says so when the filter matches nobody', async () => {
     const user = userEvent.setup()
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
-    fetchPlayersMock.mockResolvedValue({ players: [], total: 0 })
+    fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: false })
     await user.type(screen.getByTestId('player-filter'), '0000')
 
-    expect(await screen.findByTestId('players-empty')).toHaveTextContent(/no players match/i)
+    expect(await screen.findByTestId('players-empty')).toHaveTextContent(/no customers match/i)
   })
 
   /** The pause is what keeps a four-digit search to one request, not four. */
   it('does not ask once per keystroke', async () => {
     const user = userEvent.setup()
-    render(<PlayersModule />)
+    renderList()
     await screen.findByTestId('player-list')
 
     fetchPlayersMock.mockClear()
@@ -290,188 +310,90 @@ describe('the phone filter', () => {
 })
 
 /** F08 R22 */
-describe('one player history', () => {
-  /**
-   * F11 R11, R12. The history is a row of the same table, spanning every
-   * column, so the grid above and below it stays aligned — and the control
-   * that opens it is a button in the first cell, which is the only way to
-   * make a row openable from a keyboard.
-   */
-  it('opens as a spanning row of the same table', async () => {
-    fetchHistoryMock.mockResolvedValue({
-      player: ANH,
-      spins: [{ id: 9, prizeName: 'Free sample', spunAt: '2026-11-15T10:02:11+00:00' }],
-    })
 
+/** F31 R1, R6, R7, R10: the list is the way in to a customer. */
+describe('opening a customer', () => {
+  it('links to the customer page, carrying the search that found them', async () => {
     const user = userEvent.setup()
-    render(<PlayersModule />)
+
+    renderList()
     await screen.findByTestId('player-list')
 
-    const toggle = screen.getAllByTestId('player-open')[0]
-    expect(toggle.tagName).toBe('BUTTON')
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(toggle.closest('td')).toBe(
-      screen.getAllByTestId('player-row')[0].querySelectorAll('td')[0],
-    )
+    await user.type(screen.getByTestId('player-filter'), '5678')
+    await waitFor(() => expect(fetchPlayersMock).toHaveBeenCalledWith('5678', expect.anything()))
 
-    await user.click(toggle)
-    await screen.findByTestId('player-history')
+    const link = screen.getAllByTestId('player-open')[0]
 
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-
-    const spanning = screen.getByTestId('player-history-row-group')
-    expect(spanning.tagName).toBe('TR')
-    expect(spanning.querySelector('td')).toHaveAttribute('colspan', '5')
-    expect(screen.getByTestId('player-list')).toContainElement(spanning)
+    // The filter travels in the URL, which is what lets the customer's page
+    // link back to the list somebody typed to find them (F09 R12's reason,
+    // kept true for a page).
+    expect(link).toHaveAttribute('href', '/admin/players/1?search=5678')
   })
 
-  /** F11 R2 — the history has labelled columns of its own */
-  it('labels the history columns', async () => {
-    fetchHistoryMock.mockResolvedValue({
-      player: ANH,
-      spins: [{ id: 9, prizeName: 'Free sample', spunAt: '2026-11-15T10:02:11+00:00' }],
-    })
-
+  it('opens the customer when the row is pressed', async () => {
     const user = userEvent.setup()
-    render(<PlayersModule />)
+
+    renderList()
     await screen.findByTestId('player-list')
 
     await user.click(screen.getAllByTestId('player-open')[0])
 
-    const history = await screen.findByTestId('player-history')
-    const headers = Array.from(history.querySelectorAll('th')).map((th) => th.textContent)
-
-    expect(headers).toEqual(['Prize', 'Spun'])
-  })
-
-  it('opens the spins beneath the row', async () => {
-    fetchHistoryMock.mockResolvedValue({
-      player: ANH,
-      spins: [
-        { id: 9, prizeName: 'Free sample', spunAt: '2026-11-15T10:02:11+00:00' },
-        { id: 8, prizeName: 'Try again', spunAt: '2026-11-15T09:58:00+00:00' },
-      ],
-    })
-
-    const user = userEvent.setup()
-    render(<PlayersModule />)
-    await screen.findByTestId('player-list')
-
-    await user.click(screen.getAllByTestId('player-open')[0])
-
-    expect(await screen.findByTestId('player-history')).toBeInTheDocument()
-    expect(screen.getAllByTestId('player-history-row')).toHaveLength(2)
-    expect(screen.getByText('Free sample')).toBeInTheDocument()
-    expect(fetchHistoryMock).toHaveBeenCalledWith(ANH.id)
-  })
-
-  it('keeps the order the server sent', async () => {
-    fetchHistoryMock.mockResolvedValue({
-      player: ANH,
-      spins: [
-        { id: 9, prizeName: 'Newest', spunAt: '2026-11-15T10:02:11+00:00' },
-        { id: 8, prizeName: 'Oldest', spunAt: '2026-11-15T09:58:00+00:00' },
-      ],
-    })
-
-    const user = userEvent.setup()
-    render(<PlayersModule />)
-    await screen.findByTestId('player-list')
-
-    await user.click(screen.getAllByTestId('player-open')[0])
-    await screen.findByTestId('player-history')
-
-    const names = screen
-      .getAllByTestId('player-history-row')
-      .map((row) => row.firstElementChild?.textContent)
-
-    expect(names).toEqual(['Newest', 'Oldest'])
-  })
-
-  it('says so when a player has never spun', async () => {
-    fetchHistoryMock.mockResolvedValue({ player: BINH, spins: [] })
-
-    const user = userEvent.setup()
-    render(<PlayersModule />)
-    await screen.findByTestId('player-list')
-
-    await user.click(screen.getAllByTestId('player-open')[1])
-
-    expect(await screen.findByTestId('player-history-empty')).toBeInTheDocument()
-  })
-
-  it('closes again when the row is pressed a second time', async () => {
-    fetchHistoryMock.mockResolvedValue({
-      player: ANH,
-      spins: [{ id: 9, prizeName: 'Free sample', spunAt: '2026-11-15T10:02:11+00:00' }],
-    })
-
-    const user = userEvent.setup()
-    render(<PlayersModule />)
-    await screen.findByTestId('player-list')
-
-    const row = screen.getAllByTestId('player-open')[0]
-
-    await user.click(row)
-    await screen.findByTestId('player-history')
-
-    await user.click(row)
-
-    expect(screen.queryByTestId('player-history')).not.toBeInTheDocument()
-  })
-
-  it('opens one player at a time', async () => {
-    fetchHistoryMock.mockResolvedValue({
-      player: ANH,
-      spins: [{ id: 9, prizeName: 'Free sample', spunAt: '2026-11-15T10:02:11+00:00' }],
-    })
-
-    const user = userEvent.setup()
-    render(<PlayersModule />)
-    await screen.findByTestId('player-list')
-
-    await user.click(screen.getAllByTestId('player-open')[0])
-    await screen.findByTestId('player-history')
-
-    fetchHistoryMock.mockResolvedValue({ player: BINH, spins: [] })
-    await user.click(screen.getAllByTestId('player-open')[1])
-
-    expect(await screen.findByTestId('player-history-empty')).toBeInTheDocument()
-    expect(screen.queryByTestId('player-history')).not.toBeInTheDocument()
-  })
-
-  it('reports a history that cannot be loaded without losing the list', async () => {
-    fetchHistoryMock.mockRejectedValue(new ApiError('offline', 500))
-
-    const user = userEvent.setup()
-    render(<PlayersModule />)
-    await screen.findByTestId('player-list')
-
-    await user.click(screen.getAllByTestId('player-open')[0])
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(/history could not be loaded/i)
-    // The filter the admin typed to find this row is still there.
-    expect(screen.getByTestId('player-list')).toBeInTheDocument()
+    expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
   })
 
   /**
-   * F08 R22. The history reads the spin's own snapshot (F02 R10), so a prize
-   * the admin has since deleted still has a name here. Asserted on the page
-   * as well as on the API, because a page that fell back to the live prize
-   * list would silently show a blank.
+   * R6. A complete code that found one customer opens them, so a ticket is
+   * one action. Narrowed to a complete code while building: see the module.
    */
-  it('names a prize that no longer exists on the wheel', async () => {
-    fetchHistoryMock.mockResolvedValue({
-      player: ANH,
-      spins: [{ id: 9, prizeName: 'A prize since deleted', spunAt: '2026-11-15T10:02:11+00:00' }],
-    })
+  it('opens the one customer a complete code found', async () => {
+    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
 
-    const user = userEvent.setup()
-    render(<PlayersModule />)
+    renderList('/admin/players?search=A7K3-M9PX')
+
+    expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
+  })
+
+  it('stays on the list when one customer matched a phone fragment', async () => {
+    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
+
+    renderList('/admin/players?search=5678')
+
     await screen.findByTestId('player-list')
 
-    await user.click(screen.getAllByTestId('player-open')[0])
+    expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
+  })
 
-    expect(await screen.findByText('A prize since deleted')).toBeInTheDocument()
+  it('reads its filter from the URL', async () => {
+    renderList('/admin/players?search=A7K3')
+
+    await waitFor(() => expect(fetchPlayersMock).toHaveBeenCalledWith('A7K3', expect.anything()))
+
+    expect(screen.getByTestId('player-filter')).toHaveValue('A7K3')
+  })
+})
+
+/** F31 R7: a prize the shop owes somebody nobody can name. */
+describe('a code whose win has no customer', () => {
+  it('says where it can still be handed over', async () => {
+    fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: true })
+
+    renderList('/admin/players?search=A7K3-M9PX')
+
+    const message = await screen.findByTestId('players-orphan-win')
+
+    expect(message).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Spins' })).toHaveAttribute('href', '/admin/spins')
+
+    // And not the flat nothing, which would read as "that code is not real".
+    expect(screen.queryByTestId('players-empty')).not.toBeInTheDocument()
+  })
+
+  it('reports an ordinary nothing as an ordinary nothing', async () => {
+    fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: false })
+
+    renderList('/admin/players?search=KKKK')
+
+    expect(await screen.findByTestId('players-empty')).toBeInTheDocument()
+    expect(screen.queryByTestId('players-orphan-win')).not.toBeInTheDocument()
   })
 })

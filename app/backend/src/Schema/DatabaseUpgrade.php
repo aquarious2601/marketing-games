@@ -50,6 +50,10 @@ final class DatabaseUpgrade
     private const SPIN_GAME_FK = 'FK_120A248FE48FD905';
     private const SPIN_GAME_INDEX = 'IDX_120A248FE48FD905';
 
+    /** F31's key for the account that claimed a spin, from the same place. */
+    private const CLAIMED_BY_FK = 'FK_120A248FF67E7A38';
+    private const CLAIMED_BY_INDEX = 'IDX_120A248FF67E7A38';
+
     /** F28's keys, likewise taken from what the schema diff asks for. */
     private const GIFT_GAME_FK = 'FK_A47C990DE48FD905';
     private const GIFT_GAME_INDEX = 'IDX_A47C990DE48FD905';
@@ -123,6 +127,7 @@ final class DatabaseUpgrade
             $this->addSheetToSpins($dryRun),
             $this->giveEachGameItsTheme($dryRun),
             $this->dropStoreTheme($dryRun),
+            $this->recordWhoClaimed($dryRun),
         ];
     }
 
@@ -1789,6 +1794,90 @@ final class DatabaseUpgrade
         }
 
         return UpgradeStep::done($name, $this->tense($dryRun, 'drop it', 'dropped it'));
+    }
+
+    /**
+     * F31 R19, R22. A claim gains an author, and the claims already recorded
+     * keep none.
+     *
+     * No backfill, deliberately. The account that handed a prize over last
+     * month was not recorded, and the only values available to invent are
+     * "the first admin" or "whoever is running the upgrade" — both of them
+     * wrong in a column whose whole purpose is settling a dispute. A dash is
+     * the truth (R22), and the count below is so the operator knows how many
+     * rows will carry one.
+     *
+     * The column and the key are checked separately, as the sheet step does
+     * it: an installation with no `user` table gets the column and no key,
+     * and the run after the one that gives it a table finishes the job.
+     */
+    private function recordWhoClaimed(bool $dryRun): UpgradeStep
+    {
+        $name = 'a claim says who made it';
+
+        if (!$this->tableExists('spin')) {
+            return UpgradeStep::skipped($name, 'there is no spin table');
+        }
+
+        $column = !$this->columnExists('spin', 'claimed_by_id');
+
+        /*
+         * A step must not assume a table it did not create. Before F07 there
+         * were no accounts at all, and a constraint pointing at a table that
+         * is not there fails the whole run rather than reporting — which is
+         * exactly what this one did against the upgrade suite's own pre-F07
+         * fixture.
+         */
+        $key = $this->tableExists('user')
+            && !$this->foreignKeyExists('spin', self::CLAIMED_BY_FK);
+
+        if (!$column && !$key) {
+            return UpgradeStep::skipped($name);
+        }
+
+        /*
+         * Asked rather than assumed. The step that gives the log a
+         * `claimed_at` has not run yet in a dry run, and on a database old
+         * enough to predate F13 there is no claim column at all — in which
+         * case there are no claims to be without an author.
+         */
+        $claimed = $this->columnExists('spin', 'claimed_at')
+            ? (int) $this->connection->fetchOne(
+                'SELECT COUNT(*) FROM spin WHERE claimed_at IS NOT NULL',
+            )
+            : 0;
+
+        if (!$dryRun) {
+            if ($column) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE spin ADD claimed_by_id INT DEFAULT NULL',
+                );
+                $this->connection->executeStatement(
+                    'CREATE INDEX '.self::CLAIMED_BY_INDEX.' ON spin (claimed_by_id)',
+                );
+            }
+
+            if ($key) {
+                $this->connection->executeStatement(
+                    'ALTER TABLE spin ADD CONSTRAINT '.self::CLAIMED_BY_FK
+                    .' FOREIGN KEY (claimed_by_id) REFERENCES `user` (id) ON DELETE SET NULL',
+                );
+            }
+        }
+
+        if (!$column) {
+            return UpgradeStep::done($name, $this->tense(
+                $dryRun,
+                'point it at the accounts table',
+                'pointed it at the accounts table',
+            ));
+        }
+
+        return UpgradeStep::done($name, $this->tense(
+            $dryRun,
+            sprintf('add it, leaving %d claim(s) without an author', $claimed),
+            sprintf('added it; %d claim(s) have no author', $claimed),
+        ));
     }
 
     /**
