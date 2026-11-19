@@ -61,12 +61,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: roulette/frontend/package-lock.json
+          cache-dependency-path: app/frontend/package-lock.json
 
       # R2: production dependencies only, and an authoritative classmap, so
       # the instance never resolves a class at runtime.
       - name: Build the backend
-        working-directory: roulette/backend
+        working-directory: app/backend
         env:
           APP_ENV: prod
         run: |
@@ -74,7 +74,7 @@ jobs:
             --no-interaction --optimize-autoloader --classmap-authoritative
 
       - name: Build the frontend
-        working-directory: roulette/frontend
+        working-directory: app/frontend
         run: |
           npm ci
           npm run build
@@ -89,15 +89,15 @@ jobs:
 
           # Everything the application needs, and nothing it does not: no
           # tests, no .env of the developer's, no node_modules.
-          tar -C roulette/backend \
+          tar -C app/backend \
               --exclude=./var \
               --exclude=./tests \
               --exclude=./.env.local \
               --exclude=./.env.test \
               -cf - . | tar -C "$staging/backend" -xf -
 
-          cp -r roulette/frontend/dist "$staging/frontend-dist"
-          cp roulette/deploy/deploy.sh roulette/deploy/rollback.sh "$staging/deploy/"
+          cp -r app/frontend/dist "$staging/frontend-dist"
+          cp app/deploy/deploy.sh app/deploy/rollback.sh "$staging/deploy/"
           chmod +x "$staging/deploy/"*.sh
 
           tar -C "$staging" -czf "release-${sha}.tar.gz" .

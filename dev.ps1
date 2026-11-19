@@ -1,13 +1,14 @@
 <#
 .SYNOPSIS
-    Starts a game's API and web dev servers, each in its own window.
+    Starts the application's API and web dev servers, each in its own window.
 
 .DESCRIPTION
     The frontend proxies /api to the backend, so both need to be running for
     the app to work. Close the two windows to stop them.
 
-.PARAMETER Game
-    Game folder to run. Defaults to roulette.
+.PARAMETER App
+    Application folder to run. Defaults to app. -Game still works as an
+    alias, so an old habit does not break.
 
 .PARAMETER ApiPort
     Port for the Symfony dev server. Defaults to 8000.
@@ -17,17 +18,18 @@
 
 .EXAMPLE
     .\dev.ps1
-    .\dev.ps1 -Game roulette -ApiPort 8001
+    .\dev.ps1 -ApiPort 8001
 #>
 [CmdletBinding()]
 param(
-    [string] $Game = 'roulette',
+    [Alias('Game')]
+    [string] $App = 'app',
     [int]    $ApiPort = 8000,
     [int]    $WebPort = 5173
 )
 
-$backend = Join-Path $PSScriptRoot "$Game\backend"
-$frontend = Join-Path $PSScriptRoot "$Game\frontend"
+$backend = Join-Path $PSScriptRoot "$App\backend"
+$frontend = Join-Path $PSScriptRoot "$App\frontend"
 
 if (-not (Test-Path $backend)) {
     Write-Host ("No backend at {0}" -f $backend) -ForegroundColor Red

@@ -54,14 +54,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: roulette/frontend/package-lock.json
+          cache-dependency-path: app/frontend/package-lock.json
 
       - name: Install backend dependencies
-        working-directory: roulette/backend
+        working-directory: app/backend
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Install frontend dependencies
-        working-directory: roulette/frontend
+        working-directory: app/frontend
         run: npm ci
 
       # config/packages/doctrine.yaml appends `_test` to the database name in
@@ -77,26 +77,26 @@ jobs:
             -e "CREATE DATABASE IF NOT EXISTS roulette_test DEFAULT CHARACTER SET utf8mb4;"
 
       - name: Build the test schema
-        working-directory: roulette/backend
+        working-directory: app/backend
         env:
           APP_ENV: test
           DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
         run: php bin/console doctrine:schema:update --force --complete --env=test
 
       - name: PHPUnit
-        working-directory: roulette/backend
+        working-directory: app/backend
         env:
           DATABASE_URL: "mysql://root:root@127.0.0.1:3306/roulette?serverVersion=10.11.0-MariaDB&charset=utf8mb4"
         run: php vendor/bin/phpunit
 
       - name: TypeScript
-        working-directory: roulette/frontend
+        working-directory: app/frontend
         run: npm run typecheck
 
       - name: Vitest
-        working-directory: roulette/frontend
+        working-directory: app/frontend
         run: npm test
 
       - name: Lint
-        working-directory: roulette/frontend
+        working-directory: app/frontend
         run: npm run lint
