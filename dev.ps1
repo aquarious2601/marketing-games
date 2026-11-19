@@ -46,7 +46,7 @@ if (-not (Test-Path $frontend)) {
     exit 1
 }
 
-Write-Host ('Starting the {0} API on port {1}...' -f $Game, $ApiPort) -ForegroundColor Cyan
+Write-Host ('Starting the {0} API on port {1}...' -f $App, $ApiPort) -ForegroundColor Cyan
 Start-Process -FilePath 'php' `
               -ArgumentList @('-S', "127.0.0.1:$ApiPort", '-t', 'public', 'public/index.php') `
               -WorkingDirectory $backend
@@ -54,7 +54,7 @@ Start-Process -FilePath 'php' `
 # Tells Vite where to forward /api, so a non-default API port still works.
 $env:VITE_DEV_API_TARGET = "http://127.0.0.1:$ApiPort"
 
-Write-Host ('Starting the {0} web app on port {1}...' -f $Game, $WebPort) -ForegroundColor Cyan
+Write-Host ('Starting the {0} web app on port {1}...' -f $App, $WebPort) -ForegroundColor Cyan
 Start-Process -FilePath 'npm.cmd' `
               -ArgumentList @('run', 'dev', '--', '--port', "$WebPort", '--strictPort') `
               -WorkingDirectory $frontend
