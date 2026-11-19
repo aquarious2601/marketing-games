@@ -15,7 +15,7 @@ export const zh: Record<MessageKey, string> = {
   'player.logoAlt': '标志',
   'player.spin': '开始转动',
   'player.spinning': '转动中…',
-  'player.nextPlayer': '下一位',
+  'player.nextCustomer': '下一位顾客',
   'player.playingAs': '当前玩家：%name%',
   'player.notYou': '不是您？',
   'player.youWon': '您赢得了',

@@ -15,7 +15,7 @@ export const vi: Record<MessageKey, string> = {
   'player.logoAlt': 'Logo',
   'player.spin': 'Quay',
   'player.spinning': 'Đang quay…',
-  'player.nextPlayer': 'Người tiếp theo',
+  'player.nextCustomer': 'Khách tiếp theo',
   'player.playingAs': 'Đang chơi với tên %name%',
   'player.notYou': 'Không phải bạn?',
   'player.youWon': 'Bạn đã trúng',

@@ -3,10 +3,10 @@
 | | |
 |---|---|
 | **ID** | F29 |
-| **Status** | Draft |
+| **Status** | Agreed |
 | **Interface** | Player |
 | **Depends on** | [F10](./F10-hand-over-to-the-next-player.md), [F12](./F12-multiple-languages.md), [F28](./F28-the-gift-sheet.md) |
-| **Agreed on** | — |
+| **Agreed on** | 2026-11-19 |
 | **Amends** | [F10](./F10-hand-over-to-the-next-player.md) R2 |
 
 ## 1. Summary
@@ -73,6 +73,7 @@ actually doing: serving the next person in the queue.
 | R3 | Every language the application offers names a customer, not a player: English **Next customer**, French **Client suivant**, Vietnamese **Khách tiếp theo**, Chinese **下一位顾客**. |
 | R4 | Nothing else about the button changes: not what it does ([F10](./F10-hand-over-to-the-next-player.md) R1, R3–R9), not where it sits, and not its `data-testid`. The test id is a hook for the suites, not copy a customer reads, and churning it would edit end-to-end specs to prove a word nobody sees. |
 | R5 | The translation key keeps its place in the player's group but is renamed to say what it holds, so a reader of the catalogue is not told one thing by the key and another by the value. |
+| R6 | A sentence that **quotes** the label quotes the new one. The server's refusal of a second spin — "You have already had your spin. Press Next customer to pass the phone on." — names the button, so it follows it in all four languages. Found while building: Vietnamese and Chinese had drifted, naming a *player* in that sentence and something shorter on the button itself. |
 
 ## 7. Data model
 
@@ -111,18 +112,18 @@ looked at on a 375px screen in all four languages before this is `Done`.
 
 ## 11. Acceptance criteria
 
-- [ ] Given a result on screen, then the button reads "Next customer".
-- [ ] Given the daily-limit screen, then the button reads "Next customer".
-- [ ] Given a gift sheet's issued screen, then the button reads "Next
+- [x] Given a result on screen, then the button reads "Next customer".
+- [x] Given the daily-limit screen, then the button reads "Next customer".
+- [x] Given a gift sheet's issued screen, then the button reads "Next
       customer".
-- [ ] Given a gift sheet's spent screen, then the button reads "Next
+- [x] Given a gift sheet's spent screen, then the button reads "Next
       customer".
-- [ ] Given each of the four languages, then the button names a customer and
+- [x] Given each of the four languages, then the button names a customer and
       the four catalogues hold the same keys.
-- [ ] Given the button is pressed, then everything
+- [x] Given the button is pressed, then everything
       [F10](./F10-hand-over-to-the-next-player.md) says happens still
       happens.
-- [ ] The four fast suites pass.
+- [x] The four fast suites pass.
 - [ ] Checked by hand at 375px in all four languages: the label fits on one
       line and the button is reachable without scrolling.
 

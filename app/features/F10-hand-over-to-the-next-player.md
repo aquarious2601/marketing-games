@@ -84,7 +84,7 @@ recognised immediately (F08 R5), with no name and no birthday asked again.
 | # | Rule |
 |---|---|
 | R1 | Once a spin has finished and the result is on screen, the button hands over to the next player instead of spinning again. |
-| R2 | It is labelled **Next player**. |
+| R2 | ~~It is labelled **Next player**.~~ **Replaced by [F29](./F29-the-next-customer.md) R1:** it is labelled **Next customer**. The control, and everything else this feature says about it, is unchanged — the person at the counter came in to buy something, and one of the store's games does not involve playing at all. |
 | R3 | Pressing it clears the result, returns the wheel to rest, and shows the phone step. |
 | R4 | It forgets the player on the server too, not only on the page. Clearing one and not the other would leave a reload putting the next person back on the previous player's identity (F08 R12). |
 | R5 | The result stays on screen until the button is pressed. Nothing clears it on a timer, and nothing clears it because time passed. **A reload used to clear it anyway**, which [F20](./F20-one-spin-per-identification.md) R5, R6 fixed by having the server report what this identification won. |

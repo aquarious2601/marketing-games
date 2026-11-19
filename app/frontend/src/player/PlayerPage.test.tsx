@@ -325,7 +325,7 @@ describe('spinning', () => {
 
     await screen.findByTestId('spin-result')
 
-    expect(screen.getByTestId('next-player-button')).toHaveTextContent('Next player')
+    expect(screen.getByTestId('next-player-button')).toHaveTextContent('Next customer')
 
     // F10 R8: absent, not disabled. The two look the same to a person and
     // completely different to whoever picks the device up next.
@@ -1642,12 +1642,15 @@ describe('a day that has been used up', () => {
   })
 
   /** F23 R16: the queue behind them has to be able to play. */
-  it('hands the device on to the next player', async () => {
+  it('hands the device on to the next customer', async () => {
     fetchIdentityMock.mockResolvedValue(exhausted)
 
     const user = userEvent.setup()
     render(<PlayerPage />)
     await screen.findByTestId('spins-exhausted')
+
+    // F29 R2: one label, on this screen as on the result.
+    expect(screen.getByTestId('next-player-button')).toHaveTextContent('Next customer')
 
     fetchIdentityMock.mockResolvedValue(NOBODY)
     await user.click(screen.getByTestId('next-player-button'))

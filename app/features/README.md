@@ -194,7 +194,7 @@ what those screens become once several owners share an installation.
 | [F26](./F26-a-slice-takes-its-rewards-name.md) | A slice takes its reward's name | Both | Agreed |
 | [F27](./F27-the-store-and-its-games.md) | The store and its games | Both | Agreed |
 | [F28](./F28-the-gift-sheet.md) | The gift sheet | Both | Agreed |
-| [F29](./F29-the-next-customer.md) | The next customer | Player | Draft |
+| [F29](./F29-the-next-customer.md) | The next customer | Player | Agreed |
 
 ## Running the tests
 

@@ -15,7 +15,7 @@ export const fr: Record<MessageKey, string> = {
   'player.logoAlt': 'Logo',
   'player.spin': 'Tourner',
   'player.spinning': 'Ça tourne…',
-  'player.nextPlayer': 'Joueur suivant',
+  'player.nextCustomer': 'Client suivant',
   'player.playingAs': 'Vous jouez en tant que %name%',
   'player.notYou': 'Ce n’est pas vous ?',
   'player.youWon': 'Vous avez gagné',

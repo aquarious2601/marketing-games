@@ -191,7 +191,7 @@ export function SheetPage() {
             data-testid="next-player"
             className={`${buttonClass} mt-6`}
           >
-            {t('player.nextPlayer')}
+            {t('player.nextCustomer')}
           </button>
         </div>
       </Screen>
@@ -257,7 +257,7 @@ export function SheetPage() {
           data-testid="next-player"
           className={`${buttonClass} mt-6`}
         >
-          {t('player.nextPlayer')}
+          {t('player.nextCustomer')}
         </button>
       </Screen>
     )
