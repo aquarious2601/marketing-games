@@ -7,6 +7,7 @@ namespace App\Tests\Schema;
 use App\Entity\Reward;
 use App\Player\PhoneMatch;
 use App\Reward\RewardType;
+use App\Player\CustomerCode;
 use App\Schema\DatabaseUpgrade;
 use App\Schema\UpgradeStep;
 use Doctrine\DBAL\Connection;
@@ -1220,6 +1221,87 @@ final class DatabaseUpgradeTest extends KernelTestCase
         $steps = $this->upgrade()->run();
 
         self::assertSame('already applied', $this->detailOf($steps, 'names hold a full reward name'));
+    }
+
+    // ------------------------------------- F34 R4: a card for everybody
+
+    /**
+     * R4. The customers who registered before this feature existed are the
+     * ones the shop already has, so a card scheme that only covers people
+     * who arrive from now on covers nobody for a month.
+     */
+    public function testItIssuesACardToEveryCustomerAlreadyInTheTable(): void
+    {
+        $this->givenAPlayer('0912345678', '2026-11-01 09:00:00');
+        $this->givenAPlayer('0987654321', '2026-11-02 09:00:00', 'Binh');
+
+        $this->upgrade()->run();
+
+        /** @var list<string> $cards */
+        $cards = $this->connection->fetchFirstColumn('SELECT code FROM player ORDER BY id');
+
+        self::assertCount(2, $cards);
+
+        foreach ($cards as $card) {
+            self::assertMatchesRegularExpression(CustomerCode::pattern(), $card);
+        }
+
+        self::assertCount(2, array_unique($cards), 'Two customers were given one card.');
+    }
+
+    /** R3. The index is the promise, so the column ends up able to keep it. */
+    public function testItRequiresAndIndexesTheCard(): void
+    {
+        $this->givenAPlayer('0912345678', '2026-11-01 09:00:00');
+
+        $this->upgrade()->run();
+
+        self::assertTrue($this->hasIndex('player', 'uniq_player_code'));
+
+        /*
+         * Asked of the schema rather than proved by provoking an error:
+         * development runs MariaDB 10.4 without strict mode, where setting
+         * NULL on a NOT NULL column is silently coerced to an empty string
+         * rather than refused. A test that depended on the refusal would
+         * pass in CI and fail on the machine the code is written on.
+         */
+        $column = $this->columnOf('player', 'code');
+
+        self::assertNotNull($column);
+        self::assertTrue($column->getNotnull(), 'The card may still be null.');
+    }
+
+    /** P02. A second run issues nothing and changes nobody. */
+    public function testASecondRunIssuesNoCards(): void
+    {
+        $this->givenAPlayer('0912345678', '2026-11-01 09:00:00');
+
+        $this->upgrade()->run();
+
+        $first = $this->connection->fetchOne('SELECT code FROM player');
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame($first, $this->connection->fetchOne('SELECT code FROM player'));
+
+        foreach ($steps as $step) {
+            if ('a card for every customer' === $step->name) {
+                self::assertFalse($step->changed, 'The second run issued cards again.');
+            }
+        }
+    }
+
+    /** P02 R5. A dry run says what it would do and does none of it. */
+    public function testADryRunIssuesNobodyACard(): void
+    {
+        $this->givenAPlayer('0912345678', '2026-11-01 09:00:00');
+
+        $this->upgrade()->run(dryRun: true);
+
+        self::assertNull(
+            $this->columnOf('player', 'code'),
+            'A dry run added the column.',
+        );
     }
 
     private function upgrade(): DatabaseUpgrade

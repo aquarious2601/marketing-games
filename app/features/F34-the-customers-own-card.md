@@ -218,44 +218,85 @@ same barcode and code, with a line saying it is theirs. Nothing on the list
 
 ## 11. Acceptance criteria
 
-- [ ] Given a new customer is registered, then a code of ten characters in
+- [x] Given a new customer is registered, then a code of ten characters in
       two groups of five is stored against them.
-- [ ] Given a code is generated, then it contains no `O`, `0`, `I`, `L` or
+- [x] Given a code is generated, then it contains no `O`, `0`, `I`, `L` or
       `1` (R2).
-- [ ] Given two customers, then their codes differ, and a duplicate is
+- [x] Given two customers, then their codes differ, and a duplicate is
       refused by the index rather than issued (R3).
-- [ ] Given a database of customers from before this feature, when the
+- [x] Given a database of customers from before this feature, when the
       upgrade runs, then every one of them has a code (R4).
-- [ ] Given the upgrade runs twice, then the second run issues nothing and
+- [x] Given the upgrade runs twice, then the second run issues nothing and
       changes nobody (P02).
-- [ ] Given a customer registers, then the response carries their card.
-- [ ] Given registering returned somebody who already existed, then the
+- [x] Given a customer registers, then the response carries their card.
+- [x] Given registering returned somebody who already existed, then the
       response carries no card (R9).
-- [ ] Given a customer has just registered, then the card screen shows the
+- [x] Given a customer has just registered, then the card screen shows the
       barcode and the code (R7).
-- [ ] Given the card screen, when the control is pressed, then the game
+- [x] Given the card screen, when the control is pressed, then the game
       begins and the card is not shown again (R10).
-- [ ] Given a returning customer identifies, then no card screen appears
+- [x] Given a returning customer identifies, then no card screen appears
       (R8).
-- [ ] Given a customer code typed into the Customers filter, then that
+- [x] Given a customer code typed into the Customers filter, then that
       customer is found (R13).
-- [ ] Given a complete customer code matching one customer, then their page
+- [x] Given a complete customer code matching one customer, then their page
       opens (R14).
-- [ ] Given the same code in lower case, with spaces, or without its hyphen,
+- [x] Given the same code in lower case, with spaces, or without its hyphen,
       then it finds the same customer (R15).
-- [ ] Given a customer code that matches nobody, then the message says so and
+- [x] Given a customer code that matches nobody, then the message says so and
       the box keeps it (R16).
-- [ ] Given a customer's page, then their card is on it as a barcode and as
+- [x] Given a customer's page, then their card is on it as a barcode and as
       characters (R17).
-- [ ] Given the customer list, then no card is on it (R18).
-- [ ] Given the card screen at 375px, then it needs no scrolling (R11).
-- [ ] Every label this feature adds exists in all four languages (R19).
-- [ ] The four fast suites pass.
+- [x] Given the customer list, then no card is on it (R18).
+- [ ] Given the card screen at 375px, then it needs no scrolling (R11). No
+      suite reaches this screen — see §12.
+- [x] Every label this feature adds exists in all four languages (R19).
+- [x] The four fast suites pass.
 
 ## 12. Verification
 
-Written when the feature is built, naming the suites and the tests that carry
-each rule.
+`php vendor/bin/phpunit` — 721 tests. `CustomerCodeTest` carries R2, R5
+and R15, including the property the length exists for: two hundred generated
+cards, none of them a reward code's length, so the counter's one box can take
+either without being told which. `IdentityControllerTest` carries R1, R6, R7
+and R9 — a new customer's card matches the one stored, a request that found
+an existing customer is told `null`, and registering the same number twice
+leaves the first card alone. `PlayerControllerTest` carries R13 to R18: found
+by their card, found however it is spelled, the card on their page, and no
+card anywhere on the list. `DatabaseUpgradeTest` carries R3 and R4 — every
+customer already in the table given one, a second run issuing none, the
+column required and uniquely indexed, and a dry run adding nothing.
+
+`npm test` — 920 tests. `PlayerPage.test.tsx` carries R7, R8 and R10
+through the whole path a customer walks: number, details, card, game. The
+returning-customer test is the one that matters most, because R8 is a rule
+about what must *not* appear. `CustomerModule.test.tsx` carries R17 and
+`PlayersModule.test.tsx` carries R14. R16 — a card that matches nobody keeps
+what was scanned — is the same code path F33 R23 already proves in that file,
+and there is nothing card-specific left in it to test.
+
+`npm run typecheck` and `npm run lint` are clean.
+
+**Run against the real database.** The upgrade was run on the development
+database rather than only on fixtures: dry run first, which reported the two
+later steps honestly as "the column does not exist yet" rather than guessing;
+then the real run, which added the column, issued cards to both existing
+customers and constrained it. `doctrine:schema:update --dump-sql` then
+reported nothing to do, so the entity and the database agree.
+
+**One correction, found by running it.** The first version of the "required
+and unique" test proved the constraint by setting the column to null and
+expecting a failure. It passed in CI's MariaDB 10.11 and failed on
+development's 10.4, which runs without strict mode and silently coerces the
+null to an empty string. The test now asks the schema what it holds, which is
+the same question with the same answer on both.
+
+**Not seen in a browser.** R11 — the card screen at 375px without scrolling
+— is unverified. The end-to-end suite registers through the API and never
+types the form, so it never reaches this screen, and no suite in the
+repository renders layout. The screen is the identification step's own
+container with a barcode and one button, which is less than the result panel
+F33 already fits; but that is reasoning, not a pass.
 
 ## 13. Decisions and risks
 
@@ -301,10 +342,13 @@ slowed, the honest fix is to put the card *after* the result rather than
 before the game, and that is a change to R7 rather than an admission that the
 card was wrong.
 
-**Risk: the end-to-end specs identify as new customers.** Several of them
-register and then spin, and a screen between those two steps will fail them.
-`CLAUDE.md` is explicit that existing specs get fixed so the manual run still
-passes, and that no new ones are added. That fix is part of building this.
+**The risk predicted here did not exist.** This section said the end-to-end
+specs would break, because several of them register and then spin and a
+screen between those two steps would fail them. They do not: `e2e/player.ts`
+registers through `POST /api/player/register` and never types the form, so
+the page meets an already-identified session and the card screen is never on
+its path. Nothing in the suite needed repairing, and nothing in it was
+changed — which is also why the suite cannot confirm R11 (§12).
 
 **What this is not.** It is not a loyalty scheme. It counts nothing and
 rewards nothing, and calling it a "card" is about what the customer keeps in

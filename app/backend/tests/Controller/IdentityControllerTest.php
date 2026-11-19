@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Entity\Player;
+use App\Player\CustomerCode;
 use App\Entity\Spin;
 use App\Tests\Support\DatabaseWebTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -382,6 +383,56 @@ final class IdentityControllerTest extends DatabaseWebTestCase
         self::assertSame('Anh', $player->getFirstName());
         self::assertSame('Le', $player->getLastName());
         self::assertSame('1994-03-12', $player->getBirthday()->format('Y-m-d'));
+    }
+
+    /** F34 R1, R7, R9. A customer being created is given their card. */
+    public function testItGivesANewCustomerTheirCard(): void
+    {
+        $this->register();
+
+        $card = $this->decodeResponse()['card'];
+
+        self::assertIsString($card);
+        self::assertMatchesRegularExpression(CustomerCode::pattern(), $card);
+
+        $player = $this->entityManager->getRepository(Player::class)->findOneBy([]);
+        self::assertInstanceOf(Player::class, $player);
+        self::assertSame($player->getCode(), $card, 'The card shown is not the one stored.');
+    }
+
+    /**
+     * F34 R8, R9. The card belongs to the customer, and anybody may type
+     * anybody's number into a stall phone — so a request that found an
+     * existing customer is told nothing about their card.
+     */
+    public function testItDoesNotHandOverTheCardOfACustomerWhoAlreadyExisted(): void
+    {
+        $this->register();
+        $this->post(self::FORGET_URI);
+
+        $this->register(['firstName' => 'Someone', 'lastName' => 'Else', 'birthday' => '2000-01-01']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        self::assertNull($this->decodeResponse()['card']);
+    }
+
+    /** F34 R6. The photograph taken in January still works in June. */
+    public function testItNeverReissuesACard(): void
+    {
+        $this->register();
+
+        $player = $this->entityManager->getRepository(Player::class)->findOneBy([]);
+        self::assertInstanceOf(Player::class, $player);
+        $issued = $player->getCode();
+
+        $this->post(self::FORGET_URI);
+        $this->register();
+
+        $this->entityManager->clear();
+        $again = $this->entityManager->getRepository(Player::class)->findOneBy([]);
+        self::assertInstanceOf(Player::class, $again);
+
+        self::assertSame($issued, $again->getCode());
     }
 
     /** F08 R3 — what is stored is the canonical form, never what was typed */

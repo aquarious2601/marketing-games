@@ -31,6 +31,9 @@ export const zh: Record<MessageKey, string> = {
   'player.identityLost': '游戏需要知道是谁在玩。请重新输入您的号码。',
 
   'identity.kicker': '开始之前',
+  'identity.cardHeading': '这是您的卡',
+  'identity.cardLead': '请拍照保存。在柜台出示照片，我们就能立即找到您。',
+  'identity.cardContinue': '知道了',
   'identity.phoneHeading': '请输入您的手机号码',
   'identity.phoneLead': '我们用它来确认是谁在玩，以及在您玩过之后找到您。',
   'identity.phoneLabel': '手机号码',
@@ -132,6 +135,8 @@ export const zh: Record<MessageKey, string> = {
   'customer.loading': '正在加载顾客…',
   'customer.loadFailed': '无法加载该顾客。',
   'customer.who': '顾客资料',
+  'customer.card': '他的卡',
+  'customer.cardLead': '注册时仅显示过一次。客人丢失照片时可再次出示。',
   'customer.plays': '参与次数',
   'customer.playsValue': '参与 %played% 次，中奖 %won% 次',
   'customer.toCollect': '待兑出',

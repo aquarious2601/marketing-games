@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Barcode } from '../reward/Barcode'
 import { ApiValidationError } from '../api/client'
 import {
   identifyPhone,
@@ -35,6 +36,12 @@ type Phase =
   | { name: 'phone' }
   /** The canonical number the server derived, carried into the details step. */
   | { name: 'details'; phone: string }
+  /**
+   * F34 R7. The card, and the identification it is holding up: the customer
+   * is already identified by the time this shows, and pressing on is what
+   * hands that to the game (R10).
+   */
+  | { name: 'card'; card: string; identified: Identified }
 
 /** Rendered sentences, not keys: a server violation arrives already worded. */
 interface FieldErrors {
@@ -100,8 +107,10 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
       const lookup = await identifyPhone(phone)
 
       if (lookup.known && lookup.player !== null) {
-        // F08 R5: nothing further is asked.
-        onIdentified({ player: lookup.player, spinsLeft: lookup.spinsLeft })
+        // F08 R5: nothing further is asked. F34 R8: and nothing is shown
+        // — a card belongs to the customer this request created, and this
+        // request created nobody.
+        onIdentified({ player: lookup.player, spinsLeft: lookup.spinsLeft, card: null })
 
         return
       }
@@ -147,7 +156,21 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
     }
 
     try {
-      onIdentified(await registerPlayer(registration))
+      const identified = await registerPlayer(registration)
+
+      /*
+       * F34 R7, R9. A card comes back only for a customer this request
+       * created, so this is the one moment the application can be sure the
+       * person holding the phone is the person the card belongs to. The page
+       * never asks for a card; it shows the one it was given.
+       */
+      if (null !== identified.card) {
+        setPhase({ name: 'card', card: identified.card, identified })
+
+        return
+      }
+
+      onIdentified(identified)
     } catch (error) {
       // The typed values stay in the form either way: nothing here clears
       // them, so a failure costs the player a button press and not a retype.
@@ -164,6 +187,40 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
     } finally {
       setBusy(false)
     }
+  }
+
+  /*
+   * F34 R7, R10, R11. One screen, once: the barcode, the code under it as
+   * F33 R3 has it everywhere else, and a press that goes on to the game.
+   * Nothing comes back here — the phase is gone once it is left, and there
+   * is no request that would fetch a card again (R8).
+   */
+  if (phase.name === 'card') {
+    return (
+      <div data-testid="identity-card" className="flex w-full flex-col items-center gap-4">
+        <Intro heading={t('identity.cardHeading')} lead={t('identity.cardLead')} />
+
+        <div className="w-full">
+          <Barcode code={phase.card} className="h-16" />
+          <p
+            data-testid="customer-card"
+            className="mt-1.5 text-center font-mono text-lg font-bold tracking-[0.12em]"
+            style={{ color: 'var(--heading)' }}
+          >
+            {phase.card}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onIdentified(phase.identified)}
+          data-testid="card-continue"
+          className={buttonClass}
+        >
+          {t('identity.cardContinue')}
+        </button>
+      </div>
+    )
   }
 
   if (phase.name === 'details') {

@@ -31,6 +31,9 @@ export const vi: Record<MessageKey, string> = {
   'player.identityLost': 'Trò chơi cần biết ai đang chơi. Vui lòng nhập lại số của bạn.',
 
   'identity.kicker': 'Trước khi quay',
+  'identity.cardHeading': 'Đây là thẻ của bạn',
+  'identity.cardLead': 'Hãy chụp ảnh lại. Đưa ảnh tại quầy và chúng tôi sẽ tìm thấy bạn ngay.',
+  'identity.cardContinue': 'Đã xong',
   'identity.phoneHeading': 'Nhập số điện thoại của bạn',
   'identity.phoneLead':
     'Đây là cách chúng tôi biết ai đang chơi, và tìm lại bạn nếu bạn đã từng chơi.',
@@ -139,6 +142,8 @@ export const vi: Record<MessageKey, string> = {
   'customer.loading': 'Đang tải khách hàng…',
   'customer.loadFailed': 'Không tải được khách hàng đó.',
   'customer.who': 'Thông tin khách',
+  'customer.card': 'Thẻ của khách',
+  'customer.cardLead': 'Chỉ hiển thị một lần khi đăng ký. Hiển thị lại cho khách đã mất ảnh.',
   'customer.plays': 'Lượt chơi',
   'customer.playsValue': 'Đã chơi %played%, trúng %won%',
   'customer.toCollect': 'Chờ trao',

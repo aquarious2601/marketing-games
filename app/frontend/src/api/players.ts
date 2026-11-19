@@ -172,6 +172,14 @@ export async function fetchSpinLog(
 export interface CustomerDetail {
   player: AdminPlayer
   wins: CustomerWin[]
+  /**
+   * F34 R17. The card this customer keeps, so staff can show it to somebody
+   * who lost the photograph.
+   *
+   * On this response and not on the list (R18): a screen full of other
+   * people's cards is a screen worth photographing.
+   */
+  card: string
   /** F31 R13: how many times they played, wins and losses together. */
   played: number
   /** And how many of those won something, which is `wins.length`. */

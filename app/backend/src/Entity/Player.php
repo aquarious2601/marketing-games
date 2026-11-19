@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Player\CustomerCode;
 use App\Player\PhoneMatch;
 use App\Repository\PlayerRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -26,6 +27,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: PlayerRepository::class)]
 #[ORM\Table(name: 'player')]
 #[ORM\UniqueConstraint(name: 'uniq_player_phone', columns: ['phone'])]
+#[ORM\UniqueConstraint(name: 'uniq_player_code', columns: ['code'])]
 #[ORM\Index(name: 'idx_player_phone_tail', columns: ['phone_tail'])]
 class Player
 {
@@ -84,6 +86,18 @@ class Player
     #[ORM\Column(name: 'created_at')]
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * The card they keep (F34 R1). Derived in the constructor like the
+     * phone's tail above, and for the same reason: it belongs to the row
+     * from the moment the row exists, in the same transaction, and no
+     * request can set it.
+     *
+     * There is no setter at all. A customer keeps the code they were given
+     * (F34 R6), so the photograph they took in January still works in June.
+     */
+    #[ORM\Column(length: CustomerCode::STORED_LENGTH, unique: true)]
+    private string $code;
+
     public function __construct(
         string $phone,
         string $firstName,
@@ -96,6 +110,7 @@ class Player
         $this->lastName = $lastName;
         $this->birthday = $birthday;
         $this->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $this->code = CustomerCode::generate();
     }
 
     public function getId(): ?int
@@ -106,6 +121,12 @@ class Player
     public function getPhone(): string
     {
         return $this->phone;
+    }
+
+    /** F34 R1. Uniqueness is the index's promise, not the generator's (R3). */
+    public function getCode(): string
+    {
+        return $this->code;
     }
 
     public function getPhoneTail(): string

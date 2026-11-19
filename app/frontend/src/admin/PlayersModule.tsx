@@ -31,12 +31,23 @@ type LoadPhase = 'loading' | 'ready' | 'failed'
  * in full.
  */
 const CODE_LENGTH = 8
+
+/**
+ * F34 R2, R14. Ten characters is a customer's own card, eight is a reward
+ * code, and the two can never be the same string — which is why the counter
+ * can act on either without being told which it was handed.
+ */
+const CARD_LENGTH = 10
 const CODE_ALPHABET = /^[A-HJ-KM-NP-Z2-9]+$/
 
 function isACompleteCode(typed: string): boolean {
   const bare = typed.replace(/[\s-]/g, '').toUpperCase()
 
-  return bare.length === CODE_LENGTH && CODE_ALPHABET.test(bare)
+  if (bare.length !== CODE_LENGTH && bare.length !== CARD_LENGTH) {
+    return false
+  }
+
+  return CODE_ALPHABET.test(bare)
 }
 
 /**

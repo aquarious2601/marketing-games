@@ -41,12 +41,12 @@ final class PlayerRegistrar
     ) {
     }
 
-    public function register(PlayerDraft $draft): Player
+    public function register(PlayerDraft $draft): Registered
     {
         $existing = $this->players->findForNumber($draft->phone);
 
         if (null !== $existing) {
-            return $existing;
+            return new Registered($existing, created: false);
         }
 
         $player = new Player($draft->phone, $draft->firstName, $draft->lastName, $draft->birthday);
@@ -69,9 +69,11 @@ final class PlayerRegistrar
                 throw new \RuntimeException(sprintf('The phone number %s collided but cannot be found.', $draft->phone));
             }
 
-            return $won;
+            // F34 R9: the other device created them, this one did not, so
+            // this one does not hand out their card.
+            return new Registered($won, created: false);
         }
 
-        return $player;
+        return new Registered($player, created: true);
     }
 }

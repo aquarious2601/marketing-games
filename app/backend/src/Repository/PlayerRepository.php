@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\Player;
 use App\Entity\Spin;
 use App\Player\PhoneMatch;
+use App\Player\CustomerCode;
 use App\Reward\CodeGenerator;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -142,6 +143,20 @@ final class PlayerRepository extends ServiceEntityRepository
                 .'WHERE w.player = p AND w.rewardCode LIKE :code'
                 .')';
             $builder->setParameter('code', $code.'%');
+        }
+
+        /*
+         * F34 R13. A customer's own card, which is ten characters where a
+         * reward code is eight — so the two can never be the same string and
+         * a complete code of either kind is unambiguous. Asked as its own
+         * condition rather than folded into the one above, because this is a
+         * column on the row and that one is a search through their wins.
+         */
+        $card = CustomerCode::normalise($filter);
+
+        if (null !== $card) {
+            $conditions[] = 'p.code LIKE :card';
+            $builder->setParameter('card', $card.'%');
         }
 
         $builder->andWhere($builder->expr()->orX(...$conditions));
