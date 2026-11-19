@@ -35,7 +35,7 @@ const GAME = {
   defaultTagline: 'One spin, one prize. Good luck.',
   dailyLimit: null,
   linkKey: 'q7mfd2xkbnrt',
-  playUrl: 'http://localhost/play/q7mfd2xkbnrt',
+  playPath: '/play/q7mfd2xkbnrt',
   isLive: true,
   plays: 0,
   notReady: null,

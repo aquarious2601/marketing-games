@@ -27,7 +27,7 @@ function game(overrides: Partial<GameSummary> = {}): GameSummary {
     defaultTagline: 'One spin, one prize. Good luck.',
     dailyLimit: null,
     linkKey: 'q7mfd2xkbnrt',
-    playUrl: 'http://localhost/play/q7mfd2xkbnrt',
+    playPath: '/play/q7mfd2xkbnrt',
     isLive: true,
     plays: 4,
     notReady: null,
@@ -76,11 +76,13 @@ describe('the list', () => {
   })
 
   /** F27 R41: the whole URL, because the whole URL is what gets printed. */
+  // F27 R41. Built from the page's own origin, which is the only thing that
+  // knows it: the server answers from a different host in development.
   it('shows the whole link', async () => {
     await renderModule()
 
     expect(screen.getByTestId('game-1-link')).toHaveTextContent(
-      'http://localhost/play/q7mfd2xkbnrt',
+      `${window.location.origin}/play/q7mfd2xkbnrt`,
     )
   })
 

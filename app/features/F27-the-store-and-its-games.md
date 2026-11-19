@@ -180,7 +180,7 @@ is the whole of what a second game is waiting for.
 | R38 | The **Games** module lists the store's games: name, type, whether it is live, the number of times it has been played, and its link. Each row opens that game's editor, and the list has **New game**. |
 | R39 | **New game** asks a name and a type, and nothing else. It mints the key and creates the game **not live**, so a half-configured promotion is never reachable by a link. |
 | R40 | A game's **editor** holds its name, its tagline, its limit, and the reward configuration its type calls for — for a wheel, [F01](./F01-wheel-prize-configuration.md)'s prize list unchanged. The limit moves here from the campaign section ([F23](./F23-a-daily-spin-limit.md) R20). |
-| R41 | Each row offers its **link to copy**, in full, including the origin, because what gets printed is the whole URL. |
+| R41 | Each row offers its **link to copy**, in full, including the origin, because what gets printed is the whole URL. The origin is the admin page's own, not the API's — see the correction under §8. |
 | R42 | A game is turned **live or off** from the list, with one control and no confirmation step — it is reversible, and R24 means turning it off is visible to anybody holding the link. |
 | R43 | A game may not go live while its configuration is invalid: a wheel whose prizes do not total 100 ([F01](./F01-wheel-prize-configuration.md) R8) or whose slices have no rewards ([F13](./F13-reward-configuration.md) R7). The refusal names what is wrong. |
 | R44 | The **Spins** module gains a **Game** column and a filter on it. With two games in one log, "what went out today" is ambiguous without it. |
@@ -240,6 +240,15 @@ phrase beside the store's (R11). The payload therefore keeps exactly the shape
 it had, and the player page needs no new call to draw its header. What is new
 is `GET /api/play/{key}`, which answers the same branding plus the game's type
 so a page can tell which game it is about to draw.
+
+**Corrected while building (R41).** `/admin/games` answers with `playPath`
+(`/play/{linkKey}`), not a whole `playUrl`. The server builds its URLs from the
+host the API was asked on, which is not where the page lives: in development the
+API answers on `127.0.0.1:8000` while the app is served by Vite on
+`localhost:5173`, so the copied link pointed at the API and 404ed. The browser is
+the only party that knows the page's origin, so the admin page prefixes
+`window.location.origin` itself. R41 is unchanged in what the admin sees — the
+whole URL, ready to print.
 
 ## 9. Interface
 

@@ -15,7 +15,6 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -37,7 +36,6 @@ final class GameController extends AbstractController
         private readonly GameReadiness $readiness,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
-        private readonly RequestStack $requests,
     ) {
     }
 
@@ -203,9 +201,9 @@ final class GameController extends AbstractController
             'defaultTagline' => $this->translator->trans($game->defaultTaglineKey()),
             'dailyLimit' => $game->getDailyLimit(),
             'linkKey' => $game->getLinkKey(),
-            // F27 R41: the whole URL, because what gets printed is the whole
-            // URL. Built from the request so a staging host prints itself.
-            'playUrl' => $this->playUrl($game),
+            // F27 R41: the path, which the page turns into the whole URL
+            // with its own origin.
+            'playPath' => $this->playPath($game),
             'isLive' => $game->isLive(),
             'plays' => $this->spins->countForGame($game),
             'notReady' => $this->readiness->whyNotLive($game),
@@ -213,20 +211,18 @@ final class GameController extends AbstractController
     }
 
     /**
-     * F27 R41. The whole URL, origin included, because what an admin copies
-     * goes on a poster.
+     * F27 R41. The path only; the page puts its own origin in front of it.
      *
-     * Built from the request rather than from configuration, so a staging
-     * host prints a staging link and nobody has a setting to forget. The
-     * path is the player page's own, which is why it is written here rather
-     * than generated from a route: /play/{key} is served by the frontend.
+     * This used to return the whole URL built from the request's host, which
+     * is wrong wherever the API and the page are not served from the same
+     * place — in development the API answers on 127.0.0.1:8000 and the app
+     * is served by Vite on localhost:5173, so the admin copied a link to the
+     * API and it 404ed. The browser is the only thing that knows where the
+     * page lives, so the browser builds it.
      */
-    private function playUrl(Game $game): string
+    private function playPath(Game $game): string
     {
-        $request = $this->requests->getCurrentRequest();
-        $origin = null === $request ? '' : $request->getSchemeAndHttpHost();
-
-        return $origin.'/play/'.$game->getLinkKey();
+        return '/play/'.$game->getLinkKey();
     }
 
     /** @param array<mixed> $payload */
