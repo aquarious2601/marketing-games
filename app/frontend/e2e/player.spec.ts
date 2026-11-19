@@ -138,7 +138,7 @@ test.describe('the player page', () => {
   test('hands over to the next player after a result', async ({ page }) => {
     await spinAndWait(page)
 
-    await expect(page.getByTestId('next-player-button')).toHaveText('Next player')
+    await expect(page.getByTestId('next-player-button')).toHaveText('Next customer')
     // F10 R8: absent, not disabled.
     await expect(spinButton(page)).toHaveCount(0)
 

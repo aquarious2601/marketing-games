@@ -552,7 +552,7 @@ export function PlayerPage() {
             className={buttonClass}
             style={buttonStyle}
           >
-            {t('player.nextPlayer')}
+            {t('player.nextCustomer')}
           </button>
 
           <p className="player-kicker text-center" data-testid="player-identity">
@@ -667,7 +667,7 @@ export function PlayerPage() {
             className={buttonClass}
             style={buttonStyle}
           >
-            {t('player.nextPlayer')}
+            {t('player.nextCustomer')}
           </button>
         )}
 

@@ -29,7 +29,7 @@ export const en = {
   'player.logoAlt': 'Logo',
   'player.spin': 'Spin',
   'player.spinning': 'Spinning…',
-  'player.nextPlayer': 'Next player',
+  'player.nextCustomer': 'Next customer',
   'player.playingAs': 'Playing as %name%',
   'player.notYou': 'Not you?',
   'player.youWon': 'You won',

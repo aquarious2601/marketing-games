@@ -24,7 +24,7 @@ auth:
 player:
     details_invalid: 'Those details could not be used.'
     spin_requires_identity: 'Tell us who you are before you spin.'
-    spin_already_used: 'You have already had your spin. Press Next player to pass the phone on.'
+    spin_already_used: 'You have already had your spin. Press Next customer to pass the phone on.'
     spin_limit_reached: 'You have already played today. Come back tomorrow.'
     no_game: 'This page needs the link from the stall.'
     phone_required: 'Enter your phone number.'

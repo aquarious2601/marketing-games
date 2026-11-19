@@ -158,10 +158,13 @@ describe('once they are given', () => {
   })
 
   /** F28 R14, F10 R3: the stall phone moves on, inheriting nothing. */
-  it('hands over to the next player', async () => {
+  it('hands over to the next customer', async () => {
     const user = await renderSheet()
     await user.click(screen.getByTestId('get-gifts'))
     await screen.findByTestId('issued-sheet')
+
+    // F29 R1, R2: the same label the wheel's result screen shows.
+    expect(screen.getByTestId('next-player')).toHaveTextContent('Next customer')
 
     await user.click(screen.getByTestId('next-player'))
 
@@ -188,14 +191,14 @@ describe('when the day is used up', () => {
   })
 
   /** F23 R16: and the stall can still move on. */
-  it('still offers the next player', async () => {
+  it('still offers the next customer', async () => {
     issueSheetMock.mockRejectedValue(new ApiError('too many', 429))
     const user = await renderSheet()
 
     await user.click(screen.getByTestId('get-gifts'))
     await screen.findByTestId('sheet-spent')
 
-    expect(screen.getByTestId('next-player')).toBeInTheDocument()
+    expect(screen.getByTestId('next-player')).toHaveTextContent('Next customer')
   })
 
   /** Any other failure is a failure, and nothing was used up. */
