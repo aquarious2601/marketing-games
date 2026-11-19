@@ -32,8 +32,14 @@ export function AdminLayout() {
         className="border-b border-slate-200 bg-white"
       >
         {/* Same max width and gutter as the module below it, so the current
-            tab lines up with the content it belongs to. */}
-        <div className="mx-auto flex w-full max-w-5xl gap-1 px-4">
+            tab lines up with the content it belongs to.
+
+            It wraps rather than scrolling sideways. Six tabs no longer fit a
+            phone's width, and of the two ways out, a scrolling strip is the
+            one that hides tabs: an admin who cannot see Stats does not know
+            to look for it. Two rows cost a line of height and keep every
+            module in sight (F09 §9 — the module never scrolls sideways). */}
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap gap-1 px-4">
           {MODULES.map((module) => (
             <NavLink
               key={module.path}
@@ -94,9 +100,9 @@ const MODULES: ReadonlyArray<{ path: string; label: MessageKey }> = [
   { path: 'spins', label: 'spins.title' },
   /*
    * F32 R22, and the sixth. F09 said three was right for three and that six
-   * would make the navigation its own decision: this is six, the strip is
-   * still one row of short words, and a seventh is where the grouping F09
-   * warned about has to happen.
+   * would make the navigation its own decision: this is six, and it is where
+   * the strip stops fitting a phone on one line — it wraps to two, see
+   * above. A seventh is where the grouping F09 warned about has to happen.
    */
   { path: 'stats', label: 'stats.title' },
 ]

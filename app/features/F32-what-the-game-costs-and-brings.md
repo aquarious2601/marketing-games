@@ -6,7 +6,7 @@
 | **Status** | Agreed |
 | **Interface** | Admin |
 | **Depends on** | [F13](./F13-reward-configuration.md), [F15](./F15-choosing-the-currency.md), [F19](./F19-one-person-one-number.md), [F21](./F21-amounts-that-fit-the-currency.md), [F27](./F27-the-store-and-its-games.md), [F31](./F31-claiming-at-the-counter.md) |
-| **Amends** | — |
+| **Amends** | [F09](./F09-admin-modules.md) §9 |
 | **Agreed on** | 2026-11-19 |
 
 ## 1. Summary
@@ -205,6 +205,16 @@ a browser does not know which zone that is, so a page asking for "the last
 endpoint takes `days` as well, the half that holds the timezone works the
 dates out, and the module sends only that.
 
+**Corrected while building: the tab strip wraps.** F09 planned the admin at
+375px around three tabs on one line, and said that at six the navigation
+would become a decision of its own. R22 makes it six, and six do not fit a
+phone: the strip measured 441px in a 393px viewport, which the admin's own
+end-to-end check caught. Of the two ways out, a strip that scrolls sideways
+hides whichever tabs fall off the edge — an admin who cannot see Stats does
+not go looking for it — so it wraps to two rows instead. F09 §9 is what
+survives unchanged, and is the rule that matters: no module scrolls sideways.
+A seventh tab is still where grouping has to happen.
+
 ## 9. Interface
 
 ### Admin view
@@ -312,6 +322,10 @@ days, the unpriced count, and a quiet day as a row of zeros.
 against zero and R4's absence on the losing item; `StoreModule.test.tsx`
 covers the average basket, including that emptying it clears the figure.
 `npm run typecheck` and `npm run lint` are clean.
+
+`npm run test:e2e` — 150 tests, run on the user's word. It is what found the
+tab strip above: `admin.spec.ts`'s "fits the viewport with no horizontal
+scroll" failed at 393px with six tabs, and passes with the strip wrapping.
 
 **Not looked at in a browser.** Every screen here is behind the admin login,
 and the account's password is not this session's to type. So R29 — the
