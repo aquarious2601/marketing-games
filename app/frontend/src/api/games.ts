@@ -17,6 +17,8 @@ export interface GameSummary {
   defaultTagline: string
   /** F27 R29. Null means no limit. */
   dailyLimit: number | null
+  /** F30 R1. One of the themes below; never null and never inherited. */
+  theme: string
   linkKey: string
   /**
    * F27 R41. The path, not the whole URL.
@@ -41,10 +43,18 @@ export interface GameTypeOption {
   label: string
 }
 
+/** F30 R14. The themes a game may be, named in the admin's language. */
+export interface ThemeOption {
+  value: string
+  label: string
+}
+
 export interface GamesIndex {
   games: GameSummary[]
   /** F27 R39: the kinds a new game may be, named in the admin's language. */
   types: GameTypeOption[]
+  /** F30 R14: and the looks one may wear. */
+  themes: ThemeOption[]
   maxDailyLimit: number
 }
 
@@ -59,6 +69,8 @@ export interface GameSubmission {
   name: string
   tagline: string | null
   dailyLimit: number | null
+  /** F30 R1. Always sent; an empty value is read as `plain`. */
+  theme: string
 }
 
 export async function fetchGames(options?: RequestOptions): Promise<GamesIndex> {

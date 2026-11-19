@@ -1,6 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { signIn } from './auth'
-import { DEFAULT_PRIZES, restoreDefaultWheel, rewardId, rewardIdsByName } from './wheel'
+import {
+  DEFAULT_PRIZES,
+  restoreDefaultWheel,
+  rewardId,
+  rewardIdsByName,
+  theGame,
+  wheelUri,
+} from './wheel'
 
 /**
  * F01 in a real browser, against the real API and a real database.
@@ -17,6 +24,11 @@ function rewardField(page: Page, index: number) {
 
 function probabilityField(page: Page, index: number) {
   return page.getByTestId('prize-row').nth(index).getByLabel(/percentage$/i)
+}
+
+/** F27 R40: a wheel is a game's, so its page is the game's page. */
+async function openGame(page: Page, request: APIRequestContext): Promise<void> {
+  await page.goto(`/admin/games/${(await theGame(request)).id}`)
 }
 
 /**
@@ -43,12 +55,14 @@ test.beforeEach(async ({ page, request }) => {
 })
 
 test.describe('the admin wheel page', () => {
-  test.beforeEach(async ({ page }) => {
-    // `/admin` rather than `/admin/game`, deliberately: F09 R3 says the old
-    // URL still opens the Game module, and this is the spec that proves the
-    // redirect works in a real browser.
+  test.beforeEach(async ({ page, request }) => {
+    // `/admin` first, deliberately: F27 R36 moved the front door to the
+    // Games module, and this is the spec that proves it in a real browser.
+    // The prizes are a game's now, so the wheel is reached through one.
     await page.goto('/admin')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Game')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Games')
+
+    await openGame(page, request)
     await expect(page.getByTestId('prize-row').first()).toBeVisible()
   })
 
@@ -87,7 +101,7 @@ test.describe('the admin wheel page', () => {
 
   /** F01 R14 — the frontend palette must agree with the backend's */
   test('colours the slices exactly as the API says', async ({ page, request }) => {
-    const configuration = await (await request.get('/api/admin/wheel')).json()
+    const configuration = await (await request.get(await wheelUri(request))).json()
 
     const rendered = await page
       .getByTestId('wheel-slice')
@@ -196,8 +210,8 @@ test.describe('saving', () => {
   })
 
   /** F26 R1: what a slice gives is the only thing on it left to change. */
-  test('persists a changed reward across a reload', async ({ page }) => {
-    await page.goto('/admin')
+  test('persists a changed reward across a reload', async ({ page, request }) => {
+    await openGame(page, request)
     await rewardField(page, 1).selectOption({ label: 'Free gift' })
     const chosen = await rewardField(page, 1).inputValue()
 
@@ -210,8 +224,8 @@ test.describe('saving', () => {
   })
 
   /** F01 R7 — order survives, and the reorder clears the unique constraint */
-  test('persists a reorder', async ({ page }) => {
-    await page.goto('/admin')
+  test('persists a reorder', async ({ page, request }) => {
+    await openGame(page, request)
 
     // Rows 1 and 2, not 0 and 1: the losing slice holds position one and
     // cannot be moved off it (F14 R5), so its ↓ is deliberately disabled.
@@ -231,8 +245,8 @@ test.describe('saving', () => {
     await expect(rewardField(page, 2)).toHaveValue(secondReward)
   })
 
-  test('persists a removed prize', async ({ page }) => {
-    await page.goto('/admin')
+  test('persists a removed prize', async ({ page, request }) => {
+    await openGame(page, request)
 
     // The second row: removing the first would take the losing slice and
     // the toggle with it (F14 R6), which is a different test.
@@ -261,7 +275,7 @@ test.describe('the wheel API', () => {
     const catalogue = await rewardIdsByName(request)
     const free = rewardId(catalogue, 'Free gift')
 
-    const response = await request.put('/api/admin/wheel', {
+    const response = await request.put(await wheelUri(request), {
       data: {
         prizes: [
           { name: 'A', probability: 60, rewardId: free },
@@ -278,13 +292,13 @@ test.describe('the wheel API', () => {
   })
 
   test('leaves the stored wheel untouched when a save is rejected', async ({ request }) => {
-    const before = await (await request.get('/api/admin/wheel')).json()
+    const before = await (await request.get(await wheelUri(request))).json()
 
-    await request.put('/api/admin/wheel', {
+    await request.put(await wheelUri(request), {
       data: { prizes: [{ probability: 100 }] },
     })
 
-    const after = await (await request.get('/api/admin/wheel')).json()
+    const after = await (await request.get(await wheelUri(request))).json()
     expect(after.prizes).toEqual(before.prizes)
   })
 })

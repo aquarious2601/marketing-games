@@ -10,12 +10,14 @@ import { identifyPlayer } from './player'
  */
 
 const ADMIN_ROUTES = [
-  { method: 'GET', path: '/api/admin/wheel' },
-  { method: 'PUT', path: '/api/admin/wheel' },
-  { method: 'GET', path: '/api/admin/branding' },
-  { method: 'PUT', path: '/api/admin/branding' },
-  { method: 'POST', path: '/api/admin/branding/logo' },
-  { method: 'DELETE', path: '/api/admin/branding/logo' },
+  // F27: the shop is /store and a wheel hangs off its game. These are
+  // the paths a signed-out client must still be refused.
+  { method: 'GET', path: '/api/admin/games' },
+  { method: 'POST', path: '/api/admin/games' },
+  { method: 'GET', path: '/api/admin/store' },
+  { method: 'PUT', path: '/api/admin/store' },
+  { method: 'POST', path: '/api/admin/store/logo' },
+  { method: 'DELETE', path: '/api/admin/store/logo' },
 ] as const
 
 test.describe('a stranger', () => {
@@ -79,8 +81,8 @@ test.describe('once signed in', () => {
   test('the admin API opens up', async ({ request }) => {
     await signIn(request)
 
-    expect((await request.get('/api/admin/wheel')).status()).toBe(200)
-    expect((await request.get('/api/admin/branding')).status()).toBe(200)
+    expect((await request.get('/api/admin/games')).status()).toBe(200)
+    expect((await request.get('/api/admin/store')).status()).toBe(200)
   })
 
   /** F07 R15 */
@@ -110,12 +112,12 @@ test.describe('once signed in', () => {
   /** F07 R14 */
   test('signing out closes the admin again', async ({ request }) => {
     await signIn(request)
-    expect((await request.get('/api/admin/wheel')).status()).toBe(200)
+    expect((await request.get('/api/admin/games')).status()).toBe(200)
 
     const loggedOut = await request.post('/api/logout')
     expect(loggedOut.status()).toBe(204)
 
     expect((await request.get('/api/me')).status()).toBe(401)
-    expect((await request.get('/api/admin/wheel')).status()).toBe(401)
+    expect((await request.get('/api/admin/games')).status()).toBe(401)
   })
 })

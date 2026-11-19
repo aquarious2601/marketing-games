@@ -31,8 +31,17 @@ async function spinAndWait(page: Page) {
 test.describe('the player page', () => {
   test.beforeEach(async ({ page }) => {
     await identifyPlayer(page.request)
+
+    /*
+     * Read rather than hard-coded. Before F27 the heading fell back to
+     * "Spin to win" (F04 R24); now it is the game's own name, and asserting
+     * one literal here would make this spec depend on whatever another file
+     * last saved (P01 R5).
+     */
+    const { branding } = await (await page.request.get('/api/wheel')).json()
+
     await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Spin to win')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(branding.campaignName)
     await expect(page.getByTestId('wheel-preview')).toBeVisible()
   })
 
@@ -138,7 +147,7 @@ test.describe('the player page', () => {
   test('hands over to the next player after a result', async ({ page }) => {
     await spinAndWait(page)
 
-    await expect(page.getByTestId('next-player-button')).toHaveText('Next player')
+    await expect(page.getByTestId('next-player-button')).toHaveText('Next customer')
     // F10 R8: absent, not disabled.
     await expect(spinButton(page)).toHaveCount(0)
 

@@ -15,6 +15,12 @@ const saveGameMock = vi.mocked(saveGame)
 
 const DEFAULT_TAGLINE = 'One spin, one prize. Good luck.'
 
+const THEMES = [
+  { value: 'plain', label: 'Plain' },
+  { value: 'christmas', label: 'Christmas' },
+  { value: 'halloween', label: 'Halloween' },
+]
+
 function game(overrides: Partial<GameSummary> = {}): GameSummary {
   return {
     id: 1,
@@ -25,6 +31,8 @@ function game(overrides: Partial<GameSummary> = {}): GameSummary {
     // F27 R29: no limit, which is every game until an admin sets one.
     dailyLimit: null,
     linkKey: 'q7mfd2xkbnrt',
+    // F30 R1, R9: a game starts plain.
+    theme: 'plain',
     playPath: '/play/q7mfd2xkbnrt',
     isLive: true,
     plays: 0,
@@ -43,7 +51,12 @@ function renderSettings(overrides: Partial<GameSummary> = {}) {
 
   render(
     <I18nProvider>
-      <GameSettings game={game(overrides)} maxDailyLimit={99} onSaved={() => {}} />
+      <GameSettings
+        game={game(overrides)}
+        maxDailyLimit={99}
+        themes={THEMES}
+        onSaved={() => {}}
+      />
     </I18nProvider>,
   )
 
@@ -53,6 +66,7 @@ function renderSettings(overrides: Partial<GameSummary> = {}) {
 const nameField = () => screen.getByLabelText(/^name$/i)
 const taglineField = () => screen.getByLabelText(/^tagline$/i)
 const limitField = () => screen.getByLabelText(/plays per person per day/i)
+const themeField = () => screen.getByLabelText(/^theme$/i)
 const saveButton = () => screen.getByTestId('save-game')
 
 describe('the game itself', () => {
@@ -89,6 +103,7 @@ describe('the game itself', () => {
         name: 'Noel',
         tagline: 'Spin for a treat!',
         dailyLimit: 2,
+        theme: 'plain',
       }),
     )
   })
@@ -171,5 +186,64 @@ describe('the daily limit', () => {
 
     expect(screen.getByText(/counts the person, not the phone/i)).toBeInTheDocument()
     expect(screen.getByText(/each game counts its own/i)).toBeInTheDocument()
+  })
+})
+
+/** F30 R14: the theme is edited here, with the promotion's other fields. */
+describe('the theme', () => {
+  it("opens on the game's own", async () => {
+    renderSettings({ theme: 'christmas' })
+
+    expect(themeField()).toHaveValue('christmas')
+  })
+
+  it('offers the themes the server sent', async () => {
+    renderSettings()
+
+    const options = Array.from(themeField().querySelectorAll('option')).map((o) => o.textContent)
+
+    expect(options).toEqual(['Plain', 'Christmas', 'Halloween'])
+  })
+
+  it('is sent on save', async () => {
+    const user = renderSettings()
+
+    await user.selectOptions(themeField(), 'halloween')
+    await user.click(saveButton())
+
+    await waitFor(() =>
+      expect(saveGameMock).toHaveBeenCalledWith(1, {
+        name: 'Test campaign',
+        tagline: null,
+        dailyLimit: null,
+        theme: 'halloween',
+      }),
+    )
+  })
+
+  /** Nothing else on this form has changed, so the Save must still wake up. */
+  it('makes the form dirty on its own', async () => {
+    const user = renderSettings()
+
+    expect(saveButton()).toBeDisabled()
+
+    await user.selectOptions(themeField(), 'christmas')
+
+    expect(saveButton()).toBeEnabled()
+  })
+
+  /**
+   * F30 R9. Plain is a theme somebody chose, not an absence: the editor
+   * offers it like any other and the server stores it.
+   */
+  it('can be set back to plain', async () => {
+    const user = renderSettings({ theme: 'christmas' })
+
+    await user.selectOptions(themeField(), 'plain')
+    await user.click(saveButton())
+
+    await waitFor(() =>
+      expect(saveGameMock).toHaveBeenCalledWith(1, expect.objectContaining({ theme: 'plain' })),
+    )
   })
 })

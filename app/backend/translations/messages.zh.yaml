@@ -13,7 +13,7 @@ auth:
 player:
     details_invalid: '这些信息无法使用。'
     spin_requires_identity: '请先告诉我们您是谁，然后再转动转盘。'
-    spin_already_used: '您已经转过一次了。请按“下一位玩家”把手机传给下一个人。'
+    spin_already_used: '您已经转过一次了。请按“下一位顾客”把手机传给下一个人。'
     spin_limit_reached: '您今天已经玩过了，明天再来吧。'
     no_game: '本页需要摊位上的链接。'
     phone_required: '请输入您的手机号码。'

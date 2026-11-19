@@ -1,42 +1,99 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { signIn } from './auth'
 import { identifyPlayer } from './player'
+import { theGame } from './wheel'
 
 /**
- * F04 in a real browser.
+ * F04 in a real browser, as F27 and F30 left it.
  *
- * Everything here writes to the shared branding record, so each test puts it
- * back afterwards. Without that, a campaign name left behind would break the
- * player spec's assertion that the heading reads "Spin to win".
+ * The shop's identity and the promotion's look are now two records: the
+ * company name and the logo are the store's, and the name, the phrase and
+ * the theme are the game's. Everything here writes to one of them, so each
+ * test puts both back afterwards — without that, a name left behind would
+ * break the player spec's assertion about the heading.
  */
 
 /** A real 1×1 PNG. No GD needed, and no fixture file to keep in step. */
 const ONE_PIXEL_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
+/**
+ * The `background` token of each theme in `src/branding/themes.ts`, which is
+ * the one place that decides them. Copied rather than imported: the e2e
+ * project does not compile src/, and the palette itself is already guarded
+ * by themes.test.ts — what this file is for is proving the chosen one
+ * actually reaches the page.
+ */
 const THEME_BACKGROUNDS: Record<string, string> = {
   plain: 'rgb(248, 250, 252)',
   'black-friday': 'rgb(11, 11, 12)',
-  christmas: 'rgb(11, 61, 46)',
-  'new-year': 'rgb(11, 20, 55)',
-  halloween: 'rgb(26, 11, 46)',
+  christmas: 'rgb(10, 62, 46)',
+  'new-year': 'rgb(10, 19, 53)',
+  halloween: 'rgb(25, 10, 44)',
   birthday: 'rgb(253, 242, 248)',
 }
+
+/** What the player spec expects to find, and therefore what to restore to. */
+const DEFAULT_GAME_NAME = 'Spin to win'
 
 function pngUpload(name = 'logo.png') {
   return { name, mimeType: 'image/png', buffer: Buffer.from(ONE_PIXEL_PNG, 'base64') }
 }
 
-async function resetBranding(request: APIRequestContext) {
-  await request.delete('/api/admin/branding/logo')
-  await request.put('/api/admin/branding', {
-    data: { companyName: '', campaignName: '', theme: 'plain' },
+/** F30 R1: the theme is the game's, so putting it back means saving a game. */
+async function setGame(
+  request: APIRequestContext,
+  fields: { name?: string; theme?: string },
+): Promise<void> {
+  const game = await theGame(request)
+
+  const response = await request.put(`/api/admin/games/${game.id}`, {
+    data: { name: fields.name ?? DEFAULT_GAME_NAME, theme: fields.theme ?? 'plain' },
   })
+
+  /*
+   * Checked, because a refusal here is silent and lands on the assertion
+   * instead: a game's name is required since F27 R39, and a save sent
+   * without one looked exactly like a theme that would not paint.
+   */
+  if (!response.ok()) {
+    throw new Error(`The suite could not save the game (${response.status()}).`)
+  }
 }
 
-async function openAdmin(page: Page) {
-  await page.goto('/admin')
-  await expect(page.getByTestId('branding-section')).toBeVisible()
+async function resetBranding(request: APIRequestContext) {
+  await request.delete('/api/admin/store/logo')
+  await request.put('/api/admin/store', { data: { companyName: '' } })
+  await setGame(request, {})
+}
+
+async function openStore(page: Page) {
+  await page.goto('/admin/store')
+  await expect(page.getByTestId('store-section')).toBeVisible()
+}
+
+async function openGame(page: Page, request: APIRequestContext) {
+  await page.goto(`/admin/games/${(await theGame(request)).id}`)
+  await expect(page.getByTestId('game-settings')).toBeVisible()
+}
+
+/** F27 R20: a game is played at its own link. */
+async function openPlayerPage(page: Page, request: APIRequestContext) {
+  await page.goto(`/play/${(await theGame(request)).linkKey}`)
+}
+
+/**
+ * Opens the game's link and identifies there, in that order.
+ *
+ * F27 R28: opening a link releases whoever was identified for the last
+ * game, so identifying first and opening afterwards leaves the page asking
+ * for a phone number — which is what the themed screens are behind (F08
+ * R16). The reload is what picks the identity up.
+ */
+async function playTheGame(page: Page, request: APIRequestContext) {
+  await openPlayerPage(page, request)
+  await identifyPlayer(page.request)
+  await page.reload()
 }
 
 /**
@@ -56,8 +113,9 @@ test.afterEach(async ({ request }) => {
 })
 
 test.describe('configuring the branding', () => {
-  test('shows every theme', async ({ page }) => {
-    await openAdmin(page)
+  /** F04 R7, F30 R14 — the picker is the game's now */
+  test('shows every theme', async ({ page, request }) => {
+    await openGame(page, request)
 
     const labels = await page
       .getByLabel('Theme', { exact: true })
@@ -74,29 +132,46 @@ test.describe('configuring the branding', () => {
     ])
   })
 
-  test('saves the names and theme, and the player sees them', async ({ page }) => {
-    await openAdmin(page)
+  /** F30 R15 — and it is no longer the store's */
+  test('offers no theme on the store', async ({ page }) => {
+    await openStore(page)
+
+    await expect(page.getByLabel('Theme', { exact: true })).toHaveCount(0)
+  })
+
+  test('saves the company name, and the player sees it', async ({ page, request }) => {
+    await openStore(page)
 
     await page.getByLabel('Company name').fill('AA Store')
-    await page.getByLabel('Campaign name').fill('Black Friday Giveaway')
-    await page.getByLabel('Theme', { exact: true }).selectOption('black-friday')
-    await page.getByTestId('save-branding').click()
+    await page.getByTestId('save-store').click()
 
     await expect(page.getByText('Saved')).toBeVisible()
 
-    await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Black Friday Giveaway')
+    await openPlayerPage(page, request)
     await expect(page.getByTestId('player-company')).toHaveText('AA Store')
+  })
+
+  test('saves the game name and theme, and the player sees them', async ({ page, request }) => {
+    await openGame(page, request)
+
+    await page.getByLabel('Name', { exact: true }).fill('Black Friday Giveaway')
+    await page.getByLabel('Theme', { exact: true }).selectOption('black-friday')
+    await page.getByTestId('save-game').click()
+
+    await expect(page.getByText('Saved')).toBeVisible()
+
+    await openPlayerPage(page, request)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Black Friday Giveaway')
     await expect(page.getByTestId('player-screen')).toHaveAttribute('data-theme', 'black-friday')
   })
 
-  /** F04 R5 — the two saves are independent */
-  test('saving branding leaves the prizes alone', async ({ page }) => {
-    await openAdmin(page)
+  /** F04 R5, F27 R40 — the two saves are independent */
+  test('saving the game leaves the prizes alone', async ({ page, request }) => {
+    await openGame(page, request)
     const before = await page.getByTestId('prize-row').count()
 
-    await page.getByLabel('Company name').fill('AA Store')
-    await page.getByTestId('save-branding').click()
+    await page.getByLabel('Theme', { exact: true }).selectOption('christmas')
+    await page.getByTestId('save-game').click()
     await expect(page.getByText('Saved')).toBeVisible()
 
     await page.reload()
@@ -105,31 +180,26 @@ test.describe('configuring the branding', () => {
 
   /** F04 R27 — the admin is never dressed up */
   test('leaves the admin page unthemed', async ({ page, request }) => {
-    await request.put('/api/admin/branding', {
-      data: { companyName: 'AA Store', campaignName: 'Noel', theme: 'halloween' },
-    })
+    await request.put('/api/admin/store', { data: { companyName: 'AA Store' } })
+    await setGame(request, { name: 'Noel', theme: 'halloween' })
 
-    await openAdmin(page)
+    await openGame(page, request)
 
     await expect(page.getByTestId('player-screen')).toHaveCount(0)
     // F09: the module's name is the h1 now; "Wheel prizes" is a section
     // heading within it.
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Game')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Noel')
   })
 })
 
 test.describe('the themes on the player page', () => {
   for (const [theme, background] of Object.entries(THEME_BACKGROUNDS)) {
     test(`paints the page for ${theme}`, async ({ page, request }) => {
-      await request.put('/api/admin/branding', {
-        data: { companyName: '', campaignName: '', theme },
-      })
+      await setGame(request, { theme })
 
       // F08 R16: nothing past the phone-number step exists until the
       // server knows who is playing, and the themed screen is past it.
-      await identifyPlayer(page.request)
-
-      await page.goto('/')
+      await playTheGame(page, request)
       await expect(page.getByTestId('wheel-preview')).toBeVisible()
 
       const painted = await page
@@ -144,15 +214,12 @@ test.describe('the themes on the player page', () => {
   test('leaves the slice colours identical across themes', async ({ page, request }) => {
     const colours: Record<string, (string | undefined)[]> = {}
 
-    // F08 R16, as above.
-    await identifyPlayer(page.request)
-
     for (const theme of ['plain', 'halloween']) {
-      await request.put('/api/admin/branding', {
-        data: { companyName: '', campaignName: '', theme },
-      })
+      await setGame(request, { theme })
 
-      await page.goto('/')
+      // F08 R16, as above. Inside the loop because each open re-binds the
+      // session to this game, which is harmless once it is already bound.
+      await playTheGame(page, request)
       await expect(page.getByTestId('wheel-preview')).toBeVisible()
 
       colours[theme] = await page
@@ -164,17 +231,18 @@ test.describe('the themes on the player page', () => {
   })
 })
 
+/** F27 R10: the logo is the shop's, so it stayed in the Store module. */
 test.describe('the logo', () => {
-  test('uploads, shows on the player page, then removes', async ({ page }) => {
+  test('uploads, shows on the player page, then removes', async ({ page, request }) => {
     // F08 R16: the player page shows the branding only once it knows who
     // is playing.
     await identifyPlayer(page.request)
-    await openAdmin(page)
+    await openStore(page)
 
     await page.getByLabel('Logo', { exact: true }).setInputFiles(pngUpload())
     await expect(page.getByTestId('current-logo')).toBeVisible()
 
-    await page.goto('/')
+    await openPlayerPage(page, request)
     const logo = page.getByTestId('player-logo')
     await expect(logo).toBeVisible()
 
@@ -185,15 +253,15 @@ test.describe('the logo', () => {
     expect(response.headers()['content-type']).toBe('image/png')
     expect(response.headers()['x-content-type-options']).toBe('nosniff')
 
-    await openAdmin(page)
+    await openStore(page)
     // Scoped: every prize row has a "Remove <prize>" button too.
     await page
-      .getByTestId('branding-section')
+      .getByTestId('store-section')
       .getByRole('button', { name: 'Remove logo', exact: true })
       .click()
     await expect(page.getByTestId('current-logo')).toHaveCount(0)
 
-    await page.goto('/')
+    await openPlayerPage(page, request)
     await expect(page.getByTestId('player-logo')).toHaveCount(0)
   })
 
@@ -204,7 +272,7 @@ test.describe('the logo', () => {
    * the whole point of the rule, so it is what gets uploaded.
    */
   test('accepts an SVG, strips the script in it, and says what it removed', async ({ page }) => {
-    await openAdmin(page)
+    await openStore(page)
 
     await page.getByLabel('Logo', { exact: true }).setInputFiles({
       name: 'logo.svg',
@@ -227,7 +295,7 @@ test.describe('the logo', () => {
     expect(await served.text()).not.toContain('<script')
 
     await page
-      .getByTestId('branding-section')
+      .getByTestId('store-section')
       .getByRole('button', { name: 'Remove logo', exact: true })
       .click()
     await expect(page.getByTestId('current-logo')).toHaveCount(0)
@@ -235,7 +303,7 @@ test.describe('the logo', () => {
 
   /** F04 R16 */
   test('refuses a text file renamed to .png', async ({ page }) => {
-    await openAdmin(page)
+    await openStore(page)
 
     await page.getByLabel('Logo', { exact: true }).setInputFiles({
       name: 'logo.png',
@@ -249,10 +317,11 @@ test.describe('the logo', () => {
 })
 
 test.describe('the branding API', () => {
-  /** F04 R12 */
+  /** F04 R12, F30 R5 — the game refuses it now */
   test('rejects an unknown theme', async ({ request }) => {
-    const response = await request.put('/api/admin/branding', {
-      data: { companyName: '', campaignName: '', theme: 'easter' },
+    const game = await theGame(request)
+    const response = await request.put(`/api/admin/games/${game.id}`, {
+      data: { name: DEFAULT_GAME_NAME, theme: 'easter' },
     })
 
     expect(response.status()).toBe(422)
@@ -260,8 +329,8 @@ test.describe('the branding API', () => {
   })
 
   test('rejects a name over sixty characters', async ({ request }) => {
-    const response = await request.put('/api/admin/branding', {
-      data: { companyName: 'a'.repeat(61), campaignName: '', theme: 'plain' },
+    const response = await request.put('/api/admin/store', {
+      data: { companyName: 'a'.repeat(61) },
     })
 
     expect(response.status()).toBe(422)

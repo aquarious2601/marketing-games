@@ -26,15 +26,6 @@ const uploadMock = vi.mocked(uploadLogo)
 const removeMock = vi.mocked(removeLogo)
 
 
-const THEMES = [
-  { value: 'plain', label: 'Plain' },
-  { value: 'black-friday', label: 'Black Friday' },
-  { value: 'christmas', label: 'Christmas' },
-  { value: 'new-year', label: 'New Year' },
-  { value: 'halloween', label: 'Halloween' },
-  { value: 'birthday', label: 'Happy Birthday' },
-]
-
 /** F15 R1, R14: the list the server sends, symbols and all. */
 const CURRENCIES = [
   { value: 'VND', label: 'VND', symbol: '₫' },
@@ -53,13 +44,11 @@ function branding(overrides: Partial<AdminStore> = {}): AdminStore {
     language: null,
     // F27 R15: never null. The upgrade seeded it from APP_TIMEZONE.
     timezone: 'Europe/Paris',
-    theme: 'plain',
     currency: 'VND',
     currencySymbol: '₫',
     ownCurrency: 'VND',
     defaultCurrency: 'VND',
     logoUrl: null,
-    themes: THEMES,
     currencies: CURRENCIES,
     ...overrides,
   }
@@ -86,31 +75,20 @@ async function renderSection(initial?: Partial<AdminStore>) {
 }
 
 const companyField = () => screen.getByLabelText(/company name/i)
-const themeField = () => screen.getByLabelText(/^theme$/i)
 const saveButton = () => screen.getByTestId('save-store')
 
 describe('loading', () => {
   it('shows the stored values', async () => {
-    await renderSection({ companyName: 'AA Store', theme: 'christmas' })
+    await renderSection({ companyName: 'AA Store' })
 
     expect(companyField()).toHaveValue('AA Store')
-    expect(themeField()).toHaveValue('christmas')
   })
 
-  /** F04 R7 */
-  it('offers every theme the server knows about', async () => {
+  /** F30 R15: the theme is the game's, and its picker went with it. */
+  it('offers no theme picker', async () => {
     await renderSection()
 
-    const options = Array.from(themeField().querySelectorAll('option')).map((o) => o.textContent)
-
-    expect(options).toEqual([
-      'Plain',
-      'Black Friday',
-      'Christmas',
-      'New Year',
-      'Halloween',
-      'Happy Birthday',
-    ])
+    expect(screen.queryByLabelText(/^theme$/i)).not.toBeInTheDocument()
   })
 
   it('offers a retry when the store cannot be loaded', async () => {
@@ -144,18 +122,20 @@ describe('saving', () => {
     expect(saveButton()).toBeEnabled()
   })
 
-  it('sends the company name, the theme, the currency, the language and the clock', async () => {
-    saveMock.mockResolvedValue(branding({ companyName: 'AA Store', theme: 'halloween' }))
+  /**
+     * F30 R2: and no theme. The exact object is the assertion — a theme
+     * creeping back into this payload would fail here.
+     */
+  it('sends the company name, the currency, the language and the clock', async () => {
+    saveMock.mockResolvedValue(branding({ companyName: 'AA Store' }))
     const user = await renderSection()
 
     await user.type(companyField(), 'AA Store')
-    await user.selectOptions(themeField(), 'halloween')
     await user.click(saveButton())
 
     await waitFor(() =>
       expect(saveMock).toHaveBeenCalledWith({
         companyName: 'AA Store',
-        theme: 'halloween',
         // F15 R10: the currency travels with the rest of the store.
         currency: 'VND',
         // F27 R17: null, because nothing is chosen and the browser decides.

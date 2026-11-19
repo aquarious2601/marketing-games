@@ -13,7 +13,7 @@ auth:
 player:
     details_invalid: "Ces informations n'ont pas pu être utilisées."
     spin_requires_identity: 'Dites-nous qui vous êtes avant de tourner la roue.'
-    spin_already_used: 'Vous avez déjà tourné la roue. Appuyez sur Joueur suivant pour passer le téléphone.'
+    spin_already_used: 'Vous avez déjà tourné la roue. Appuyez sur Client suivant pour passer le téléphone.'
     spin_limit_reached: "Vous avez déjà joué aujourd'hui. Revenez demain."
     no_game: 'Cette page a besoin du lien affiché sur le stand.'
     phone_required: 'Saisissez votre numéro de téléphone.'

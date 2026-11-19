@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Branding\Theme;
 use App\Game\GameType;
 use App\Game\LinkKey;
 use App\Repository\GameRepository;
@@ -14,8 +15,10 @@ use Doctrine\ORM\Mapping as ORM;
  * person may play it, and its own link.
  *
  * Everything a game shows but does not decide — the company name, the logo,
- * the currency, the theme, the clock — belongs to the Store, because a shop
- * types those once and runs many promotions with them (F27 R10).
+ * the currency, the clock — belongs to the Store, because a shop types those
+ * once and runs many promotions with them (F27 R10). The theme is not one of
+ * them: it is the promotion's card rather than the business's identity, and
+ * F30 moved it here.
  *
  * The entity is shared rather than one game type's, since every type has
  * exactly this row. What differs between types hangs off it: a Wheel for
@@ -62,6 +65,14 @@ class Game
      */
     #[ORM\Column(name: 'daily_limit', type: 'smallint', nullable: true)]
     private ?int $dailyLimit = null;
+
+    /**
+     * F30 R1. Not null and not inherited: a new game starts plain (R9)
+     * rather than at whatever the last one chose, because a quiet
+     * inheritance would be the store's theme back under another name.
+     */
+    #[ORM\Column(length: 20, options: ['default' => 'plain'])]
+    private string $theme = Theme::Plain->value;
 
     /**
      * Minted once and never changed (F27 R21), so a printed poster survives
@@ -154,6 +165,18 @@ class Game
     public function setDailyLimit(?int $limit): void
     {
         $this->dailyLimit = $limit;
+        $this->touch();
+    }
+
+    /** F04 R8: never hands back something the frontend cannot render. */
+    public function getTheme(): Theme
+    {
+        return Theme::fromStored($this->theme);
+    }
+
+    public function setTheme(Theme $theme): void
+    {
+        $this->theme = $theme->value;
         $this->touch();
     }
 

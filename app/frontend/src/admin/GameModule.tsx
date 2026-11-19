@@ -23,7 +23,12 @@ import {
 import { WheelPreview, type PreviewSlice } from '../games/wheel/WheelPreview'
 import { fetchRewards, type Reward } from '../api/rewards'
 import { useT } from '../i18n/I18nContext'
-import { fetchGame, fetchGames, type GameSummary } from '../api/games'
+import {
+  fetchGame,
+  fetchGames,
+  type GameSummary,
+  type ThemeOption,
+} from '../api/games'
 import { GiftEditor } from '../games/gift-sheet/GiftEditor'
 import { GameSettings } from './GameSettings'
 import { PrizeRow } from '../games/wheel/PrizeRow'
@@ -57,6 +62,8 @@ export function GameModule() {
   const gameId = Number(id)
   const [game, setGame] = useState<GameSummary | null>(null)
   const [maxDailyLimit, setMaxDailyLimit] = useState(99)
+  // F30 R14: the list the theme picker is built from.
+  const [themes, setThemes] = useState<ThemeOption[]>([])
   const [load, setLoad] = useState<LoadState>({ phase: 'loading' })
   const [drafts, setDrafts] = useState<DraftPrize[]>([])
   const [saved, setSaved] = useState<DraftPrize[]>([])
@@ -123,6 +130,7 @@ export function GameModule() {
         // state here to fill in.
         setGame(loadedGame)
         setMaxDailyLimit(index.maxDailyLimit)
+        setThemes(index.themes)
         setLoad({ phase: 'ready' })
 
         return
@@ -137,6 +145,7 @@ export function GameModule() {
 
       setGame(loadedGame)
       setMaxDailyLimit(index.maxDailyLimit)
+      setThemes(index.themes)
       setDrafts(initial)
       setSaved(initial)
       setLosing(configuration.includesLosingSlice)
@@ -274,7 +283,12 @@ export function GameModule() {
 
       {/* Saved separately from the prizes (F04 R5, F27 R40). */}
       {game !== null && (
-        <GameSettings game={game} maxDailyLimit={maxDailyLimit} onSaved={setGame} />
+        <GameSettings
+          game={game}
+          maxDailyLimit={maxDailyLimit}
+          themes={themes}
+          onSaved={setGame}
+        />
       )}
 
       {/*

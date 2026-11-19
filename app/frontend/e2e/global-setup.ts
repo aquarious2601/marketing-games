@@ -22,6 +22,22 @@ export default function globalSetup(): void {
   console_(['doctrine:schema:update', '--force', '--complete'])
 
   seedAdmin()
+  seedTheInstallation()
+}
+
+/**
+ * The store, its reward catalogue and its one live wheel game (F27 R32).
+ *
+ * `schema:update` builds tables and nothing else, and since F27 the suite
+ * needs rows: every admin path for a game hangs off a game's id, and the
+ * player page is reached through a game's link. The upgrade command is what
+ * creates them, so this runs it rather than inventing a second seeding path
+ * that could drift from the one a real installation takes.
+ */
+function seedTheInstallation(): void {
+  console_(['app:upgrade-database'])
+
+  console.log('[e2e] seeded the store, the catalogue and one live wheel game')
 }
 
 /**

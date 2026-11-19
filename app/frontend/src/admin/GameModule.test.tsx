@@ -35,6 +35,8 @@ const GAME = {
   defaultTagline: 'One spin, one prize. Good luck.',
   dailyLimit: null,
   linkKey: 'q7mfd2xkbnrt',
+  // F30 R1, R9: a game starts plain.
+  theme: 'plain',
   playPath: '/play/q7mfd2xkbnrt',
   isLive: true,
   plays: 0,
@@ -106,7 +108,15 @@ beforeEach(() => {
   fetchGameMock.mockReset()
   fetchGamesMock.mockReset()
   fetchGameMock.mockResolvedValue(GAME)
-  fetchGamesMock.mockResolvedValue({ games: [GAME], types: [{ value: 'wheel', label: 'Prize wheel' }], maxDailyLimit: 99 })
+  fetchGamesMock.mockResolvedValue({
+    games: [GAME],
+    types: [{ value: 'wheel', label: 'Prize wheel' }],
+    themes: [
+      { value: 'plain', label: 'Plain' },
+      { value: 'christmas', label: 'Christmas' },
+    ],
+    maxDailyLimit: 99,
+  })
 })
 
 /**

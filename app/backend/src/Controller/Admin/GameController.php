@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Admin;
 
+use App\Branding\Theme;
 use App\Dto\Violation;
 use App\Entity\Game;
 use App\Game\GameReadiness;
@@ -54,6 +55,17 @@ final class GameController extends AbstractController
                     'label' => $this->translator->trans('game.type_'.str_replace('-', '_', $type->value)),
                 ],
                 GameType::cases(),
+            ),
+            // F30 R14. The list the editor's picker is built from, moved
+            // here with the picker itself.
+            // F12 R9: the application's own words for each theme, in the
+            // admin's language. What the admin *typed* is never translated.
+            'themes' => array_map(
+                fn (Theme $theme): array => [
+                    'value' => $theme->value,
+                    'label' => $this->translator->trans($theme->labelKey()),
+                ],
+                Theme::cases(),
             ),
             'maxDailyLimit' => Game::MAX_DAILY_LIMIT,
         ]);
@@ -122,6 +134,7 @@ final class GameController extends AbstractController
         $name = $this->readName($payload, $violations);
         $tagline = $this->readTagline($payload, $violations);
         $limit = $this->readDailyLimit($payload, $violations);
+        $theme = $this->readTheme($payload, $violations);
 
         /*
          * F27 R5. A payload naming a different type is refused rather than
@@ -139,6 +152,7 @@ final class GameController extends AbstractController
         $game->setName($name);
         $game->setTagline($tagline);
         $game->setDailyLimit($limit);
+        $game->setTheme($theme ?? Theme::Plain);
 
         $this->entityManager->flush();
 
@@ -200,6 +214,8 @@ final class GameController extends AbstractController
             'ownTagline' => $game->getOwnTagline(),
             'defaultTagline' => $this->translator->trans($game->defaultTaglineKey()),
             'dailyLimit' => $game->getDailyLimit(),
+            // F30 R1
+            'theme' => $game->getTheme()->value,
             'linkKey' => $game->getLinkKey(),
             // F27 R41: the path, which the page turns into the whole URL
             // with its own origin.
@@ -223,6 +239,39 @@ final class GameController extends AbstractController
     private function playPath(Game $game): string
     {
         return '/play/'.$game->getLinkKey();
+    }
+
+    /**
+     * F30 R1, section 10. Absent, null or empty means `plain`: an empty select
+     * is not a choice of a theme that does not exist. This is the store's
+     * reader, moved here with the field.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     */
+    private function readTheme(array $payload, array &$violations): ?Theme
+    {
+        /** @var mixed $value */
+        $value = $payload['theme'] ?? null;
+
+        if (null === $value || '' === $value) {
+            return Theme::Plain;
+        }
+
+        // F04 R12: an unrecognised theme is rejected on the way in. The
+        // forgiving fallback is only for values already in the database.
+        $theme = \is_string($value) ? Theme::tryFrom($value) : null;
+
+        if (null === $theme) {
+            $violations[] = new Violation(
+                'theme',
+                $this->translator->trans('branding.choose_one_of', [
+                    '%values%' => implode(', ', array_map(static fn (Theme $t): string => $t->value, Theme::cases())),
+                ]),
+            );
+        }
+
+        return $theme;
     }
 
     /** @param array<mixed> $payload */

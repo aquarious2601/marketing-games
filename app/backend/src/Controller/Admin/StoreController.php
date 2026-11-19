@@ -9,7 +9,6 @@ use App\Store\StoreProvider;
 use App\Branding\LogoRejected;
 use App\Branding\LogoStore;
 use App\Branding\Currency;
-use App\Branding\Theme;
 use App\Dto\Violation;
 use App\Entity\Store;
 use Doctrine\ORM\EntityManagerInterface;
@@ -54,17 +53,8 @@ final class StoreController extends AbstractController
 
         return new JsonResponse([
             ...$this->presenter->present($store),
-            // The admin needs the list to build its selector; the player
-            // never asks for it.
-            // F12 R9: the application's own words for each theme, in the
-            // admin's language. What the admin *typed* is never translated.
-            'themes' => array_map(
-                fn (Theme $theme): array => [
-                    'value' => $theme->value,
-                    'label' => $this->translator->trans($theme->labelKey()),
-                ],
-                Theme::cases(),
-            ),
+            // F30 R15: no themes here. The list went with the picker, to
+            // the game's editor, and the player never asked for it.
             // F13 R27: the codes and their symbols, so the selector needs
             // no table of its own.
             'currencies' => Currency::all(),
@@ -104,7 +94,6 @@ final class StoreController extends AbstractController
         $violations = [];
 
         $companyName = $this->readName($payload, 'companyName', $violations);
-        $theme = $this->readTheme($payload, $violations);
         $currency = $this->readCurrency($payload, $violations);
         $language = $this->readLanguage($payload, $violations);
         $timezone = $this->readTimezone($payload, $violations);
@@ -115,8 +104,11 @@ final class StoreController extends AbstractController
 
         $store = $this->provider->getOrCreate();
         $store->setCompanyName($companyName);
-        $store->setTheme($theme ?? Theme::Plain);
         $store->setLanguage($language);
+
+        // F30 §8: a theme in this payload is ignored, not refused. An admin
+        // tab opened before the move must not fail a save of the company
+        // name over a field this endpoint no longer owns.
 
         // F27 R15: absent leaves the clock alone, like the currency below.
         // A request that forgot the field must not move the shop's day.
@@ -124,9 +116,8 @@ final class StoreController extends AbstractController
             $store->setTimezone($timezone);
         }
 
-        // F13 R27: absent leaves it alone, unlike the theme, which resets to
-        // Plain. The difference is deliberate — a theme is a look somebody
-        // chose today, a currency is a fact about the shop.
+        // F13 R27: absent leaves it alone. A currency is a fact about the
+        // shop, and a request that forgot the field must not unset one.
         if (null !== $currency) {
             $store->setCurrency($currency);
         }
@@ -328,34 +319,6 @@ final class StoreController extends AbstractController
         );
 
         return null;
-    }
-
-    /**
-     * @param array<mixed>    $payload
-     * @param list<Violation> $violations
-     */
-    private function readTheme(array $payload, array &$violations): ?Theme
-    {
-        $value = $payload['theme'] ?? null;
-
-        if (null === $value) {
-            return Theme::Plain;
-        }
-
-        // F04 R12: an unrecognised theme is rejected on the way in. The
-        // forgiving fallback is only for values already in the database.
-        $theme = \is_string($value) ? Theme::tryFrom($value) : null;
-
-        if (null === $theme) {
-            $violations[] = new Violation(
-                'theme',
-                $this->translator->trans('branding.choose_one_of', [
-                    '%values%' => implode(', ', array_map(static fn (Theme $t): string => $t->value, Theme::cases())),
-                ]),
-            );
-        }
-
-        return $theme;
     }
 
     /**

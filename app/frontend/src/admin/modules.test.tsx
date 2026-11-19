@@ -130,7 +130,12 @@ beforeEach(() => {
   fetchSessionMock.mockResolvedValue({ id: 1, username: 'tester' })
   fetchWheelMock.mockResolvedValue(WHEEL)
   fetchStoreMock.mockResolvedValue(STORE)
-  fetchGamesMock.mockResolvedValue({ games: [], types: [{ value: 'wheel', label: 'Prize wheel' }], maxDailyLimit: 99 })
+  fetchGamesMock.mockResolvedValue({
+    games: [],
+    types: [{ value: 'wheel', label: 'Prize wheel' }],
+    themes: [{ value: 'plain', label: 'Plain' }],
+    maxDailyLimit: 99,
+  })
   fetchPlayersMock.mockResolvedValue({ players: [PLAYER], total: 1 })
   fetchSpinLogMock.mockResolvedValue({ spins: [SPIN], total: 1, games: [{ id: 1, name: 'Test campaign' }] })
 })

@@ -137,6 +137,20 @@ final class GameControllerTest extends DatabaseWebTestCase
         self::assertSame('type', $this->decodeResponse()['error']['violations'][0]['field']);
     }
 
+    /**
+     * F04 R7, F30 R14. The whole list, in the admin's own order: the picker
+     * is built from this and nothing else.
+     */
+    public function testItOffersExactlyTheseThemes(): void
+    {
+        $this->client->request('GET', self::URI);
+
+        self::assertSame(
+            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
+            array_column($this->decodeResponse()['themes'], 'value'),
+        );
+    }
+
     // ----------------------------------------------------------- editing one
 
     /** F27 R40 */
@@ -223,6 +237,82 @@ final class GameControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::URI.'/9999');
 
         self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    /** F30 R9. A game is plain until somebody says otherwise. */
+    public function testANewGameIsPlain(): void
+    {
+        $this->post(self::URI, ['name' => 'Black Friday', 'type' => 'wheel']);
+
+        self::assertSame('plain', $this->decodeResponse()['theme']);
+    }
+
+    /** F30 R1 */
+    public function testItSavesTheTheme(): void
+    {
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => 'christmas']);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('christmas', $this->decodeResponse()['theme']);
+
+        $this->client->request('GET', self::URI.'/'.$this->gameId());
+        self::assertSame('christmas', $this->decodeResponse()['theme']);
+    }
+
+    /**
+     * F30 R3. Plain is a theme somebody chose, not an absence, so it has to
+     * be storable over something else.
+     */
+    public function testItSavesPlainOverAnotherTheme(): void
+    {
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => 'christmas']);
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => 'plain']);
+
+        self::assertSame('plain', $this->decodeResponse()['theme']);
+    }
+
+    /** F30 section 10: an empty select is not a choice of a theme. */
+    public function testAnEmptyOrAbsentThemeIsPlain(): void
+    {
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => 'christmas']);
+
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => '']);
+        self::assertSame('plain', $this->decodeResponse()['theme']);
+
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => 'christmas']);
+
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel']);
+        self::assertSame('plain', $this->decodeResponse()['theme']);
+    }
+
+    /** F04 R12, F30 R5 */
+    public function testItRejectsAnUnknownTheme(): void
+    {
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => 'easter']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertSame('theme', $this->decodeResponse()['error']['violations'][0]['field']);
+
+        $this->client->request('GET', self::URI.'/'.$this->gameId());
+        self::assertSame('plain', $this->decodeResponse()['theme'], 'Nothing should have been stored.');
+    }
+
+    /**
+     * F30 R2. Two games, two looks: the whole point of the move, and the one
+     * thing a store-wide theme could not do.
+     */
+    public function testEachGameKeepsItsOwnTheme(): void
+    {
+        $this->post(self::URI, ['name' => 'Gift sheet', 'type' => 'gift-sheet']);
+        $second = $this->decodeResponse()['id'];
+
+        $this->put(self::URI.'/'.$this->gameId(), ['name' => 'Noel', 'theme' => 'christmas']);
+        $this->put(self::URI.'/'.$second, ['name' => 'Gift sheet', 'theme' => 'halloween']);
+
+        $this->client->request('GET', self::URI);
+        $themes = array_column($this->decodeResponse()['games'], 'theme', 'name');
+
+        self::assertSame(['Noel' => 'christmas', 'Gift sheet' => 'halloween'], $themes);
     }
 
     // ------------------------------------------------------- live, or not

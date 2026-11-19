@@ -81,8 +81,10 @@ final class PlayerControllerTest extends DatabaseWebTestCase
          * player page reads one header and has no use for the distinction.
          */
         self::assertSame(
-            // F13 R28 adds the shop's currency and its symbol.
-            ['companyName', 'theme', 'currency', 'currencySymbol', 'logoUrl', 'campaignName', 'tagline'],
+            // F13 R28 adds the shop's currency and its symbol; F30
+            // moved the theme down beside the game's own fields, which is
+            // where it now comes from.
+            ['companyName', 'currency', 'currencySymbol', 'logoUrl', 'theme', 'campaignName', 'tagline'],
             array_keys($store),
         );
         self::assertSame('One spin, one prize. Good luck.', $store['tagline']);
@@ -100,8 +102,19 @@ final class PlayerControllerTest extends DatabaseWebTestCase
             'PUT',
             '/api/admin/store',
             server: ['CONTENT_TYPE' => 'application/json'],
+            content: json_encode(['companyName' => 'AA Store'], \JSON_THROW_ON_ERROR),
+        );
+        self::assertResponseIsSuccessful();
+
+        // F30 R2: the theme is saved on the game, by the game's own
+        // endpoint. Through the API rather than the entity, because the
+        // point of this test is the whole way round.
+        $this->client->request(
+            'PUT',
+            '/api/admin/games/'.$this->game->getId(),
+            server: ['CONTENT_TYPE' => 'application/json'],
             content: json_encode(
-                ['companyName' => 'AA Store', 'theme' => 'christmas'],
+                ['name' => 'Test campaign', 'theme' => 'christmas'],
                 \JSON_THROW_ON_ERROR,
             ),
         );

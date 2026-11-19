@@ -54,48 +54,16 @@ final class StoreControllerTest extends DatabaseWebTestCase
         $store = $this->decodeResponse();
 
         self::assertNull($store['companyName']);
-        self::assertSame('plain', $store['theme']);
         self::assertNull($store['logoUrl']);
-    }
-
-    /** F04 R7 */
-    public function testItOffersExactlyTheseThemes(): void
-    {
-        $this->client->request('GET', self::URI);
-
-        $values = array_column($this->decodeResponse()['themes'], 'value');
-
-        self::assertSame(
-            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
-            $values,
-        );
-    }
-
-    // ------------------------------------------------------------- saving
-
-    public function testItSavesTheCompanyNameAndTheTheme(): void
-    {
-        $this->put(self::URI, [
-            'companyName' => 'AA Store',
-            'theme' => 'black-friday',
-        ]);
-
-        self::assertResponseIsSuccessful();
-
-        $this->client->request('GET', self::URI);
-        $store = $this->decodeResponse();
-
-        self::assertSame('AA Store', $store['companyName']);
-        self::assertSame('black-friday', $store['theme']);
+        // F30 R2: the store has no theme, and does not pretend to.
+        self::assertArrayNotHasKey('theme', $store);
+        self::assertArrayNotHasKey('themes', $store);
     }
 
     /** F04 R2, R3 — trimmed, and empty means unset */
     public function testItTrimsTheCompanyNameAndStoresBlankAsUnset(): void
     {
-        $this->put(self::URI, [
-            'companyName' => '   AA Store   ',
-            'theme' => 'plain',
-        ]);
+        $this->put(self::URI, ['companyName' => '   AA Store   ']);
 
         self::assertResponseIsSuccessful();
 
@@ -106,11 +74,10 @@ final class StoreControllerTest extends DatabaseWebTestCase
     /** F04 R4 */
     public function testItAcceptsAStoreWithNoCompanyNameAtAll(): void
     {
-        $this->put(self::URI, ['theme' => 'christmas']);
+        $this->put(self::URI, []);
 
         self::assertResponseIsSuccessful();
         self::assertNull($this->decodeResponse()['companyName']);
-        self::assertSame('christmas', $this->decodeResponse()['theme']);
     }
 
     // ------------------------------------------------------------ tagline
@@ -118,20 +85,9 @@ final class StoreControllerTest extends DatabaseWebTestCase
         /** F04 R12 */
     // ------------------------------------------- F23: spins per day
 
-    public function testItRejectsAnUnknownTheme(): void
-    {
-        $this->put(self::URI, ['theme' => 'easter']);
-
-        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
-        self::assertSame('theme', $this->decodeResponse()['error']['violations'][0]['field']);
-
-        $this->client->request('GET', self::URI);
-        self::assertSame('plain', $this->decodeResponse()['theme'], 'Nothing should have been stored.');
-    }
-
     public function testItRejectsANameOverSixtyCharacters(): void
     {
-        $this->put(self::URI, ['companyName' => str_repeat('a', 61), 'theme' => 'plain']);
+        $this->put(self::URI, ['companyName' => str_repeat('a', 61)]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertStringContainsString('60', $this->decodeResponse()['error']['violations'][0]['message']);
@@ -139,7 +95,7 @@ final class StoreControllerTest extends DatabaseWebTestCase
 
     public function testItAcceptsANameOfExactlySixtyCharacters(): void
     {
-        $this->put(self::URI, ['companyName' => str_repeat('a', 60), 'theme' => 'plain']);
+        $this->put(self::URI, ['companyName' => str_repeat('a', 60)]);
 
         self::assertResponseIsSuccessful();
     }
@@ -147,7 +103,7 @@ final class StoreControllerTest extends DatabaseWebTestCase
     /** F04 R6 — stored verbatim; escaping is the renderer's job */
     public function testItStoresANameContainingMarkupVerbatim(): void
     {
-        $this->put(self::URI, ['companyName' => '<script>alert(1)</script>', 'theme' => 'plain']);
+        $this->put(self::URI, ['companyName' => '<script>alert(1)</script>']);
 
         self::assertResponseIsSuccessful();
         self::assertSame('<script>alert(1)</script>', $this->decodeResponse()['companyName']);
@@ -159,7 +115,7 @@ final class StoreControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', $this->wheelUri());
         $before = array_column($this->decodeResponse()['prizes'], 'name');
 
-        $this->put(self::URI, ['companyName' => 'AA Store', 'theme' => 'halloween']);
+        $this->put(self::URI, ['companyName' => 'AA Store']);
         self::assertResponseIsSuccessful();
 
         $this->client->request('GET', $this->wheelUri());
@@ -168,7 +124,7 @@ final class StoreControllerTest extends DatabaseWebTestCase
 
     public function testSavingPrizesLeavesTheBrandingAlone(): void
     {
-        $this->put(self::URI, ['companyName' => 'AA Store', 'theme' => 'halloween']);
+        $this->put(self::URI, ['companyName' => 'AA Store']);
 
         $this->client->request('GET', $this->wheelUri());
         $prizes = array_map(
@@ -185,7 +141,6 @@ final class StoreControllerTest extends DatabaseWebTestCase
 
         $this->client->request('GET', self::URI);
         self::assertSame('AA Store', $this->decodeResponse()['companyName']);
-        self::assertSame('halloween', $this->decodeResponse()['theme']);
     }
 
     // --------------------------------------------------------------- logo

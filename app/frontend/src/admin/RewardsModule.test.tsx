@@ -67,11 +67,9 @@ function branding(overrides: Partial<AdminStore> = {}): AdminStore {
     companyName: null,
     language: null,
     timezone: 'Europe/Paris',
-    theme: 'plain',
     currency: 'VND',
     currencySymbol: '₫',
     logoUrl: null,
-    themes: [{ value: 'plain', label: 'Plain' }],
     currencies: [
       { value: 'VND', label: 'VND', symbol: '₫' },
       { value: 'EUR', label: 'EUR', symbol: '€' },
