@@ -154,7 +154,6 @@ final class CurrencyChoiceTest extends DatabaseWebTestCase
             'companyName' => '',
             'campaignName' => '',
             'tagline' => '',
-            'theme' => 'plain',
             ...$changes,
         ]);
     }

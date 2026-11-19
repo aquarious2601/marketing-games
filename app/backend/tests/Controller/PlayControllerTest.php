@@ -38,7 +38,7 @@ final class PlayControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', $this->playUri());
 
         self::assertSame(
-            ['companyName', 'theme', 'currency', 'currencySymbol', 'logoUrl', 'campaignName', 'tagline'],
+            ['companyName', 'currency', 'currencySymbol', 'logoUrl', 'theme', 'campaignName', 'tagline'],
             array_keys($this->decodeResponse()['branding']),
         );
     }

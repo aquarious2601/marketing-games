@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ApiValidationError, type ApiViolation } from '../api/client'
-import { saveGame, type GameSummary } from '../api/games'
+import { saveGame, type GameSummary, type ThemeOption } from '../api/games'
 import { useT } from '../i18n/I18nContext'
 
 interface Draft {
@@ -12,6 +12,7 @@ interface Draft {
    * represent that. The conversion happens once, on the way out.
    */
   dailyLimit: string
+  theme: string
 }
 
 /**
@@ -25,10 +26,12 @@ interface Draft {
 export function GameSettings({
   game,
   maxDailyLimit,
+  themes,
   onSaved,
 }: {
   game: GameSummary
   maxDailyLimit: number
+  themes: ThemeOption[]
   onSaved: (game: GameSummary) => void
 }) {
   const t = useT()
@@ -39,6 +42,7 @@ export function GameSettings({
     // back to it (F04 R29).
     tagline: game.ownTagline ?? '',
     dailyLimit: game.dailyLimit === null ? '' : String(game.dailyLimit),
+    theme: game.theme,
   }
 
   const [draft, setDraft] = useState<Draft>(initial)
@@ -51,7 +55,8 @@ export function GameSettings({
   const dirty =
     draft.name !== saved.name ||
     draft.tagline !== saved.tagline ||
-    draft.dailyLimit !== saved.dailyLimit
+    draft.dailyLimit !== saved.dailyLimit ||
+    draft.theme !== saved.theme
 
   const change = (patch: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...patch }))
@@ -78,6 +83,7 @@ export function GameSettings({
         name: draft.name,
         tagline: '' === draft.tagline.trim() ? null : draft.tagline,
         dailyLimit: '' === limit ? null : Number(limit),
+        theme: draft.theme,
       })
 
       setSaved(draft)
@@ -180,6 +186,34 @@ export function GameSettings({
           <p className="mt-1 text-xs text-slate-500">
             {t('game.taglineHint', { default: game.defaultTagline })}
           </p>
+        )}
+      </div>
+
+      {/* F30 R14. With the name, the tagline and the limit, because a
+          theme is this promotion's look and not the shop's identity. */}
+      <div className="mt-4 sm:w-1/2 sm:pr-2">
+        <label htmlFor="game-theme" className={labelClass}>
+          {t('game.theme')}
+        </label>
+        <select
+          id="game-theme"
+          value={draft.theme}
+          onChange={(event) => change({ theme: event.target.value })}
+          className={`${inputClass} bg-white`}
+          data-testid="game-theme"
+        >
+          {themes.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {violationFor('theme') !== undefined ? (
+          <p role="alert" className="mt-1 text-xs text-rose-600">
+            {violationFor('theme')}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-slate-500">{t('game.themeHint')}</p>
         )}
       </div>
 

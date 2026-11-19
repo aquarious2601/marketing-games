@@ -671,6 +671,147 @@ final class DatabaseUpgradeTest extends KernelTestCase
         );
     }
 
+    // ------------------------------------------------ F30: the game's theme
+
+    /**
+     * F30 R10. The shop's theme becomes every game's, so an upgraded
+     * installation looks exactly as it did the moment before.
+     */
+    public function testItGivesEachGameTheShopsTheme(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->insert('branding', [
+            'company_name' => 'Korean Cosmetics',
+            'theme' => 'christmas',
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        $this->upgrade()->run();
+
+        $column = $this->columnOf('game', 'theme');
+
+        self::assertNotNull($column, 'The column was not added.');
+        self::assertTrue($column->getNotnull(), 'A game always has a theme (R1).');
+        self::assertSame(
+            'christmas',
+            $this->connection->fetchOne('SELECT theme FROM game'),
+            "the game did not inherit the shop's theme",
+        );
+        self::assertNull(
+            $this->columnOf('store', 'theme'),
+            'the theme stayed on the shop as well as moving to the game (R11)',
+        );
+    }
+
+    /** F30 R13. Nothing configured, nothing to inherit, and still plain. */
+    public function testAFreshInstallationStartsPlain(): void
+    {
+        $this->upgrade()->run();
+
+        self::assertSame(
+            'plain',
+            $this->connection->fetchOne('SELECT theme FROM game'),
+        );
+        self::assertNull($this->columnOf('store', 'theme'));
+    }
+
+    /**
+     * P02 R2, F30 R12. Running it twice is running it once — and in
+     * particular does not reset a theme an admin chose after the upgrade.
+     */
+    public function testASecondRunLeavesTheThemesAlone(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->insert('branding', [
+            'theme' => 'christmas',
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        $this->upgrade()->run();
+        $this->connection->executeStatement("UPDATE game SET theme = 'halloween'");
+        $this->upgrade()->run();
+
+        self::assertSame(
+            'halloween',
+            $this->connection->fetchOne('SELECT theme FROM game'),
+            "the second run overwrote the admin's choice",
+        );
+    }
+
+    /** P02 section 8, F30 R12: a dry run reports the plan and writes nothing. */
+    public function testADryRunLeavesTheThemeWhereItWas(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->insert('branding', [
+            'theme' => 'christmas',
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        $this->upgrade()->run(true);
+
+        self::assertNull($this->columnOf('game', 'theme'), 'the dry run added a column');
+        self::assertSame(
+            'christmas',
+            $this->connection->fetchOne('SELECT theme FROM branding'),
+            'the dry run moved the theme',
+        );
+    }
+
+    /**
+     * Both halves of the move are in the plan. The drop is waiting on a
+     * column the dry run did not add, and a plan that leaves it out
+     * undercounts the work by one.
+     */
+    public function testADryRunNamesBothHalvesOfTheMove(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->insert('branding', [
+            'theme' => 'christmas',
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        $changing = array_values(array_map(
+            static fn (UpgradeStep $step): string => $step->name,
+            array_filter($this->upgrade()->run(true), static fn (UpgradeStep $step): bool => $step->changed),
+        ));
+
+        self::assertContains('each game carries its own theme', $changing);
+        self::assertContains('the store keeps no theme', $changing);
+    }
+
+    /**
+     * F30 R11. A run that stops between the two steps leaves a database
+     * that still works: the games have their themes and the shop has a
+     * column nobody reads. The next run finishes the job.
+     */
+    public function testItFinishesAThemeMoveThatStoppedHalfWay(): void
+    {
+        $this->givenTheDefaultWheel();
+        $this->connection->insert('branding', [
+            'theme' => 'christmas',
+            'updated_at' => '2026-11-15 00:44:23',
+        ]);
+
+        $this->upgrade()->run();
+
+        // Put the shop's column back, as a run interrupted before the drop
+        // would have left it, and point it somewhere else so the test can
+        // tell which of the two the second run believes.
+        $this->connection->executeStatement(
+            "ALTER TABLE store ADD theme VARCHAR(20) DEFAULT 'plain' NOT NULL",
+        );
+        $this->connection->executeStatement("UPDATE store SET theme = 'halloween'");
+
+        $this->upgrade()->run();
+
+        self::assertNull($this->columnOf('store', 'theme'), 'the second run did not drop it');
+        self::assertSame(
+            'christmas',
+            $this->connection->fetchOne('SELECT theme FROM game'),
+            'the second run re-read a column the first had already used',
+        );
+    }
+
     // --------------------------------------------- P02 R22-R25: the phone tail
 
     /** P02 R22, R25 */

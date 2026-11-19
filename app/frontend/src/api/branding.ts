@@ -9,7 +9,6 @@ import { apiDelete, apiGet, apiPut, apiUpload, type RequestOptions } from './cli
  */
 export interface StoreBranding {
   companyName: string | null
-  theme: string
   /**
    * F13 R27, R28. The code and its symbol travel together, so neither the
    * admin nor the player page needs its own table of symbols.
@@ -28,14 +27,15 @@ export interface StoreBranding {
  * in it, which is the shape this payload has always had (F27 R11).
  */
 export interface Branding extends StoreBranding {
+  /**
+   * F30 R3, R6. The game's, which is the only place a theme is configured.
+   * It arrives in the field it always arrived in; only the question it
+   * answers changed, from what the shop chose to what this game chose.
+   */
+  theme: string
   campaignName: string
   /** The effective phrase: the admin's, or the game type's default. */
   tagline: string
-}
-
-export interface ThemeOption {
-  value: string
-  label: string
 }
 
 export interface CurrencyOption {
@@ -46,7 +46,6 @@ export interface CurrencyOption {
 
 /** The Store module's payload (F27 R37). */
 export interface AdminStore extends StoreBranding {
-  themes: ThemeOption[]
   /** F13 R27: the currencies a shop may be counted in. */
   currencies: CurrencyOption[]
   /** F15 R4: the chosen currency, or null while nobody has chosen. */
@@ -69,7 +68,6 @@ export interface LogoUpload extends StoreBranding {
 
 export interface StoreSubmission {
   companyName: string
-  theme: string
   /** F15 R10. Omitted leaves the shop's currency alone (F13 R27). */
   currency?: string
   /** F27 R17. Null means "let the browser decide". */

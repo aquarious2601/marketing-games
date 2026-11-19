@@ -17,7 +17,6 @@ type LoadPhase = 'loading' | 'ready' | 'failed'
 
 interface Draft {
   companyName: string
-  theme: string
   /** F15 R10: the shop's currency, edited here as well as in Rewards. */
   currency: string
   /** F27 R17. Empty means no choice, and the browser decides. */
@@ -42,7 +41,6 @@ export function StoreModule() {
   const [store, setStore] = useState<AdminStore | null>(null)
   const [draft, setDraft] = useState<Draft>({
     companyName: '',
-    theme: 'plain',
     currency: '',
     language: '',
     timezone: '',
@@ -70,7 +68,6 @@ export function StoreModule() {
 
       const next: Draft = {
         companyName: loaded.companyName ?? '',
-        theme: loaded.theme,
         // F15 R8: the *effective* currency. There is no "no currency" to
         // offer — the picker must open on something, and what the admin's
         // language suggests is the best guess the server can make while
@@ -104,7 +101,6 @@ export function StoreModule() {
 
   const dirty =
     draft.companyName !== saved.companyName ||
-    draft.theme !== saved.theme ||
     draft.currency !== saved.currency ||
     draft.language !== saved.language ||
     draft.timezone !== saved.timezone
@@ -238,28 +234,8 @@ export function StoreModule() {
             onChange={(companyName) => change({ companyName })}
           />
 
-          <div>
-            <label htmlFor="theme" className={labelClass}>
-              {t('store.theme')}
-            </label>
-            <select
-              id="theme"
-              value={draft.theme}
-              onChange={(event) => change({ theme: event.target.value })}
-              className={`${inputClass} bg-white`}
-            >
-              {store.themes.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {violationFor('theme') !== undefined && (
-              <p role="alert" className="mt-1 text-xs text-rose-600">
-                {violationFor('theme')}
-              </p>
-            )}
-          </div>
+          {/* F30 R15. The theme's picker went to the game's editor with
+              the theme itself: what is left here is the business. */}
         </div>
 
         {/* F15 R10. Here as well as in the reward editor: the editor is where

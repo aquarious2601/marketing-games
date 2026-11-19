@@ -3,10 +3,10 @@
 | | |
 |---|---|
 | **ID** | F30 |
-| **Status** | Draft |
+| **Status** | Agreed |
 | **Interface** | Both |
 | **Depends on** | [P02](./P02-database-upgrades.md), [F04](./F04-branding-and-themes.md), [F06](./F06-theme-scenes.md), [F27](./F27-the-store-and-its-games.md), [F28](./F28-the-gift-sheet.md) |
-| **Agreed on** | — |
+| **Agreed on** | 2026-11-19 |
 | **Amends** | [F04](./F04-branding-and-themes.md) R1, R22, [F27](./F27-the-store-and-its-games.md) R2, R10, R13 |
 
 ## 1. Summary
@@ -169,34 +169,40 @@ Nothing new. One select in a form that already stacks at 375px.
 
 ## 11. Acceptance criteria
 
-- [ ] Given two live games with different themes, when each link is opened,
+- [x] Given two live games with different themes, when each link is opened,
       then each page draws its own game's theme.
-- [ ] Given a game's theme is changed, when its page is reloaded, then it
+- [x] Given a game's theme is changed, when its page is reloaded, then it
       draws the new one and the other game is unchanged.
-- [ ] Given a game set to `plain` and another to `christmas`, then the plain
+- [x] Given a game set to `plain` and another to `christmas`, then the plain
       one is plain.
-- [ ] Given a new game, then its theme is `plain`.
-- [ ] Given a request setting a game's theme to a name not on the list, then
+- [x] Given a new game, then its theme is `plain`.
+- [x] Given a request setting a game's theme to a name not on the list, then
       the answer is `422` and nothing is stored.
-- [ ] Given a game, then the scene drawn is that game's theme's scene.
-- [ ] Given the store's payload, then it carries no theme, and the Store
+- [x] Given a game, then the scene drawn is that game's theme's scene.
+- [x] Given the store's payload, then it carries no theme, and the Store
       module shows no theme picker.
-- [ ] Given a payload with a theme sent to the store, then the save succeeds
+- [x] Given a payload with a theme sent to the store, then the save succeeds
       and no theme is stored.
-- [ ] Given a database whose store theme is `christmas` and one game, when
+- [x] Given a database whose store theme is `christmas` and one game, when
       the upgrade runs, then that game's theme is `christmas` and its page
       looks exactly as it did.
-- [ ] Given the upgrade runs twice, then the second run reports both steps
+- [x] Given the upgrade runs twice, then the second run reports both steps
       done and changes nothing.
-- [ ] Given a dry run, then both steps are named and the database is
+- [x] Given a dry run, then both steps are named and the database is
       untouched.
-- [ ] Given the upgrade has run, then `doctrine:schema:update --dump-sql`
+- [x] Given the upgrade has run, then `doctrine:schema:update --dump-sql`
       reports nothing to update.
-- [ ] Given every theme, then the contrast test passes for it on a game as it
+- [x] Given every theme, then the contrast test passes for it on a game as it
       did on the store.
-- [ ] The four fast suites pass.
+- [x] The four fast suites pass.
 - [ ] Checked by hand: a wheel and a gift sheet with different themes, each
       on a phone at 375px, and the Store module with no picker in it.
+
+**Half of that last one is done.** Both of the development store's games were
+opened at 375px with different themes: the wheel drew `birthday` with its
+balloons and the gift sheet drew `halloween` with its bats, over the same
+logo and the same company name. The Store module was not looked at, because
+reaching it means signing in and the admin's password is not mine to type.
 
 ## 12. Open questions
 

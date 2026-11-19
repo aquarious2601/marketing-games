@@ -121,6 +121,8 @@ final class DatabaseUpgrade
             $this->dropWhatMovedToTheGame($dryRun),
             $this->createGiftTable($dryRun),
             $this->addSheetToSpins($dryRun),
+            $this->giveEachGameItsTheme($dryRun),
+            $this->dropStoreTheme($dryRun),
         ];
     }
 
@@ -1692,6 +1694,90 @@ final class DatabaseUpgrade
             sprintf('drop %s', implode(', ', $moved)),
             sprintf('dropped %s', implode(', ', $moved)),
         ));
+    }
+
+    /**
+     * F30 R10. The theme becomes the game's, and every game that exists
+     * already gets the store's current one.
+     *
+     * Filled from the store rather than left at the default, because the one
+     * game a shop has is the one the store's theme was chosen for: the point
+     * of this step is that nothing looks different the moment it runs.
+     */
+    private function giveEachGameItsTheme(bool $dryRun): UpgradeStep
+    {
+        $name = 'each game carries its own theme';
+
+        if (!$this->tableExists('game')) {
+            return UpgradeStep::done($name, 'would add it (the game table does not exist yet)');
+        }
+
+        if ($this->columnExists('game', 'theme')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        $shop = $this->shopTable();
+        $inherited = !$this->columnExists($shop, 'theme')
+            ? null
+            : $this->connection->fetchOne('SELECT theme FROM '.$shop.' ORDER BY id LIMIT 1');
+        $theme = \is_string($inherited) && '' !== $inherited ? $inherited : 'plain';
+
+        if ($dryRun) {
+            return UpgradeStep::done($name, sprintf('would add it and set every game to %s', $theme));
+        }
+
+        $this->connection->executeStatement(
+            "ALTER TABLE game ADD theme VARCHAR(20) DEFAULT 'plain' NOT NULL"
+        );
+
+        $rows = (int) $this->connection->executeStatement(
+            'UPDATE game SET theme = :theme',
+            ['theme' => $theme],
+        );
+
+        return UpgradeStep::done($name, sprintf('added it and set %d game(s) to %s', $rows, $theme));
+    }
+
+    /**
+     * F30 R2, R11. The store stops having a theme.
+     *
+     * After the step above and never before it: a run that stops in between
+     * leaves a database that still works, with the games holding their themes
+     * and the store holding a column nobody reads. The other way round would
+     * lose the shop's choice.
+     */
+    private function dropStoreTheme(bool $dryRun): UpgradeStep
+    {
+        $name = 'the store keeps no theme';
+        $shop = $this->shopTable();
+
+        if (!$this->tableExists($shop)) {
+            return UpgradeStep::skipped($name, 'there is no store table');
+        }
+
+        if (!$this->columnExists($shop, 'theme')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$this->columnExists('game', 'theme')) {
+            /*
+             * A dry run writes nothing, so the step above has not added the
+             * column it is waiting for. Reporting a skip here would make the
+             * plan undercount by one, and a plan that is wrong about itself
+             * is worse than no plan (P02 section 8).
+             */
+            if ($dryRun) {
+                return UpgradeStep::done($name, 'would drop it, after the step above');
+            }
+
+            return UpgradeStep::skipped($name, 'no game carries one yet');
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement('ALTER TABLE '.$shop.' DROP theme');
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'drop it', 'dropped it'));
     }
 
     /**

@@ -25,9 +25,11 @@ final class BrandingPresenter
     }
 
     /**
+     * F30: no theme here. The store has none — a theme is the promotion's,
+     * and the only caller that wants one has a game to ask.
+     *
      * @return array{
      *     companyName: string|null,
-     *     theme: string,
      *     currency: string,
      *     currencySymbol: string,
      *     logoUrl: string|null
@@ -39,7 +41,6 @@ final class BrandingPresenter
 
         return [
             'companyName' => $store->getCompanyName(),
-            'theme' => $store->getTheme()->value,
             // F13 R28: the symbol travels with the code so neither the admin
             // nor the player page has to carry its own table of them.
             // F15 R5: the effective one — the admin's choice, or what this
@@ -60,10 +61,10 @@ final class BrandingPresenter
      *
      * @return array{
      *     companyName: string|null,
-     *     theme: string,
      *     currency: string,
      *     currencySymbol: string,
      *     logoUrl: string|null,
+     *     theme: string,
      *     campaignName: string,
      *     tagline: string
      * }
@@ -72,6 +73,10 @@ final class BrandingPresenter
     {
         return [
             ...$this->present($store),
+            // F30 R3, R6: the game's theme, in the one field the page has
+            // always read it from. The payload keeps its shape; only the
+            // question it answers changed.
+            'theme' => $game->getTheme()->value,
             'campaignName' => $game->getName(),
             // F12 R11: the admin's phrase as they typed it, or ours
             // translated. The page should never have to know which.

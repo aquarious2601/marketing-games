@@ -104,7 +104,6 @@ export const vi: Record<MessageKey, string> = {
 
   'store.title': 'Cửa hàng',
   'store.companyName': 'Tên cửa hàng',
-  'store.theme': 'Giao diện',
   'store.currencyHint': 'Đơn vị tính của mọi phần thưởng giảm theo số tiền. Đổi đơn vị chỉ đổi nhãn, không quy đổi số tiền.',
   'store.logo': 'Logo',
   'store.currentLogo': 'Logo hiện tại',
@@ -240,6 +239,8 @@ export const vi: Record<MessageKey, string> = {
   'game.nameHint': 'Hiển thị làm tiêu đề trên trang người chơi.',
   'game.tagline': 'Khẩu hiệu',
   'game.taglineHint': 'Để trống để dùng “%default%”.',
+  'game.theme': 'Giao diện',
+  'game.themeHint': 'Màu sắc của trang trò chơi này. Mỗi trò chơi có giao diện riêng.',
   'game.dailyLimit': 'Số lượt mỗi người mỗi ngày',
   'game.dailyLimitBlank': 'Không giới hạn',
   'game.dailyLimitHint': 'Một người được chơi trò này bao nhiêu lượt trong ngày. Để trống nếu không giới hạn. Tính theo người, không theo điện thoại, và mỗi trò chơi tính riêng.',

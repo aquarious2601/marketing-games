@@ -131,7 +131,6 @@ export const en = {
   // -- Branding -------------------------------------------------------
   'store.title': 'Store',
   'store.companyName': 'Company name',
-  'store.theme': 'Theme',
   'store.currencyHint': 'What every amount-off reward is counted in. Changing it relabels the amounts; it does not convert them.',
   'store.logo': 'Logo',
   'store.currentLogo': 'Current logo',
@@ -277,6 +276,8 @@ export const en = {
   'game.nameHint': 'Shown as the heading on the player page.',
   'game.tagline': 'Tagline',
   'game.taglineHint': 'Leave blank to use “%default%”.',
+  'game.theme': 'Theme',
+  'game.themeHint': "The colours of this game's own page. Each game has its own.",
   'game.dailyLimit': 'Plays per person per day',
   'game.dailyLimitBlank': 'No limit',
   'game.dailyLimitHint': 'How many times one person may play this game in a day. Leave blank for no limit. It counts the person, not the phone, and each game counts its own.',

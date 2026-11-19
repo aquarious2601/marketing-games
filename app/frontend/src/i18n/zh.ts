@@ -100,7 +100,6 @@ export const zh: Record<MessageKey, string> = {
 
   'store.title': '店铺',
   'store.companyName': '商家名称',
-  'store.theme': '主题',
   'store.currencyHint': '所有「减免金额」奖励的计价单位。修改后只会更换标注，不会换算金额。',
   'store.logo': '标志',
   'store.currentLogo': '当前标志',
@@ -233,6 +232,8 @@ export const zh: Record<MessageKey, string> = {
   'game.nameHint': '显示为玩家页面的标题。',
   'game.tagline': '标语',
   'game.taglineHint': '留空则使用“%default%”。',
+  'game.theme': '主题',
+  'game.themeHint': '本游戏页面的配色。每个游戏各自设定。',
   'game.dailyLimit': '每人每日次数',
   'game.dailyLimitBlank': '不限',
   'game.dailyLimitHint': '一个人每天可以玩本游戏多少次。留空表示不限。按人计算，而不是按手机，并且每个游戏各自计算。',

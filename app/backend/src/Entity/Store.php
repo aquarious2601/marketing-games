@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Branding\Currency;
-use App\Branding\Theme;
 use App\Repository\StoreRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
  * The shop (F27 R1): who is running the promotions, and everything every one
- * of them shows — the company name, the logo, the currency, the theme, the
- * language a player page opens in and the clock its day is counted on.
+ * of them shows — the company name, the logo, the currency, the language a
+ * player page opens in and the clock its day is counted on.
+ *
+ * Not the theme: F30 moved it to Game, because a theme is the promotion's
+ * card rather than the business's identity.
  *
  * This is F04 R1's single branding record, renamed to what it actually is.
  * What a promotion is called, what its phrase is and how often one person
@@ -32,9 +34,6 @@ class Store
 
     #[ORM\Column(name: 'company_name', length: self::NAME_MAX_LENGTH, nullable: true)]
     private ?string $companyName = null;
-
-    #[ORM\Column(length: 20, options: ['default' => 'plain'])]
-    private string $theme = Theme::Plain->value;
 
     #[ORM\Column(name: 'logo_filename', length: 80, nullable: true)]
     private ?string $logoFilename = null;
@@ -94,12 +93,6 @@ class Store
         return $this->companyName;
     }
 
-    /** F04 R8: never hands back something the frontend cannot render. */
-    public function getTheme(): Theme
-    {
-        return Theme::fromStored($this->theme);
-    }
-
     public function getLogoFilename(): ?string
     {
         return $this->logoFilename;
@@ -124,12 +117,6 @@ class Store
     public function setCompanyName(?string $companyName): void
     {
         $this->companyName = $this->normalise($companyName);
-        $this->touch();
-    }
-
-    public function setTheme(Theme $theme): void
-    {
-        $this->theme = $theme->value;
         $this->touch();
     }
 

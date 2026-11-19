@@ -207,7 +207,8 @@ final class LocaleTest extends DatabaseWebTestCase
     {
         $this->signInAsAdmin();
 
-        $this->client->request('GET', '/api/admin/store', server: [
+        // F30 R14: the list is the games endpoint's now, with the picker.
+        $this->client->request('GET', '/api/admin/games', server: [
             'HTTP_ACCEPT_LANGUAGE' => 'fr',
         ]);
 
