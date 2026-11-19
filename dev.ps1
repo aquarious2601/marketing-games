@@ -11,20 +11,26 @@
     alias, so an old habit does not break.
 
 .PARAMETER ApiPort
-    Port for the Symfony dev server. Defaults to 8000.
+    Port for the Symfony dev server. Defaults to 8001.
+
+    8000 was the default until another application on the same machine took
+    it. Nothing here needs 8000, and a port this project does not have to
+    argue over is worth more than a round number: a backend that loses the
+    race starts anyway and answers somebody else's routes, which reads as a
+    broken login rather than as a port clash.
 
 .PARAMETER WebPort
     Port for the Vite dev server. Defaults to 5173.
 
 .EXAMPLE
     .\dev.ps1
-    .\dev.ps1 -ApiPort 8001
+    .\dev.ps1 -ApiPort 8000
 #>
 [CmdletBinding()]
 param(
     [Alias('Game')]
     [string] $App = 'app',
-    [int]    $ApiPort = 8000,
+    [int]    $ApiPort = 8001,
     [int]    $WebPort = 5173
 )
 

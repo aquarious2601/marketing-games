@@ -231,7 +231,7 @@ final class GameController extends AbstractController
      *
      * This used to return the whole URL built from the request's host, which
      * is wrong wherever the API and the page are not served from the same
-     * place — in development the API answers on 127.0.0.1:8000 and the app
+     * place — in development the API answers on 127.0.0.1:8001 and the app
      * is served by Vite on localhost:5173, so the admin copied a link to the
      * API and it 404ed. The browser is the only thing that knows where the
      * page lives, so the browser builds it.
