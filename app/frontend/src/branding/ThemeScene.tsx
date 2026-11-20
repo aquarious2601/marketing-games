@@ -58,10 +58,34 @@ import { sceneNameFor, type ThemeName } from './themes'
 
 interface ThemeSceneProps {
   theme?: string | null
+  /**
+   * F35 R19. The shop's own picture, when the game wears the custom theme.
+   * It replaces the painted scene rather than joining it: drawing snow over
+   * somebody's photograph is a bug, not a feature.
+   */
+  background?: string | null
 }
 
-export function ThemeScene({ theme }: ThemeSceneProps) {
+/**
+ * F35 R17. How much of the theme's page colour sits over an uploaded
+ * picture.
+ *
+ * This is not a contrast device — R18 is, and it works by making sure no
+ * word is ever on the picture in the first place. What this does is make a
+ * stranger's photograph belong to the page it is behind: a wash of the
+ * theme's own colour ties the two together, and takes enough contrast out of
+ * the picture that the wheel stays the brightest thing on screen. Hence a
+ * value low enough to still see the picture. If it were doing contrast work
+ * it would have to be about twice this, and nobody would upload anything.
+ */
+const VEIL = 0.45
+
+export function ThemeScene({ theme, background = null }: ThemeSceneProps) {
   const name = sceneNameFor(theme)
+
+  if (null !== background) {
+    return <CustomScene src={background} />
+  }
 
   return (
     <div
@@ -76,6 +100,53 @@ export function ThemeScene({ theme }: ThemeSceneProps) {
       className="pointer-events-none absolute inset-0 -z-10 overflow-hidden [--scene-scale:1] sm:[--scene-scale:1.2] lg:[--scene-scale:1.45] xl:[--scene-scale:1.65]"
     >
       {SCENES[name]()}
+    </div>
+  )
+}
+
+/**
+ * The shop's own picture, where a painted scene would be (F35 R16, R17).
+ *
+ * It keeps the painted scenes' contract exactly: `aria-hidden`, no pointer
+ * events, below the content, decoration only. What it does not keep is the
+ * "no assets" rule the file's header sets out — this layer is an asset, and
+ * that is the whole feature. The page is drawn before it arrives and is
+ * readable without it, which is the part of that rule that was load-bearing.
+ *
+ * The vignette is the one piece of the painted scenes that survives. It is
+ * what stops a photograph ending at four hard edges, and it deepens the
+ * corners where the wheel's rim meets the page.
+ */
+function CustomScene({ src }: { src: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="theme-scene"
+      data-scene="custom"
+      className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    >
+      {/*
+        An element rather than a `background-image`, for two reasons that
+        both matter more than the one line it costs: the browser's preloader
+        can see it and start fetching before the stylesheet resolves, and
+        `alt=""` says in the one place it is asked that this picture carries
+        no information a player needs.
+
+        `object-cover` is `background-size: cover` by another name — the
+        picture fills the page from the middle out, and a landscape picture
+        on a portrait phone loses its sides. F35 R9 asks for size rather
+        than a shape for exactly that reason.
+      */}
+      <img
+        src={src}
+        alt=""
+        data-testid="custom-background"
+        className={`${FILL} h-full w-full object-cover`}
+      />
+
+      <div className={FILL} style={{ backgroundColor: 'var(--bg)', opacity: VEIL }} />
+
+      <Vignette opacity={0.7} />
     </div>
   )
 }

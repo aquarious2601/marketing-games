@@ -1,6 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ApiValidationError, type ApiViolation } from '../api/client'
-import { saveGame, type GameSummary, type ThemeOption } from '../api/games'
+import {
+  removeGameBackground,
+  saveGame,
+  uploadGameBackground,
+  type GameSummary,
+  type ThemeOption,
+} from '../api/games'
 import { useT } from '../i18n/I18nContext'
 
 interface Draft {
@@ -13,7 +19,12 @@ interface Draft {
    */
   dailyLimit: string
   theme: string
+  /** F35 R2. Carried whatever the theme is, so leaving custom does not lose it. */
+  themeBase: string
 }
+
+/** F35 R1. The value the base picker and the picture control hang off. */
+const CUSTOM = 'custom'
 
 /**
  * A game's own fields (F27 R40): what it is called, what it says, and how
@@ -27,11 +38,13 @@ export function GameSettings({
   game,
   maxDailyLimit,
   themes,
+  themeBases,
   onSaved,
 }: {
   game: GameSummary
   maxDailyLimit: number
   themes: ThemeOption[]
+  themeBases: ThemeOption[]
   onSaved: (game: GameSummary) => void
 }) {
   const t = useT()
@@ -43,6 +56,7 @@ export function GameSettings({
     tagline: game.ownTagline ?? '',
     dailyLimit: game.dailyLimit === null ? '' : String(game.dailyLimit),
     theme: game.theme,
+    themeBase: game.themeBase,
   }
 
   const [draft, setDraft] = useState<Draft>(initial)
@@ -56,7 +70,8 @@ export function GameSettings({
     draft.name !== saved.name ||
     draft.tagline !== saved.tagline ||
     draft.dailyLimit !== saved.dailyLimit ||
-    draft.theme !== saved.theme
+    draft.theme !== saved.theme ||
+    draft.themeBase !== saved.themeBase
 
   const change = (patch: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...patch }))
@@ -84,6 +99,7 @@ export function GameSettings({
         tagline: '' === draft.tagline.trim() ? null : draft.tagline,
         dailyLimit: '' === limit ? null : Number(limit),
         theme: draft.theme,
+        themeBase: draft.themeBase,
       })
 
       setSaved(draft)
@@ -217,6 +233,43 @@ export function GameSettings({
         )}
       </div>
 
+      {/*
+        F35 R1, R2. Two more controls, and only when they mean something.
+        Nothing above moves when they appear: a theme picker that reshuffled
+        the form every time it changed would be a worse picker.
+      */}
+      {CUSTOM === draft.theme && (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2" data-testid="custom-theme">
+          <div>
+            <label htmlFor="game-theme-base" className={labelClass}>
+              {t('game.themeBase')}
+            </label>
+            <select
+              id="game-theme-base"
+              value={draft.themeBase}
+              onChange={(event) => change({ themeBase: event.target.value })}
+              className={`${inputClass} bg-white`}
+              data-testid="game-theme-base"
+            >
+              {themeBases.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {violationFor('themeBase') !== undefined ? (
+              <p role="alert" className="mt-1 text-xs text-rose-600">
+                {violationFor('themeBase')}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500">{t('game.themeBaseHint')}</p>
+            )}
+          </div>
+
+          <BackgroundControl game={game} onChanged={onSaved} />
+        </div>
+      )}
+
       {error !== null && (
         <p role="alert" className="mt-3 text-sm text-rose-600">
           {error}
@@ -244,6 +297,126 @@ export function GameSettings({
         )}
       </div>
     </section>
+  )
+}
+
+/**
+ * The picture itself (F35 R6, R11, R12).
+ *
+ * Saved the moment it is chosen rather than waiting for the form's Save,
+ * because it is a file rather than a field: it travels by its own endpoint,
+ * and a Save button that sometimes also uploads megabytes is a Save button
+ * nobody trusts. The logo above it in the Store module behaves the same way.
+ */
+function BackgroundControl({
+  game,
+  onChanged,
+}: {
+  game: GameSummary
+  onChanged: (game: GameSummary) => void
+}) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const input = useRef<HTMLInputElement>(null)
+
+  /*
+   * F35 R23. The server's own sentence, which names the size the file was
+   * and the sizes it may be. Falling back to our own only when there is
+   * nothing to show — a validation error with no violations in it is a bug,
+   * not a message for a shop owner.
+   */
+  const failed = (caught: unknown) =>
+    setError(
+      caught instanceof ApiValidationError
+        ? (caught.violations[0]?.message ?? t('game.backgroundFailed'))
+        : t('game.backgroundFailed'),
+    )
+
+  const upload = async (file: File | undefined) => {
+    if (undefined === file) {
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+
+    try {
+      onChanged(await uploadGameBackground(game.id, file))
+    } catch (caught) {
+      failed(caught)
+    } finally {
+      setBusy(false)
+
+      /*
+       * Cleared so that choosing the same file again is still a change the
+       * input reports. Without this, a shop that exports a corrected
+       * picture over the old one and picks it again gets silence.
+       */
+      if (null !== input.current) {
+        input.current.value = ''
+      }
+    }
+  }
+
+  const remove = async () => {
+    setBusy(true)
+    setError(null)
+
+    try {
+      onChanged(await removeGameBackground(game.id))
+    } catch (caught) {
+      failed(caught)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <span className={labelClass}>{t('game.background')}</span>
+
+      {null !== game.backgroundUrl && (
+        <img
+          src={game.backgroundUrl}
+          alt={t('game.background')}
+          data-testid="game-background"
+          className="mt-1 h-20 w-full rounded-md border border-slate-200 object-cover"
+        />
+      )}
+
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          ref={input}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          disabled={busy}
+          data-testid="background-input"
+          onChange={(event) => void upload(event.target.files?.[0])}
+          className="w-full text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white disabled:opacity-40"
+        />
+
+        {null !== game.backgroundUrl && (
+          <button
+            type="button"
+            onClick={() => void remove()}
+            disabled={busy}
+            data-testid="remove-background"
+            className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          >
+            {t('game.backgroundRemove')}
+          </button>
+        )}
+      </div>
+
+      {null === error ? (
+        <p className="mt-1 text-xs text-slate-500">{t('game.backgroundHint')}</p>
+      ) : (
+        <p role="alert" className="mt-1 text-xs text-rose-600">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }
 

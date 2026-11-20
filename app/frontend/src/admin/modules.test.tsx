@@ -136,6 +136,7 @@ beforeEach(() => {
     games: [],
     types: [{ value: 'wheel', label: 'Prize wheel' }],
     themes: [{ value: 'plain', label: 'Plain' }],
+    themeBases: [{ value: 'plain', label: 'Plain' }],
     maxDailyLimit: 99,
   })
   fetchPlayersMock.mockResolvedValue({ players: [PLAYER], total: 1, winWithoutCustomer: false })

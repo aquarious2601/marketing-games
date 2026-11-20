@@ -33,6 +33,12 @@ export interface Branding extends StoreBranding {
    * answers changed, from what the shop chose to what this game chose.
    */
   theme: string
+  /**
+   * F35 R24, section 8. The shop's own picture, or null — which is also what
+   * a game that is not on the custom theme sends, and what a picture that
+   * went missing from disk sends (R15). The page has one question to ask.
+   */
+  backgroundUrl: string | null
   campaignName: string
   /** The effective phrase: the admin's, or the game type's default. */
   tagline: string

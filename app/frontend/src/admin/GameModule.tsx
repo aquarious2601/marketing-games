@@ -64,6 +64,8 @@ export function GameModule() {
   const [maxDailyLimit, setMaxDailyLimit] = useState(99)
   // F30 R14: the list the theme picker is built from.
   const [themes, setThemes] = useState<ThemeOption[]>([])
+  // F35 R2. The six a custom theme may borrow, as the server lists them.
+  const [themeBases, setThemeBases] = useState<ThemeOption[]>([])
   const [load, setLoad] = useState<LoadState>({ phase: 'loading' })
   const [drafts, setDrafts] = useState<DraftPrize[]>([])
   const [saved, setSaved] = useState<DraftPrize[]>([])
@@ -131,6 +133,7 @@ export function GameModule() {
         setGame(loadedGame)
         setMaxDailyLimit(index.maxDailyLimit)
         setThemes(index.themes)
+        setThemeBases(index.themeBases)
         setLoad({ phase: 'ready' })
 
         return
@@ -146,6 +149,7 @@ export function GameModule() {
       setGame(loadedGame)
       setMaxDailyLimit(index.maxDailyLimit)
       setThemes(index.themes)
+      setThemeBases(index.themeBases)
       setDrafts(initial)
       setSaved(initial)
       setLosing(configuration.includesLosingSlice)
@@ -287,6 +291,7 @@ export function GameModule() {
           game={game}
           maxDailyLimit={maxDailyLimit}
           themes={themes}
+          themeBases={themeBases}
           onSaved={setGame}
         />
       )}

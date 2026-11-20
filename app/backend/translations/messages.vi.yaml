@@ -61,6 +61,15 @@ logo:
     svg_entities: 'Tệp SVG này khai báo thực thể XML, điều đó không được phép. Hãy xuất lại mà không có chúng.'
     sanitised_notice: 'Một số nội dung đã được loại bỏ khỏi tệp SVG để đảm bảo an toàn: %removed%.'
 
+background:
+    required: 'Hãy chọn một hình ảnh để tải lên.'
+    not_an_image: 'Tệp này không phải hình ảnh.'
+    too_large: 'Ảnh phải nhỏ hơn hoặc bằng %max%MB. Ảnh này là %size%MB.'
+    wrong_type: 'Ảnh phải ở định dạng PNG, JPEG hoặc WebP.'
+    too_small: 'Cạnh dài nhất của ảnh phải từ %min% pixel trở lên. Ảnh này là %width%×%height%.'
+    too_big: 'Mỗi cạnh của ảnh không được vượt quá %max% pixel. Ảnh này là %width%×%height%.'
+    upload_failed: 'Tải lên chưa hoàn tất. Vui lòng thử lại.'
+
 theme:
     plain: 'Đơn giản'
     black-friday: 'Black Friday'
@@ -68,6 +77,7 @@ theme:
     new-year: 'Năm mới'
     halloween: 'Halloween'
     birthday: 'Chúc mừng sinh nhật'
+    custom: 'Tùy chỉnh'
 
 tagline:
     default: 'Một lượt quay, một phần thưởng. Chúc may mắn!'

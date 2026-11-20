@@ -79,6 +79,17 @@ logo:
 
 # Shown in the admin's theme picker. The application's own words, so they
 # are translated (F12 R9) — unlike anything the admin types (F12 R10).
+# F35 R23. The background a game can wear. Every rejection names the thing
+# that was wrong with the file, so the next attempt is informed.
+background:
+    required: 'Choose a picture to upload.'
+    not_an_image: 'That file is not an image.'
+    too_large: 'The picture must be %max%MB or smaller. That one is %size%MB.'
+    wrong_type: 'The picture must be a PNG, JPEG or WebP image.'
+    too_small: 'The picture must be at least %min% pixels on its longest side. That one is %width%×%height%.'
+    too_big: 'The picture must be at most %max% pixels on each side. That one is %width%×%height%.'
+    upload_failed: 'The upload did not complete. Please try again.'
+
 theme:
     plain: 'Plain'
     black-friday: 'Black Friday'
@@ -86,6 +97,7 @@ theme:
     new-year: 'New Year'
     halloween: 'Halloween'
     birthday: 'Happy Birthday'
+    custom: 'Custom'
 
 # F12 R11: supplied by the application when the admin has set no tagline of
 # their own, so it is ours to translate. An admin's own tagline never is.

@@ -118,7 +118,7 @@ printed on a surface from `themes.ts` that a test has measured.
 |---|---|
 | R16 | The picture covers the whole page — scaled to cover, centred, fixed behind the content — on every screen size. |
 | R17 | A veil of the base theme's page colour sits over the picture at a strength chosen by us, the same on every theme and every game. There is no control for it. |
-| R18 | No text is ever printed on bare picture. With a picture behind it, the header's words sit on the theme's own card surface, the one the content already uses. |
+| R18 | No text is ever printed on bare picture. The wheel's page already puts every word on its card; the gift sheet has never had one, and with a picture behind it its content takes the same card treatment. |
 | R19 | The theme's painted scene (`ThemeScene`) is not drawn over a picture. The picture *is* the scene; drawing snow over somebody's photograph is a bug, not a feature. |
 | R20 | The wheel keeps its rim and its glow, so it still belongs to the page rather than floating on top of a photograph. |
 | R21 | At 375px the page still reaches the Spin button and the prize without scrolling — the rule that outranks every decoration in this repository. |
@@ -214,39 +214,86 @@ On the game's screen, under the theme picker:
 
 ## 11. Acceptance criteria
 
-- [ ] Given the theme picker, then Custom is in it alongside the six (R1).
-- [ ] Given a game on Custom with a base theme, then every colour on the
+- [x] Given the theme picker, then Custom is in it alongside the six (R1).
+- [x] Given a game on Custom with a base theme, then every colour on the
       player's page is that base theme's, unchanged (R2).
-- [ ] Given any theme, then the wheel's slices are the same colours (R3).
-- [ ] Given a game on Custom with no picture, then the page is its base
+- [x] Given any theme, then the wheel's slices are the same colours (R3).
+- [x] Given a game on Custom with no picture, then the page is its base
       theme and nothing is missing (R4).
-- [ ] Given a game that leaves Custom and returns, then its picture and base
+- [x] Given a game that leaves Custom and returns, then its picture and base
       are still chosen (R5).
-- [ ] Given a PNG, a JPEG and a WEBP, then each is accepted (R7).
-- [ ] Given a file renamed to `.png` that is not one, then it is rejected
+- [x] Given a PNG, a JPEG and a WEBP, then each is accepted (R7).
+- [x] Given a file renamed to `.png` that is not one, then it is rejected
       (R7).
-- [ ] Given a file over 5 MB, then it is rejected and says the size (R8).
-- [ ] Given a picture 900px on its longest side, then it is rejected (R9).
-- [ ] Given a replacement, then the previous file is gone from disk (R11).
-- [ ] Given Remove, then the game stays on Custom and shows its base (R12).
-- [ ] Given a picture configured and deleted from disk, then the player's
+- [x] Given a file over 5 MB, then it is rejected and says the size (R8).
+- [x] Given a picture 900px on its longest side, then it is rejected (R9).
+- [x] Given a replacement, then the previous file is gone from disk (R11).
+- [x] Given Remove, then the game stays on Custom and shows its base (R12).
+- [x] Given a picture configured and deleted from disk, then the player's
       page renders the base theme and no error (R15).
-- [ ] Given a picture is replaced, then the URL changes (R14).
-- [ ] Given a game on Custom, then the player's payload carries a base theme
+- [x] Given a picture is replaced, then the URL changes (R14).
+- [x] Given a game on Custom, then the player's payload carries a base theme
       name in `theme` and a non-null `backgroundUrl` (§8, R24).
-- [ ] Given a game not on Custom, then `backgroundUrl` is null and the page
+- [x] Given a game not on Custom, then `backgroundUrl` is null and the page
       is unchanged from today (R19).
-- [ ] Given a picture behind the page, then every heading and every line of
+- [x] Given a picture behind the page, then every heading and every line of
       body text sits on a token surface, not on the picture (R18).
 - [ ] Given the player's page at 375px with a picture, then the Spin button
-      and the prize need no scrolling (R21).
-- [ ] Every label this feature adds exists in all four languages (R22).
-- [ ] The four fast suites pass.
+      and the prize need no scrolling (R21). Seen at 375px, but on the
+      identification step — see §12.
+- [x] Every label this feature adds exists in all four languages (R22).
+- [x] The four fast suites pass.
 
 ## 12. Verification
 
-Written when the feature is built, naming the suites and the tests that carry
-each rule.
+`php vendor/bin/phpunit` — 762 tests, 41 of them new. `BackgroundStoreTest`
+carries R7 to R12: each accepted kind decided by reading the file, a text
+file renamed `.png` refused, a name the uploader cannot influence, and the
+three measurements with the numbers they report. `GameControllerTest` carries
+R1, R2, R5, R6, R11, R12 and R23 — including the one that matters most for
+R11, which uploads twice and asserts the first file is gone from disk.
+`BackgroundControllerTest` carries R13 and R14 and the four ways of not
+having a picture, all of which answer identically. `PlayControllerTest`
+carries R2, R4, R15 and section 8: a custom game's payload says `birthday`
+and a URL, and a picture deleted from under it says `birthday` and null.
+`DatabaseUpgradeTest` carries R2 and R6 — both columns, the nullability each
+of them means, a second run that changes neither, and a dry run that adds
+neither. `ThemeTest` carries R2's two halves: Custom is in the picker and not
+in the bases, and a stored base of `custom` reads as plain.
+
+`npm test` — 950 tests, 30 of them new. `ThemeScene.test.tsx` carries R16, R17 and R19: the
+picture replaces the painted scene rather than joining it, covers from the
+middle out, wears the veil, and keeps every promise the painted scenes make
+about being decoration. `PlayerPage.test.tsx` carries R2 and R19 end to end —
+a branding with a picture paints `data-scene="custom"` while the page still
+wears the birthday palette, and a branding without one is the page exactly as
+it was. `SheetPage.test.tsx` carries R18, the rule this feature turns on:
+with a picture the header is inside a card, and without one there is no card.
+`GameSettings.test.tsx` carries R1, R2, R6, R12 and R23, including the
+rejection message arriving from the server rather than being invented here.
+
+`npm run typecheck` is R22's proof as well as its own: `fr`, `vi` and `zh` are
+`Record<MessageKey, string>`, so a label added in English and forgotten
+elsewhere is a type error rather than a blank on somebody's screen.
+`npm run lint` is clean, and now runs as part of `test-all.ps1` — the fourth
+suite was added the same afternoon, which is why this is the first feature
+whose "four fast suites" line means four.
+
+**Run against the real database.** The two steps were run on the development
+database: both columns added, and `doctrine:schema:update --dump-sql` then
+reported nothing to do, so the entity and the database agree.
+
+**Seen in a browser, at 375px.** The development game was put on the custom
+theme with the owner's own reference picture — the gold-and-cream balloons
+`ThemeScene.tsx` was painted in imitation of — and loaded on a 375px
+viewport. The picture covers the page, the veil ties it to the birthday
+palette it borrows, the card carries every word, and the network log shows
+one request to `/api/branding/background/{key}?v=…` answering 200. The game
+was put back as it was afterwards.
+
+What that pass does **not** cover is R21 on the screens that matter most for
+it: what was on screen was the identification step, not the wheel with its
+Spin button or the result panel. R21 stays unticked.
 
 ## 13. Decisions and risks
 
@@ -257,14 +304,22 @@ them. A seventh palette typed by a shop owner would be the one palette in
 that file nobody measured. Borrowing means the custom look inherits the
 measurement along with the colours, and the test file needs no exception.
 
-**Why the header moves onto a card (R18).** This is the rule the feature
-turns on. Today the campaign name and the company name are printed straight
-onto the page colour, which is a token, which is measured. Put an arbitrary
-photograph there and the colour behind those words stops being knowable —
-and a veil strong enough to make it knowable again would wash the picture
-out to the point of not being worth uploading. Moving those two lines onto
-the card the content already uses keeps the guarantee by construction and
-lets the picture stay a picture.
+**Why words move onto a card (R18).** This is the rule the feature turns
+on. Where a word sits on the page colour, that colour is a token and a test
+has measured it. Put an arbitrary photograph there and the colour behind the
+word stops being knowable — and a veil strong enough to make it knowable
+again would wash the picture out to the point of not being worth uploading.
+A card the words sit on keeps the guarantee by construction and lets the
+picture stay a picture.
+
+**Corrected while building.** This rule was written believing the player's
+page printed its campaign name and company name straight onto the page
+colour. It does not: `PlayerHeader` is inside `Stage`, and has been since
+F04's scenes arrived — the comment on `Stage` says exactly why. The page
+that *does* print on bare colour is the gift sheet, which never had a card
+at all. So the rule is unchanged in what it promises and changed in where it
+lands: the wheel's page needed nothing, and `SheetPage` gained a card that
+appears only when a picture is behind it.
 
 **Why the veil is ours and not a slider.** A slider is a control whose wrong
 settings are on the one page a player must be able to read, and whose right
