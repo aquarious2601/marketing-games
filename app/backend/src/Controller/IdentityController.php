@@ -146,10 +146,17 @@ final class IdentityController extends AbstractController
 
         // Returns the existing player when the number is already taken
         // (F08 R7), so this is a 201 for the row it created and for the row
-        // it found. Distinguishing the two would tell the page whether a
-        // number is already registered, which is exactly the question an
-        // unidentified visitor should not be able to ask.
-        $player = $this->registrar->register($draft);
+        // it found.
+        //
+        // F34 R9 does now distinguish the two, by sending the card only for
+        // a customer this request created. The question that worried this
+        // comment — "is this number already registered" — is one `identify`
+        // answers directly and by design (F08 R12, `known`), so the card
+        // tells a probing visitor nothing they could not already ask. What
+        // it must never do is hand somebody else's card over, and that is
+        // what `created` guards (F34 R8).
+        $registered = $this->registrar->register($draft);
+        $player = $registered->player;
 
         $this->session->identify($player);
 
@@ -163,6 +170,8 @@ final class IdentityController extends AbstractController
             [
                 'player' => $this->presenter->presentForPlayer($player),
                 'spinsLeft' => $this->spinsLeft($player),
+                // F34 R7, R9. Null for a customer who already existed.
+                'card' => $registered->created ? $player->getCode() : null,
             ],
             Response::HTTP_CREATED,
         );

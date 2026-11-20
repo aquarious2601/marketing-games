@@ -353,6 +353,18 @@ describe('opening a customer', () => {
     expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
   })
 
+  /**
+   * F34 R14. Ten characters is a card, eight is a reward code, and both are
+   * complete inputs that mean "this customer" — so both open them.
+   */
+  it('opens the one customer a complete card found', async () => {
+    fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
+
+    renderList('/admin/players?search=M9PXK-4T7VH')
+
+    expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
+  })
+
   it('stays on the list when one customer matched a phone fragment', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
 

@@ -128,6 +128,20 @@ export interface PlayerState {
 export interface Identified {
   player: PlayerIdentity
   spinsLeft: number | null
+  /**
+   * The card this customer keeps, or null (F34 R7, R9).
+   *
+   * Sent only when the request that asked created them. Registering returns
+   * the customer who already holds the number (F08 R7), and handing their
+   * card to whoever typed it is exactly what F28 R18 refuses to do with
+   * vouchers — anybody may type anybody's number into a stall phone. So the
+   * server decides, and this is null for everyone else.
+   *
+   * Absent from `identify` and from `me` for the same reason: there is no
+   * request that asks for a card, only one that happens to create a
+   * customer.
+   */
+  card: string | null
 }
 
 export interface PhoneLookup {

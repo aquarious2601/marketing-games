@@ -32,6 +32,9 @@ export const fr: Record<MessageKey, string> = {
     'Le jeu doit savoir qui joue. Veuillez saisir votre numéro à nouveau.',
 
   'identity.kicker': 'Avant de jouer',
+  'identity.cardHeading': 'Voici votre carte',
+  'identity.cardLead': 'Prenez-la en photo. Montrez la photo au comptoir et nous vous retrouverons immédiatement.',
+  'identity.cardContinue': 'C’est fait',
   'identity.phoneHeading': 'Saisissez votre numéro de téléphone',
   'identity.phoneLead':
     'C’est ainsi que nous savons qui joue, et que nous vous retrouvons si vous avez déjà joué.',
@@ -143,6 +146,8 @@ export const fr: Record<MessageKey, string> = {
   'customer.loading': 'Chargement du client…',
   'customer.loadFailed': 'Ce client n’a pas pu être chargé.',
   'customer.who': 'Son identité',
+  'customer.card': 'Sa carte',
+  'customer.cardLead': 'Affichée une seule fois, à l’inscription. À remontrer à qui a perdu la photo.',
   'customer.plays': 'Parties',
   'customer.playsValue': '%played% parties, %won% gains',
   'customer.toCollect': 'À remettre',

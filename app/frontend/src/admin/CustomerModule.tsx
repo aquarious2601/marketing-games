@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Barcode } from '../reward/Barcode'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   fetchCustomer,
@@ -154,6 +155,30 @@ function Customer({
             testId="customer-plays"
           />
         </dl>
+      </section>
+
+      {/*
+        F34 R17. Their card, under who they are and before what they won.
+        This is the whole recovery path for a lost photograph, and the check
+        on it is that somebody is standing at the counter asking — which is
+        why it is here and not on a screen anybody can reach by typing a
+        number (R8).
+      */}
+      <section aria-label={t('customer.card')} className={sectionClass} data-testid="customer-card">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-slate-500">
+          {t('customer.card')}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">{t('customer.cardLead')}</p>
+
+        <div className="mt-3 max-w-xs">
+          <Barcode code={detail.card} className="h-14" tile="px-2 border border-slate-200" />
+          <p
+            data-testid="customer-card-code"
+            className="mt-1.5 text-center font-mono text-base font-bold tracking-[0.12em] text-slate-900"
+          >
+            {detail.card}
+          </p>
+        </div>
       </section>
 
       <Group

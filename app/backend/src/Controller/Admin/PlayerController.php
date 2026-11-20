@@ -106,6 +106,16 @@ final class PlayerController extends AbstractController
             ),
             'played' => $played,
             'won' => \count($wins),
+            /*
+             * F34 R17. Their card, so staff can show it to somebody who lost
+             * the photograph — the check being that a person is standing at
+             * the counter asking for it.
+             *
+             * Here rather than in the presenter, because the presenter also
+             * feeds the list and R18 keeps cards off it: a screen full of
+             * other people's cards is a screen worth photographing.
+             */
+            'card' => $player->getCode(),
         ]);
     }
 }

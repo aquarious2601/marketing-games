@@ -67,7 +67,7 @@ function claimed(over: Partial<LoggedSpin> = {}): LoggedSpin {
 beforeEach(() => {
   fetchCustomerMock.mockReset()
   setClaimedMock.mockReset()
-  fetchCustomerMock.mockResolvedValue({ player: ANH, wins: [win()], played: 12, won: 1 })
+  fetchCustomerMock.mockResolvedValue({ player: ANH, wins: [win()], played: 12, won: 1, card: 'M9PXK-4T7VH' })
 })
 
 function renderCustomer(at = '/admin/players/1') {
@@ -121,6 +121,19 @@ describe('who the customer is', () => {
 })
 
 /** F31 R11, R12 */
+/** F34 R17. The recovery path for a customer who lost the photograph. */
+describe('their card', () => {
+  it('is on their page, as a barcode and as characters', async () => {
+    renderCustomer()
+
+    const card = await screen.findByTestId('customer-card')
+
+    expect(card).toBeInTheDocument()
+    expect(screen.getByTestId('customer-card-code')).toHaveTextContent('M9PXK-4T7VH')
+    expect(screen.getByRole('img')).toHaveAccessibleName('M9PXK-4T7VH')
+  })
+})
+
 describe('what they are owed', () => {
   it('puts what is still to collect before what has been collected', async () => {
     fetchCustomerMock.mockResolvedValue({
@@ -131,6 +144,7 @@ describe('what they are owed', () => {
       ],
       played: 12,
       won: 2,
+      card: 'M9PXK-4T7VH',
     })
 
     renderCustomer()
@@ -167,6 +181,7 @@ describe('what they are owed', () => {
       wins: [win({ code: null })],
       played: 1,
       won: 1,
+      card: 'M9PXK-4T7VH',
     })
 
     renderCustomer()
@@ -183,6 +198,7 @@ describe('what they are owed', () => {
       wins: [win({ claimedAt: '2026-11-18T12:00:00+00:00', claimedBy: 'rosa' })],
       played: 4,
       won: 1,
+      card: 'M9PXK-4T7VH',
     })
 
     renderCustomer()
@@ -207,6 +223,7 @@ describe('what they are owed', () => {
       ],
       played: 3,
       won: 3,
+      card: 'M9PXK-4T7VH',
     })
 
     renderCustomer()
@@ -232,6 +249,7 @@ describe('what they are owed', () => {
       ],
       played: 2,
       won: 2,
+      card: 'M9PXK-4T7VH',
     })
 
     renderCustomer()
@@ -269,6 +287,7 @@ describe('handing a reward over', () => {
       wins: [win({ claimedAt: '2026-11-18T12:00:00+00:00', claimedBy: null })],
       played: 1,
       won: 1,
+      card: 'M9PXK-4T7VH',
     })
 
     renderCustomer()
@@ -284,6 +303,7 @@ describe('handing a reward over', () => {
       wins: [win({ claimedAt: '2026-11-18T12:00:00+00:00', claimedBy: 'rosa' })],
       played: 1,
       won: 1,
+      card: 'M9PXK-4T7VH',
     })
     setClaimedMock.mockResolvedValue(claimed({ claimedAt: null, claimedBy: null }))
 
@@ -313,7 +333,7 @@ describe('when the customer cannot be loaded', () => {
   it('offers a retry', async () => {
     const user = userEvent.setup()
     fetchCustomerMock.mockRejectedValueOnce(new Error('offline'))
-    fetchCustomerMock.mockResolvedValue({ player: ANH, wins: [win()], played: 12, won: 1 })
+    fetchCustomerMock.mockResolvedValue({ player: ANH, wins: [win()], played: 12, won: 1, card: 'M9PXK-4T7VH' })
 
     renderCustomer()
 
