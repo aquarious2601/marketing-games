@@ -2,16 +2,25 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiValidationError } from '../api/client'
-import { saveGame, type GameSummary } from '../api/games'
+import {
+  removeGameBackground,
+  saveGame,
+  uploadGameBackground,
+  type GameSummary,
+} from '../api/games'
 import { I18nProvider } from '../i18n/I18nContext'
 import { GameSettings } from './GameSettings'
 
 vi.mock('../api/games', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/games')>()),
   saveGame: vi.fn(),
+  uploadGameBackground: vi.fn(),
+  removeGameBackground: vi.fn(),
 }))
 
 const saveGameMock = vi.mocked(saveGame)
+const uploadBackgroundMock = vi.mocked(uploadGameBackground)
+const removeBackgroundMock = vi.mocked(removeGameBackground)
 
 const DEFAULT_TAGLINE = 'One spin, one prize. Good luck.'
 
@@ -20,6 +29,9 @@ const THEMES = [
   { value: 'christmas', label: 'Christmas' },
   { value: 'halloween', label: 'Halloween' },
 ]
+
+/** F35 R1, R2. The theme picker carries the seventh; the base picker cannot. */
+const THEMES_WITH_CUSTOM = [...THEMES, { value: 'custom', label: 'Custom' }]
 
 function game(overrides: Partial<GameSummary> = {}): GameSummary {
   return {
@@ -33,6 +45,9 @@ function game(overrides: Partial<GameSummary> = {}): GameSummary {
     linkKey: 'q7mfd2xkbnrt',
     // F30 R1, R9: a game starts plain.
     theme: 'plain',
+    // F35 R2, R4: and borrowing nothing, with no picture.
+    themeBase: 'plain',
+    backgroundUrl: null,
     playPath: '/play/q7mfd2xkbnrt',
     isLive: true,
     plays: 0,
@@ -44,7 +59,19 @@ function game(overrides: Partial<GameSummary> = {}): GameSummary {
 beforeEach(() => {
   saveGameMock.mockReset()
   saveGameMock.mockResolvedValue(game())
+  uploadBackgroundMock.mockReset()
+  uploadBackgroundMock.mockResolvedValue(game({ backgroundUrl: PICTURE }))
+  removeBackgroundMock.mockReset()
+  removeBackgroundMock.mockResolvedValue(game())
 })
+
+/** F35. A stored picture's URL, as the server builds it. */
+const PICTURE = '/api/branding/background/q7mfd2xkbnrt?v=1763650000'
+
+/** A file the browser would hand us; the server decides whether it will do. */
+function picture(name = 'balloons.jpg'): File {
+  return new File(['not really a picture'], name, { type: 'image/jpeg' })
+}
 
 function renderSettings(overrides: Partial<GameSummary> = {}) {
   const user = userEvent.setup()
@@ -54,7 +81,8 @@ function renderSettings(overrides: Partial<GameSummary> = {}) {
       <GameSettings
         game={game(overrides)}
         maxDailyLimit={99}
-        themes={THEMES}
+        themes={THEMES_WITH_CUSTOM}
+        themeBases={THEMES}
         onSaved={() => {}}
       />
     </I18nProvider>,
@@ -104,6 +132,7 @@ describe('the game itself', () => {
         tagline: 'Spin for a treat!',
         dailyLimit: 2,
         theme: 'plain',
+        themeBase: 'plain',
       }),
     )
   })
@@ -202,7 +231,7 @@ describe('the theme', () => {
 
     const options = Array.from(themeField().querySelectorAll('option')).map((o) => o.textContent)
 
-    expect(options).toEqual(['Plain', 'Christmas', 'Halloween'])
+    expect(options).toEqual(['Plain', 'Christmas', 'Halloween', 'Custom'])
   })
 
   it('is sent on save', async () => {
@@ -217,6 +246,7 @@ describe('the theme', () => {
         tagline: null,
         dailyLimit: null,
         theme: 'halloween',
+        themeBase: 'plain',
       }),
     )
   })
@@ -245,5 +275,131 @@ describe('the theme', () => {
     await waitFor(() =>
       expect(saveGameMock).toHaveBeenCalledWith(1, expect.objectContaining({ theme: 'plain' })),
     )
+  })
+})
+
+/**
+ * F35 R1, R2, R6. The two controls that only mean something on the custom
+ * theme, and the one of them that does not wait for Save.
+ */
+describe('a background of your own', () => {
+  const baseField = () => screen.getByLabelText(/colours from/i)
+  const fileField = () => screen.getByTestId('background-input')
+
+  it('shows neither control on the other themes', () => {
+    renderSettings({ theme: 'christmas' })
+
+    expect(screen.queryByTestId('custom-theme')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('background-input')).not.toBeInTheDocument()
+  })
+
+  it('offers a base and a picture once custom is chosen', async () => {
+    const user = renderSettings()
+
+    await user.selectOptions(themeField(), 'custom')
+
+    expect(screen.getByTestId('custom-theme')).toBeInTheDocument()
+    expect(baseField()).toBeInTheDocument()
+    expect(fileField()).toBeInTheDocument()
+  })
+
+  /** R2. The six, without custom among them: a theme cannot borrow itself. */
+  it('offers only the themes that have colours', async () => {
+    const user = renderSettings({ theme: 'custom' })
+
+    await user.click(document.body)
+
+    const options = Array.from(baseField().querySelectorAll('option')).map((o) => o.textContent)
+
+    expect(options).toEqual(['Plain', 'Christmas', 'Halloween'])
+  })
+
+  it('opens on the base the game already borrows', () => {
+    renderSettings({ theme: 'custom', themeBase: 'halloween' })
+
+    expect(baseField()).toHaveValue('halloween')
+  })
+
+  it('sends the base with the theme', async () => {
+    const user = renderSettings({ theme: 'custom', themeBase: 'plain' })
+
+    await user.selectOptions(baseField(), 'christmas')
+    await user.click(saveButton())
+
+    await waitFor(() =>
+      expect(saveGameMock).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ theme: 'custom', themeBase: 'christmas' }),
+      ),
+    )
+  })
+
+  /** R6. The picture travels by its own endpoint, the moment it is chosen. */
+  it('uploads the picture without waiting for Save', async () => {
+    const user = renderSettings({ theme: 'custom' })
+    const file = picture()
+
+    await user.upload(fileField(), file)
+
+    await waitFor(() => expect(uploadBackgroundMock).toHaveBeenCalledWith(1, file))
+    expect(saveGameMock).not.toHaveBeenCalled()
+  })
+
+  it('shows the picture the game already has', () => {
+    renderSettings({ theme: 'custom', backgroundUrl: PICTURE })
+
+    expect(screen.getByTestId('game-background')).toHaveAttribute('src', PICTURE)
+  })
+
+  /** R12. Offered only when there is something to remove. */
+  it('offers Remove only once there is a picture', async () => {
+    const user = renderSettings({ theme: 'custom' })
+
+    expect(screen.queryByTestId('remove-background')).not.toBeInTheDocument()
+
+    await user.selectOptions(baseField(), 'christmas')
+
+    expect(screen.queryByTestId('remove-background')).not.toBeInTheDocument()
+  })
+
+  it('removes the picture when asked', async () => {
+    const user = renderSettings({ theme: 'custom', backgroundUrl: PICTURE })
+
+    await user.click(screen.getByTestId('remove-background'))
+
+    await waitFor(() => expect(removeBackgroundMock).toHaveBeenCalledWith(1))
+  })
+
+  /**
+   * R23. The server's own sentence, which names the size the file was and
+   * the sizes it may be — not a sentence of ours that says neither.
+   */
+  it('says what the server said was wrong with the file', async () => {
+    uploadBackgroundMock.mockRejectedValue(
+      new ApiValidationError('Unprocessable', [
+        {
+          field: 'background',
+          message: 'The picture must be at least 1200 pixels on its longest side. That one is 900\u00d7600.',
+        },
+      ]),
+    )
+
+    const user = renderSettings({ theme: 'custom' })
+
+    await user.upload(fileField(), picture())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('1200')
+    expect(screen.getByRole('alert')).toHaveTextContent('900')
+  })
+
+  /** A failure with nothing in it still has to say something. */
+  it('falls back to its own words when the server gives none', async () => {
+    uploadBackgroundMock.mockRejectedValue(new Error('the network went away'))
+
+    const user = renderSettings({ theme: 'custom' })
+
+    await user.upload(fileField(), picture())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be saved/i)
   })
 })

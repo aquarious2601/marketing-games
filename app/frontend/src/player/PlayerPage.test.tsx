@@ -104,6 +104,7 @@ const PRIZES = ['Try again', 'Free sample', 'Free gift', 'Grand prize']
 const PLAIN_BRANDING = {
   companyName: null,
   campaignName: '',
+  backgroundUrl: null,
   tagline: 'One spin, one prize. Good luck.',
   theme: 'plain',
   currency: 'VND',
@@ -523,6 +524,50 @@ describe('branding and themes', () => {
     const screenEl = screen.getByTestId('player-screen')
     expect(screenEl).toHaveAttribute('data-theme', theme)
     expect(screenEl).toHaveStyle({ backgroundColor: THEMES[theme].background })
+  })
+
+  /**
+   * F35 R2, R16. A custom theme reaches this page as a palette it already
+   * has and a picture it does not: the page is never told the word
+   * “custom”, and nothing here has a case for it.
+   */
+  it('puts the shop’s own picture behind the game', async () => {
+    const picture = '/api/branding/background/abcd1234abcd1234?v=1763650000'
+
+    fetchWheelMock.mockResolvedValue(wheel({ theme: 'birthday', backgroundUrl: picture }))
+
+    await renderPlayer()
+
+    expect(screen.getByTestId('custom-background')).toHaveAttribute('src', picture)
+
+    const screenEl = screen.getByTestId('player-screen')
+
+    expect(screenEl).toHaveAttribute('data-theme', 'birthday')
+    expect(screenEl).toHaveStyle({ backgroundColor: THEMES.birthday.background })
+    // F35 R18's hook: the stylesheet gives the language picker a surface of
+    // its own while a photograph is behind it.
+    expect(screenEl).toHaveAttribute('data-backdrop', 'custom')
+  })
+
+  /** F35 R19. The picture is the scene; the painted one is not drawn over it. */
+  it('draws none of the borrowed theme over the picture', async () => {
+    fetchWheelMock.mockResolvedValue(
+      wheel({ theme: 'christmas', backgroundUrl: '/api/branding/background/k?v=1' }),
+    )
+
+    await renderPlayer()
+
+    expect(screen.getByTestId('theme-scene')).toHaveAttribute('data-scene', 'custom')
+  })
+
+  /** F35 R4, R19. No picture is the page exactly as it was. */
+  it.each(THEME_NAMES)('leaves the %s page alone when there is no picture', async (theme) => {
+    fetchWheelMock.mockResolvedValue(wheel({ theme, backgroundUrl: null }))
+
+    await renderPlayer()
+
+    expect(screen.queryByTestId('custom-background')).not.toBeInTheDocument()
+    expect(screen.getByTestId('player-screen')).not.toHaveAttribute('data-backdrop')
   })
 
   /**

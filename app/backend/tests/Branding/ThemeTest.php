@@ -10,13 +10,35 @@ use PHPUnit\Framework\TestCase;
 
 final class ThemeTest extends TestCase
 {
-    /** F04 R7, amended 2026-11-15 to add Birthday */
+    /** F04 R7, amended 2026-11-15 to add Birthday and 2026-11-20 to add Custom (F35 R1) */
     public function testTheThemesAreExactlyThese(): void
     {
         self::assertSame(
-            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
+            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday', 'custom'],
             array_map(static fn (Theme $t): string => $t->value, Theme::cases()),
         );
+    }
+
+    /** F35 R2. The looks with colours of their own: every case but Custom. */
+    public function testOnlyTheSixCanBeBorrowedFrom(): void
+    {
+        self::assertSame(
+            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
+            array_map(static fn (Theme $t): string => $t->value, Theme::bases()),
+        );
+    }
+
+    /**
+     * F35 R2. A custom theme borrowing itself has no colours at the end of
+     * it, so a stored base of `custom` is read the way any other value the
+     * page cannot paint is read (F04 R8).
+     */
+    public function testACustomBaseReadsAsPlain(): void
+    {
+        self::assertSame(Theme::Plain, Theme::baseFromStored('custom'));
+        self::assertSame(Theme::Plain, Theme::baseFromStored('tombola'));
+        self::assertSame(Theme::Plain, Theme::baseFromStored(null));
+        self::assertSame(Theme::Birthday, Theme::baseFromStored('birthday'));
     }
 
     public function testEveryThemeHasAReadableLabel(): void

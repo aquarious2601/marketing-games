@@ -83,8 +83,18 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         self::assertSame(
             // F13 R28 adds the shop's currency and its symbol; F30
             // moved the theme down beside the game's own fields, which is
-            // where it now comes from.
-            ['companyName', 'currency', 'currencySymbol', 'logoUrl', 'theme', 'campaignName', 'tagline'],
+            // where it now comes from. F35 R24 adds the picture, as a URL
+            // and nothing else.
+            [
+                'companyName',
+                'currency',
+                'currencySymbol',
+                'logoUrl',
+                'theme',
+                'backgroundUrl',
+                'campaignName',
+                'tagline',
+            ],
             array_keys($store),
         );
         self::assertSame('One spin, one prize. Good luck.', $store['tagline']);

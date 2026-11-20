@@ -137,7 +137,67 @@ final class DatabaseUpgrade
             $this->addPlayerCard($dryRun),
             $this->issueTheCardsAlreadyOwed($dryRun),
             $this->constrainPlayerCard($dryRun),
+            $this->addGameThemeBase($dryRun),
+            $this->addGameBackground($dryRun),
         ];
+    }
+
+    /**
+     * F35 R2. The palette a custom theme borrows.
+     *
+     * No backfill follows it, and that is the whole story rather than an
+     * omission: every game that exists when this runs is on one of the six,
+     * and this column says nothing at all until a game is on `custom`.
+     * Plain is as good a value as any for a question nobody has asked yet.
+     */
+    private function addGameThemeBase(bool $dryRun): UpgradeStep
+    {
+        $name = 'game.theme_base';
+
+        if (!$this->tableExists('game')) {
+            return UpgradeStep::done($name, 'would add it (the game table does not exist yet)');
+        }
+
+        if ($this->columnExists('game', 'theme_base')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                "ALTER TABLE game ADD theme_base VARCHAR(20) DEFAULT 'plain' NOT NULL"
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
+    }
+
+    /**
+     * F35 R6. The picture's stored filename.
+     *
+     * Nullable and left null. A column that holds a filename cannot be
+     * backfilled with anything true — there is no file — and null is
+     * already the value the application reads as "this game has no
+     * picture" (R15).
+     */
+    private function addGameBackground(bool $dryRun): UpgradeStep
+    {
+        $name = 'game.background';
+
+        if (!$this->tableExists('game')) {
+            return UpgradeStep::done($name, 'would add it (the game table does not exist yet)');
+        }
+
+        if ($this->columnExists('game', 'background')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                'ALTER TABLE game ADD background VARCHAR(120) DEFAULT NULL'
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
     }
 
     /** P02 R6 */

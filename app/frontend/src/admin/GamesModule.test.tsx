@@ -29,6 +29,8 @@ function game(overrides: Partial<GameSummary> = {}): GameSummary {
     linkKey: 'q7mfd2xkbnrt',
     // F30 R1, R9: a game starts plain.
     theme: 'plain',
+    themeBase: 'plain',
+    backgroundUrl: null,
     playPath: '/play/q7mfd2xkbnrt',
     isLive: true,
     plays: 4,
@@ -49,7 +51,7 @@ beforeEach(() => {
   createGameMock.mockReset()
   setGameLiveMock.mockReset()
 
-  fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, maxDailyLimit: 99 })
+  fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, themeBases: THEMES, maxDailyLimit: 99 })
 })
 
 async function renderModule() {
@@ -94,7 +96,7 @@ describe('the list', () => {
   })
 
   it('offers an empty list rather than nothing at all', async () => {
-    fetchGamesMock.mockResolvedValue({ games: [], types: TYPES, themes: THEMES, maxDailyLimit: 99 })
+    fetchGamesMock.mockResolvedValue({ games: [], types: TYPES, themes: THEMES, themeBases: THEMES, maxDailyLimit: 99 })
     await renderModule()
 
     expect(screen.getByText(/no games yet/i)).toBeInTheDocument()
@@ -114,7 +116,7 @@ describe('the list', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 
-    fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, maxDailyLimit: 99 })
+    fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, themeBases: THEMES, maxDailyLimit: 99 })
     await user.click(screen.getByRole('button', { name: /try again/i }))
 
     expect(await screen.findByTestId('games-list')).toBeInTheDocument()
@@ -171,6 +173,7 @@ describe('turning one live', () => {
       games: [game({ isLive: false })],
       types: TYPES,
       themes: THEMES,
+      themeBases: THEMES,
       maxDailyLimit: 99,
     })
     setGameLiveMock.mockResolvedValue(game({ isLive: true }))
@@ -191,6 +194,7 @@ describe('turning one live', () => {
       games: [game({ isLive: false, notReady: 'This game has no wheel yet.' })],
       types: TYPES,
       themes: THEMES,
+      themeBases: THEMES,
       maxDailyLimit: 99,
     })
     setGameLiveMock.mockRejectedValue(new ApiError('The probabilities total 97.', 409))
@@ -207,6 +211,7 @@ describe('turning one live', () => {
       games: [game({ isLive: false, notReady: 'This game has no wheel yet.' })],
       types: TYPES,
       themes: THEMES,
+      themeBases: THEMES,
       maxDailyLimit: 99,
     })
     await renderModule()

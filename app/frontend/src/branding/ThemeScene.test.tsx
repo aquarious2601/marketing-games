@@ -121,6 +121,83 @@ describe('the theme scene', () => {
 })
 
 /**
+ * F35 R16, R17, R19. The shop's own picture, where a painted scene would be.
+ */
+describe('a picture of your own', () => {
+  const PICTURE = '/api/branding/background/abcd1234abcd1234?v=1763650000'
+
+  it('paints the picture instead of the scene', () => {
+    render(<ThemeScene theme="birthday" background={PICTURE} />)
+
+    const scene = screen.getByTestId('theme-scene')
+
+    expect(scene).toHaveAttribute('data-scene', 'custom')
+    expect(screen.getByTestId('custom-background')).toHaveAttribute('src', PICTURE)
+  })
+
+  /** R19. Snow over somebody's photograph is a bug, not a feature. */
+  it('draws none of the theme it borrows its colours from', () => {
+    const { container } = render(<ThemeScene theme="christmas" background={PICTURE} />)
+
+    expect(container.querySelector('[data-scene="christmas"]')).toBeNull()
+  })
+
+  /** R16. Cover, centred: most of a wide picture is off a phone's screen. */
+  it('covers the page from the middle out', () => {
+    render(<ThemeScene theme="plain" background={PICTURE} />)
+
+    const picture = screen.getByTestId('custom-background')
+
+    expect(picture.className).toContain('object-cover')
+    expect(picture.className).toContain('inset-0')
+  })
+
+  /**
+   * It carries no information a player needs, so it is named as decoration
+   * in the one place that is asked about it.
+   */
+  it('tells a screen reader there is nothing here for them', () => {
+    render(<ThemeScene theme="plain" background={PICTURE} />)
+
+    expect(screen.getByTestId('custom-background')).toHaveAttribute('alt', '')
+  })
+
+  /**
+   * R17. Not a contrast device — R18 is — but the thing that makes a
+   * stranger's photograph belong to the page it is behind.
+   */
+  it('lays the page colour over it', () => {
+    const { container } = render(<ThemeScene theme="halloween" background={PICTURE} />)
+
+    const veil = [...container.querySelectorAll('div')].find(
+      (element) => element.style.backgroundColor === 'var(--bg)',
+    )
+
+    expect(veil).toBeDefined()
+    expect(Number(veil?.style.opacity)).toBeGreaterThan(0)
+    expect(Number(veil?.style.opacity)).toBeLessThan(1)
+  })
+
+  /** The same contract every painted scene keeps: decoration, and nothing else. */
+  it('stays out of the way', () => {
+    render(<ThemeScene theme="plain" background={PICTURE} />)
+
+    const scene = screen.getByTestId('theme-scene')
+
+    expect(scene).toHaveAttribute('aria-hidden', 'true')
+    expect(scene.className).toContain('pointer-events-none')
+    expect(scene.className).toContain('-z-10')
+  })
+
+  /** R4. No picture is the painted scene, exactly as before. */
+  it.each([null, undefined])('paints the theme when the picture is %p', (background) => {
+    render(<ThemeScene theme="birthday" background={background} />)
+
+    expect(screen.getByTestId('theme-scene')).toHaveAttribute('data-scene', 'birthday')
+  })
+})
+
+/**
  * The reduced-motion promise, checked against the stylesheet rather than
  * taken on trust. Ambient motion stops; the spin, which the player asked for
  * by pressing a button, does not (F03 §13).

@@ -61,6 +61,15 @@ logo:
     svg_entities: "Ce SVG déclare des entités XML, qui ne sont pas autorisées. Exportez-le sans elles et réessayez."
     sanitised_notice: 'Du contenu a été retiré du SVG par sécurité : %removed%.'
 
+background:
+    required: 'Choisissez une image à envoyer.'
+    not_an_image: "Ce fichier n'est pas une image."
+    too_large: "L'image ne doit pas dépasser %max% Mo. Celle-ci fait %size% Mo."
+    wrong_type: "L'image doit être au format PNG, JPEG ou WebP."
+    too_small: "L'image doit faire au moins %min% pixels sur son plus grand côté. Celle-ci fait %width%×%height%."
+    too_big: "L'image ne doit pas dépasser %max% pixels de côté. Celle-ci fait %width%×%height%."
+    upload_failed: "L'envoi ne s'est pas terminé. Veuillez réessayer."
+
 theme:
     plain: 'Sobre'
     black-friday: 'Black Friday'
@@ -68,6 +77,7 @@ theme:
     new-year: 'Nouvel An'
     halloween: 'Halloween'
     birthday: 'Joyeux anniversaire'
+    custom: 'Personnalisé'
 
 tagline:
     default: 'Un tour, un lot. Bonne chance !'

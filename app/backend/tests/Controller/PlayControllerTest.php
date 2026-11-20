@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Branding\Theme;
 use App\Entity\Game;
 use App\Game\GameType;
 use App\Tests\Support\DatabaseWebTestCase;
@@ -19,6 +20,22 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class PlayControllerTest extends DatabaseWebTestCase
 {
+    /** @var list<string> Pictures written to the upload directory. */
+    private array $pictures = [];
+
+    protected function tearDown(): void
+    {
+        foreach ($this->pictures as $path) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+
+        $this->pictures = [];
+
+        parent::tearDown();
+    }
+
     /** F27 R20 */
     public function testAKeyResolvesToItsGame(): void
     {
@@ -38,7 +55,16 @@ final class PlayControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', $this->playUri());
 
         self::assertSame(
-            ['companyName', 'currency', 'currencySymbol', 'logoUrl', 'theme', 'campaignName', 'tagline'],
+            [
+                'companyName',
+                'currency',
+                'currencySymbol',
+                'logoUrl',
+                'theme',
+                'backgroundUrl',
+                'campaignName',
+                'tagline',
+            ],
             array_keys($this->decodeResponse()['branding']),
         );
     }
@@ -149,6 +175,75 @@ final class PlayControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', '/api/wheel');
 
         self::assertResponseIsSuccessful();
+    }
+
+    // ---------------------------------------------- a theme of one's own
+
+    /**
+     * F35 R2, section 8. The page is told the palette and handed a picture.
+     * It is never told the word "custom", because it has no colours under
+     * that name.
+     */
+    public function testACustomThemeArrivesAsItsBaseAndAPicture(): void
+    {
+        $this->pictures[] = $this->giveTheGameAPicture(Theme::Birthday);
+
+        $this->client->request('GET', $this->playUri());
+
+        $branding = $this->decodeResponse()['branding'];
+
+        self::assertSame('birthday', $branding['theme']);
+        self::assertStringContainsString(
+            '/api/branding/background/'.$this->game->getLinkKey(),
+            (string) $branding['backgroundUrl'],
+        );
+    }
+
+    /** F35 R4. Custom with nothing uploaded is its base theme, and nothing else. */
+    public function testACustomThemeWithNoPictureIsJustItsBase(): void
+    {
+        $this->pictures[] = $this->giveTheGameAPicture(Theme::Christmas);
+        $this->game->setBackground(null);
+        $this->entityManager->flush();
+
+        $this->client->request('GET', $this->playUri());
+
+        $branding = $this->decodeResponse()['branding'];
+
+        self::assertSame('christmas', $branding['theme']);
+        self::assertNull($branding['backgroundUrl']);
+    }
+
+    /**
+     * F35 R15. The record says there is a picture and the disk disagrees.
+     * The page loses its decoration, not its readability.
+     */
+    public function testAPictureThatWentMissingIsNoPicture(): void
+    {
+        $path = $this->giveTheGameAPicture(Theme::Halloween);
+        unlink($path);
+
+        $this->client->request('GET', $this->playUri());
+
+        $branding = $this->decodeResponse()['branding'];
+
+        self::assertSame('halloween', $branding['theme']);
+        self::assertNull($branding['backgroundUrl']);
+    }
+
+    /** F35 R5. A picture kept through a change of theme is not shown by it. */
+    public function testAGameThatIsNotCustomShowsNoPicture(): void
+    {
+        $this->pictures[] = $this->giveTheGameAPicture(Theme::Birthday);
+        $this->game->setTheme(Theme::Christmas);
+        $this->entityManager->flush();
+
+        $this->client->request('GET', $this->playUri());
+
+        $branding = $this->decodeResponse()['branding'];
+
+        self::assertSame('christmas', $branding['theme']);
+        self::assertNull($branding['backgroundUrl']);
     }
 
     private function playUri(): string
