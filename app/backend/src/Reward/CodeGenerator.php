@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Reward;
 
+use App\Code\Alphabet;
+
 /**
  * The code a player shows at the counter (F13 R17, R18).
  *
@@ -23,8 +25,12 @@ final class CodeGenerator
     /**
      * Crockford's alphabet without U (which turns up in words nobody wants
      * printed on a voucher).
+     *
+     * Moved to `App\Code\Alphabet` by F34, which needed the same characters
+     * for a customer's card and should not have copied them: one answer to
+     * "which characters are safe", read by both generators.
      */
-    private const ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+    private const ALPHABET = Alphabet::CHARACTERS;
 
     private const GROUP = 4;
     private const GROUPS = 2;
@@ -37,9 +43,7 @@ final class CodeGenerator
             $letters = '';
 
             for ($index = 0; $index < self::GROUP; ++$index) {
-                // random_int, not rand: a guessable voucher code is a
-                // voucher anybody can have.
-                $letters .= self::ALPHABET[random_int(0, \strlen(self::ALPHABET) - 1)];
+                $letters .= Alphabet::character();
             }
 
             $groups[] = $letters;

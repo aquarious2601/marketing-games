@@ -68,7 +68,7 @@ scenario worth automating, and it is the one a jsdom test cannot reproduce.
 | # | Rule |
 |---|---|
 | R1 | The suite starts its own API and web servers and stops them when it finishes. |
-| R2 | Those servers use ports distinct from the development defaults (8000, 5173), so a running `dev.ps1` does not interfere. |
+| R2 | Those servers use ports distinct from the development defaults (8001, 5173), so a running `dev.ps1` does not interfere. |
 | R2b | The API under test runs against its own database, never the development one. A test asserts this directly (see the defect below). |
 | R3 | The web server under test proxies to the API server the suite started, not to the development one. |
 | R4 | Tests run against the dev build, headless, with no `.only` permitted to reach a non-interactive run. |

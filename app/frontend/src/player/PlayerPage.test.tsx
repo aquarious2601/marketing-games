@@ -63,7 +63,12 @@ const IDENTIFIED = { player: PLAYER, spin: null, spinsLeft: null }
  */
 const UNKNOWN_NUMBER = { known: false, phone: '0912345678', player: null, spinsLeft: null }
 const KNOWN_NUMBER = { known: true, phone: '0912345678', player: PLAYER, spinsLeft: null }
-const REGISTERED = { player: PLAYER, spinsLeft: null }
+/*
+ * F34 R7, R9. A registration that created the customer comes back with
+ * their card, so this fixture is what the server actually sends — and the
+ * card screen is now part of the path from the form to the wheel.
+ */
+const REGISTERED = { player: PLAYER, spinsLeft: null, card: 'M9PXK-4T7VH' }
 
 /**
  * An identification that has already had its spin (F20 R5).
@@ -1132,6 +1137,9 @@ describe('identifying the player', () => {
     await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
     await user.click(screen.getByTestId('details-submit'))
 
+    // F34 R7, R10. Their card, once, on the way to the game.
+    await user.click(await screen.findByTestId('card-continue'))
+
     expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
 
     // F08 R3: the server's canonical number is what gets registered, not the
@@ -1142,6 +1150,59 @@ describe('identifying the player', () => {
       lastName: 'Le',
       birthday: '1994-03-12',
     })
+  })
+
+  /** F34 R7, R11. The barcode, and the code under it as F33 R3 has it. */
+  it('shows a new customer their card', async () => {
+    fetchIdentityMock.mockResolvedValue(NOBODY)
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
+    registerPlayerMock.mockResolvedValue(REGISTERED)
+
+    const user = userEvent.setup()
+    render(<PlayerPage />)
+    await screen.findByTestId('identity-phone')
+
+    await user.type(screen.getByTestId('phone-input'), '0912345678')
+    await user.click(screen.getByTestId('phone-submit'))
+    await screen.findByTestId('identity-details')
+
+    await user.type(screen.getByTestId('first-name-input'), 'Anh')
+    await user.type(screen.getByTestId('last-name-input'), 'Le')
+    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.click(screen.getByTestId('details-submit'))
+
+    expect(await screen.findByTestId('identity-card')).toBeInTheDocument()
+    expect(screen.getByTestId('customer-card')).toHaveTextContent('M9PXK-4T7VH')
+    expect(screen.getByRole('img')).toHaveAccessibleName('M9PXK-4T7VH')
+    // R10: it is a step on the way, not a screen the game waits behind.
+    expect(screen.queryByTestId('wheel-preview')).not.toBeInTheDocument()
+  })
+
+  /**
+   * F34 R8. Anybody may type anybody's number into a stall phone, so a
+   * returning customer is shown nothing — the server sends no card, and
+   * there is no request that would ask for one.
+   */
+  it('shows no card to a customer who already existed', async () => {
+    fetchIdentityMock.mockResolvedValue(NOBODY)
+    identifyPhoneMock.mockResolvedValue(UNKNOWN_NUMBER)
+    registerPlayerMock.mockResolvedValue({ ...REGISTERED, card: null })
+
+    const user = userEvent.setup()
+    render(<PlayerPage />)
+    await screen.findByTestId('identity-phone')
+
+    await user.type(screen.getByTestId('phone-input'), '0912345678')
+    await user.click(screen.getByTestId('phone-submit'))
+    await screen.findByTestId('identity-details')
+
+    await user.type(screen.getByTestId('first-name-input'), 'Anh')
+    await user.type(screen.getByTestId('last-name-input'), 'Le')
+    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.click(screen.getByTestId('details-submit'))
+
+    expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
+    expect(screen.queryByTestId('identity-card')).not.toBeInTheDocument()
   })
 
   it('lets the player go back and change the number', async () => {
@@ -1369,6 +1430,45 @@ describe('the code on the result', () => {
     await spinTo({ type: 'nothing', value: null, code: null })
 
     expect(screen.queryByTestId('reward-code')).not.toBeInTheDocument()
+  })
+
+  /** F33 R11. The label, the bars, then the characters. */
+  it('shows the code as a barcode above the characters', async () => {
+    await spinTo({ type: 'percent_off', value: 10, code: 'A7K3-M9PX' })
+
+    const panel = screen.getByTestId('reward-code')
+    const order = [...panel.children].map(
+      (child) => child.getAttribute('data-testid') ?? child.textContent,
+    )
+
+    expect(order).toEqual(['Your code', 'reward-barcode', 'A7K3-M9PX'])
+  })
+
+  /*
+   * R3. The characters are not decoration under the bars: they are what the
+   * counter types when the scan will not take, which is the whole reason
+   * this feature keeps them. Asserted apart from the order above so that
+   * removing them later fails a test that says why.
+   */
+  it('keeps the characters readable under the barcode', async () => {
+    await spinTo({ type: 'free_product', value: null, code: 'B4C5-D6F7' })
+
+    expect(screen.getByTestId('reward-barcode')).toBeInTheDocument()
+    expect(screen.getByTestId('reward-code')).toHaveTextContent('B4C5-D6F7')
+  })
+
+  /** R13. Nothing to claim, so nothing to scan. */
+  it('shows no barcode for a losing item', async () => {
+    await spinTo({ type: 'nothing', value: null, code: null })
+
+    expect(screen.queryByTestId('reward-barcode')).not.toBeInTheDocument()
+  })
+
+  /** R14. A win from before F16 has no code to encode. */
+  it('shows no barcode for a win that has no code', async () => {
+    await spinTo({ type: 'free_product', value: null, code: null })
+
+    expect(screen.queryByTestId('reward-barcode')).not.toBeInTheDocument()
   })
 
   /** F17: the panel a player reads when the wheel gave nothing. */

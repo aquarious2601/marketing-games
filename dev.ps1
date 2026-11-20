@@ -11,20 +11,26 @@
     alias, so an old habit does not break.
 
 .PARAMETER ApiPort
-    Port for the Symfony dev server. Defaults to 8000.
+    Port for the Symfony dev server. Defaults to 8001.
+
+    8000 was the default until another application on the same machine took
+    it. Nothing here needs 8000, and a port this project does not have to
+    argue over is worth more than a round number: a backend that loses the
+    race starts anyway and answers somebody else's routes, which reads as a
+    broken login rather than as a port clash.
 
 .PARAMETER WebPort
     Port for the Vite dev server. Defaults to 5173.
 
 .EXAMPLE
     .\dev.ps1
-    .\dev.ps1 -ApiPort 8001
+    .\dev.ps1 -ApiPort 8000
 #>
 [CmdletBinding()]
 param(
     [Alias('Game')]
     [string] $App = 'app',
-    [int]    $ApiPort = 8000,
+    [int]    $ApiPort = 8001,
     [int]    $WebPort = 5173
 )
 
@@ -40,7 +46,7 @@ if (-not (Test-Path $frontend)) {
     exit 1
 }
 
-Write-Host ('Starting the {0} API on port {1}...' -f $Game, $ApiPort) -ForegroundColor Cyan
+Write-Host ('Starting the {0} API on port {1}...' -f $App, $ApiPort) -ForegroundColor Cyan
 Start-Process -FilePath 'php' `
               -ArgumentList @('-S', "127.0.0.1:$ApiPort", '-t', 'public', 'public/index.php') `
               -WorkingDirectory $backend
@@ -48,7 +54,7 @@ Start-Process -FilePath 'php' `
 # Tells Vite where to forward /api, so a non-default API port still works.
 $env:VITE_DEV_API_TARGET = "http://127.0.0.1:$ApiPort"
 
-Write-Host ('Starting the {0} web app on port {1}...' -f $Game, $WebPort) -ForegroundColor Cyan
+Write-Host ('Starting the {0} web app on port {1}...' -f $App, $WebPort) -ForegroundColor Cyan
 Start-Process -FilePath 'npm.cmd' `
               -ArgumentList @('run', 'dev', '--', '--port', "$WebPort", '--strictPort') `
               -WorkingDirectory $frontend

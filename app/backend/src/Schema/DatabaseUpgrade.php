@@ -8,6 +8,7 @@ use App\Entity\Game;
 use App\Entity\Reward;
 use App\Game\GameType;
 use App\Game\LinkKey;
+use App\Player\CustomerCode;
 use App\Player\PhoneMatch;
 use App\Reward\RewardProvider;
 use App\Reward\RewardType;
@@ -51,6 +52,7 @@ final class DatabaseUpgrade
     private const SPIN_GAME_INDEX = 'IDX_120A248FE48FD905';
 
     /** F31's key for the account that claimed a spin, from the same place. */
+    private const PLAYER_CARD_INDEX = 'uniq_player_code';
     private const CLAIMED_BY_FK = 'FK_120A248FF67E7A38';
     private const CLAIMED_BY_INDEX = 'IDX_120A248FF67E7A38';
 
@@ -132,6 +134,9 @@ final class DatabaseUpgrade
             $this->addAverageBasket($dryRun),
             $this->addSpinRewardCost($dryRun),
             $this->priceWhatIsAlreadyRecorded($dryRun),
+            $this->addPlayerCard($dryRun),
+            $this->issueTheCardsAlreadyOwed($dryRun),
+            $this->constrainPlayerCard($dryRun),
         ];
     }
 
@@ -2025,6 +2030,148 @@ final class DatabaseUpgrade
     /**
      * @param list<string|null> $candidates
      */
+    /**
+     * F34 R4. The column first, nullable, because every player already in
+     * the table needs one and they cannot all be filled in the same
+     * statement that adds it.
+     */
+    private function addPlayerCard(bool $dryRun): UpgradeStep
+    {
+        $name = 'player.code';
+
+        if (!$this->tableExists('player')) {
+            return UpgradeStep::done($name, 'would add it (the table does not exist yet)');
+        }
+
+        if ($this->columnExists('player', 'code')) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(sprintf(
+                'ALTER TABLE player ADD code VARCHAR(%d) DEFAULT NULL',
+                CustomerCode::STORED_LENGTH,
+            ));
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
+    }
+
+    /**
+     * Gives a card to every customer who registered before this feature
+     * existed (F34 R4), so "find them by their card" is true of the whole
+     * list rather than only of people who arrive from now on.
+     *
+     * A loop rather than one statement, because the codes have to come from
+     * the same generator the application uses — a card made of `MD5(id)` or
+     * a row number would be a different kind of code wearing the same
+     * column. Idempotent by only touching rows that still have none, which
+     * is also what makes it safe to run against a database half-way through
+     * this upgrade.
+     *
+     * The codes already taken are read first and kept, so a collision inside
+     * one run is caught here rather than by the unique index two steps
+     * later, where it would fail the whole upgrade over something a retry
+     * fixes. 30^10 makes that improbable; it costs one query to make it
+     * impossible.
+     */
+    private function issueTheCardsAlreadyOwed(bool $dryRun): UpgradeStep
+    {
+        $name = 'a card for every customer';
+
+        if (!$this->columnExists('player', 'code')) {
+            return UpgradeStep::done($name, 'would do every customer (the column does not exist yet)');
+        }
+
+        /** @var list<int> $owed */
+        $owed = array_map(
+            static fn ($id): int => (int) $id,
+            $this->connection->fetchFirstColumn('SELECT id FROM player WHERE code IS NULL ORDER BY id'),
+        );
+
+        if ([] === $owed) {
+            return UpgradeStep::skipped($name, 'every customer has one');
+        }
+
+        if ($dryRun) {
+            return UpgradeStep::done($name, sprintf(
+                'would issue %d',
+                \count($owed),
+            ));
+        }
+
+        /** @var array<string, true> $taken */
+        $taken = array_fill_keys(
+            $this->connection->fetchFirstColumn('SELECT code FROM player WHERE code IS NOT NULL'),
+            true,
+        );
+
+        foreach ($owed as $id) {
+            do {
+                $code = CustomerCode::generate();
+            } while (isset($taken[$code]));
+
+            $taken[$code] = true;
+
+            $this->connection->executeStatement(
+                'UPDATE player SET code = :code WHERE id = :id',
+                ['code' => $code, 'id' => $id],
+            );
+        }
+
+        return UpgradeStep::done($name, sprintf('issued %d', \count($owed)));
+    }
+
+    /** F34 R3. The index is what guarantees uniqueness, not the generator. */
+    private function constrainPlayerCard(bool $dryRun): UpgradeStep
+    {
+        $name = 'player.code is required and unique';
+
+        if (!$this->columnExists('player', 'code')) {
+            return UpgradeStep::done($name, 'would constrain it (the column does not exist yet)');
+        }
+
+        $empty = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM player WHERE code IS NULL',
+        );
+
+        if ($empty > 0) {
+            if ($dryRun) {
+                return UpgradeStep::done($name, 'would constrain it, once the customers are done');
+            }
+
+            throw new \RuntimeException(sprintf(
+                '%d customers still have no card. The step before this one should have issued them.',
+                $empty,
+            ));
+        }
+
+        $alreadyRequired = !$this->columnIsNullable('player', 'code');
+        $hasIndex = $this->indexExists('player', self::PLAYER_CARD_INDEX);
+
+        if ($alreadyRequired && $hasIndex) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            if (!$alreadyRequired) {
+                $this->connection->executeStatement(sprintf(
+                    'ALTER TABLE player MODIFY code VARCHAR(%d) NOT NULL',
+                    CustomerCode::STORED_LENGTH,
+                ));
+            }
+
+            if (!$hasIndex) {
+                $this->connection->executeStatement(sprintf(
+                    'CREATE UNIQUE INDEX %s ON player (code)',
+                    self::PLAYER_CARD_INDEX,
+                ));
+            }
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'constrain it', 'constrained'));
+    }
+
     private function firstNonEmpty(array $candidates): ?string
     {
         foreach ($candidates as $candidate) {

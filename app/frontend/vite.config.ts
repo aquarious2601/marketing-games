@@ -2,8 +2,15 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
 // Where the Symfony dev server listens. Overridable so a different port or a
-// remote API can be used without editing this file.
-const DEV_API_TARGET = process.env.VITE_DEV_API_TARGET ?? 'http://127.0.0.1:8000'
+// remote API can be used without editing this file — `dev.ps1` sets it from
+// its own -ApiPort, so the two defaults below only have to agree with each
+// other.
+//
+// 8001 rather than 8000 since another application on the same machine claimed
+// 8000. The failure that caused is worth remembering: the proxy forwarded
+// happily, the other application answered, and the symptom was a login that
+// would not work rather than anything saying a port was taken.
+const DEV_API_TARGET = process.env.VITE_DEV_API_TARGET ?? 'http://127.0.0.1:8001'
 
 // https://vite.dev/config/
 export default defineConfig({

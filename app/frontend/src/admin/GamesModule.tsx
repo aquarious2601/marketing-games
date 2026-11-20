@@ -305,7 +305,7 @@ export function GamesModule() {
  *
  * Here rather than on the server, which answers from wherever the API is
  * served and in development is a different host entirely (the API on
- * 127.0.0.1:8000, the app on localhost:5173) — so the link it built pointed
+ * 127.0.0.1:8001, the app on localhost:5173) — so the link it built pointed
  * at the API and did not resolve.
  */
 function playUrlOf(game: GameSummary): string {

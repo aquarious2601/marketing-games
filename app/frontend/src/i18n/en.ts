@@ -54,6 +54,9 @@ export const en = {
 
   // -- Identity step --------------------------------------------------
   'identity.kicker': 'Before you spin',
+  'identity.cardHeading': 'This is your card',
+  'identity.cardLead': 'Take a photo of it. Show the photo at the counter and we will find you straight away.',
+  'identity.cardContinue': 'Got it',
   'identity.phoneHeading': 'Enter your phone number',
   'identity.phoneLead':
     'It is how we know who is playing, and how we find you if you have played before.',
@@ -167,6 +170,8 @@ export const en = {
   'customer.loading': 'Loading the customer…',
   'customer.loadFailed': 'That customer could not be loaded.',
   'customer.who': 'Who they are',
+  'customer.card': 'Their card',
+  'customer.cardLead': 'Shown to them once, when they registered. Show it again to somebody who lost the photo.',
   'customer.plays': 'Plays',
   'customer.playsValue': 'Played %played%, won %won%',
   'customer.toCollect': 'To collect',
@@ -331,6 +336,8 @@ export const en = {
   'sheet.getting': 'Just a moment…',
   'sheet.yours': 'These are yours',
   'sheet.showAtCounter': 'Show this at the counter.',
+  'sheet.showCode': 'Show the code for %name%',
+  'sheet.allGifts': 'All my gifts',
   'sheet.failed': 'The gifts could not be given out. Nothing was used up — try again.',
 
   'stats.title': 'Stats',

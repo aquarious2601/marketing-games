@@ -387,6 +387,87 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         self::assertSame($won, $this->decodeResponse()['wins'][0]['prizeName']);
     }
 
+    // ----------------------------------- F34 R13-R18: their own card
+
+    /** F34 R13, R14. The photograph in their hand finds the customer. */
+    public function testItFindsACustomerByTheirCard(): void
+    {
+        $this->signInAsAdmin();
+
+        $id = $this->givenAPlayer('0912345678');
+        $this->givenAPlayer('0987654321', 'Binh');
+
+        $card = $this->cardOf($id);
+
+        $this->client->request('GET', self::LIST_URI.'?search='.urlencode($card));
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $this->decodeResponse()['total']);
+        self::assertSame('0912345678', $this->decodeResponse()['players'][0]['phone']);
+    }
+
+    /** F34 R15. Scanned, typed in lower case, or without its hyphen. */
+    public function testItFindsThemByACardSpelledAnyWay(): void
+    {
+        $this->signInAsAdmin();
+
+        $id = $this->givenAPlayer('0912345678');
+        $card = $this->cardOf($id);
+
+        foreach ([
+            strtolower($card),
+            str_replace('-', '', $card),
+            ' '.$card.' ',
+        ] as $spelling) {
+            $this->client->request('GET', self::LIST_URI.'?search='.urlencode($spelling));
+
+            self::assertSame(1, $this->decodeResponse()['total'], sprintf('Spelled "%s".', $spelling));
+        }
+    }
+
+    /** F34 R17. The recovery path for somebody who lost the photograph. */
+    public function testACustomersPageCarriesTheirCard(): void
+    {
+        $this->signInAsAdmin();
+
+        $id = $this->givenAPlayer();
+
+        $this->client->request('GET', self::LIST_URI.'/'.$id);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($this->cardOf($id), $this->decodeResponse()['card']);
+    }
+
+    /**
+     * F34 R18. A screen full of other people's cards is a screen worth
+     * photographing, so the list carries none of them.
+     */
+    public function testTheListCarriesNobodysCard(): void
+    {
+        $this->signInAsAdmin();
+
+        $this->givenAPlayer('0912345678');
+        $this->givenAPlayer('0987654321', 'Binh');
+
+        $this->client->request('GET', self::LIST_URI);
+
+        self::assertResponseIsSuccessful();
+
+        foreach ($this->decodeResponse()['players'] as $player) {
+            self::assertArrayNotHasKey('card', $player);
+        }
+    }
+
+    /** The card as the database holds it, which is what staff are shown. */
+    private function cardOf(int $id): string
+    {
+        $player = $this->entityManager->getRepository(Player::class)->find($id);
+
+        self::assertInstanceOf(Player::class, $player);
+
+        return $player->getCode();
+    }
+
     // --------------------------------------- F31 R1-R7: a code finds them
 
     /** F31 R1, R5. The ticket in the customer's hand finds the customer. */
