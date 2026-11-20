@@ -5,7 +5,7 @@
 .DESCRIPTION
     Walks each application folder and runs whatever suites it finds:
       backend/   -> PHPUnit
-      frontend/  -> TypeScript typecheck, then Vitest
+      frontend/  -> TypeScript typecheck, then Vitest, then ESLint
 
     The Playwright end-to-end suite is NOT part of a normal run. It takes
     minutes rather than seconds, so it is opt-in: pass -E2E.
@@ -122,6 +122,15 @@ foreach ($g in $games) {
                      -WorkingDirectory $frontend `
                      -Executable 'npm' `
                      -Arguments @('test')
+
+        # Last of the four because it is the one a failure is cheapest to
+        # read: by the time lint speaks, the suites that say whether the
+        # code works have already spoken. It was missing here until a
+        # deploy showed CI running a gate this script did not.
+        Invoke-Suite -Name ('{0} frontend (lint)' -f $g.Name) `
+                     -WorkingDirectory $frontend `
+                     -Executable 'npm' `
+                     -Arguments @('run', 'lint')
 
         if ($E2E -and (Test-Path (Join-Path $frontend 'playwright.config.ts'))) {
             Invoke-Suite -Name ('{0} end-to-end (playwright)' -f $g.Name) `

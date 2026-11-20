@@ -65,12 +65,18 @@ because there is no sense testing by hand what the suites already reject.
 Then, on your word, the merge button on the pull request, or:
 
 ```bash
-gh pr merge --no-ff --delete-branch
+gh pr merge --merge --delete-branch
 ```
 
-`--no-ff` on purpose: the merge commit is the record of when a feature
-landed and what it brought. Fast-forwarding would scatter a feature's
-commits into the sprint's history with nothing tying them together.
+`--merge` on purpose, rather than `--squash` or `--rebase`: it is the one
+that writes a merge commit, and that commit is the record of when a feature
+landed and what it brought. The others scatter a feature's commits into the
+sprint's history with nothing tying them together, or flatten them into one
+and lose the shape of the work.
+
+Until sprint 1.4 this line read `--no-ff`, which is `git merge`'s spelling
+of the same intent, not the CLI's — `gh` answers `unknown flag` and merges
+nothing.
 
 ### Ending a sprint
 
