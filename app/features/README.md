@@ -204,6 +204,9 @@ what those screens become once several owners share an installation.
 | [F30](./F30-the-theme-belongs-to-the-game.md) | The theme belongs to the game | Both | Agreed |
 | [F31](./F31-claiming-at-the-counter.md) | Claiming at the counter | Admin | Agreed |
 | [F32](./F32-what-the-game-costs-and-brings.md) | What the game costs and brings | Admin | Agreed |
+| [F33](./F33-a-barcode-the-counter-can-scan.md) | A barcode the counter can scan | Both | Agreed |
+| [F34](./F34-the-customers-own-card.md) | The customer's own card | Both | Agreed |
+| [F35](./F35-a-background-of-your-own.md) | A background of your own | Both | Agreed |
 
 ## Running the tests
 
