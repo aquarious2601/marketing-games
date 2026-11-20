@@ -331,6 +331,8 @@ export const en = {
   'sheet.getting': 'Just a moment…',
   'sheet.yours': 'These are yours',
   'sheet.showAtCounter': 'Show this at the counter.',
+  'sheet.showCode': 'Show the code for %name%',
+  'sheet.allGifts': 'All my gifts',
   'sheet.failed': 'The gifts could not be given out. Nothing was used up — try again.',
 
   'stats.title': 'Stats',

@@ -294,6 +294,8 @@ export const vi: Record<MessageKey, string> = {
   'sheet.getting': 'Chờ một chút…',
   'sheet.yours': 'Đây là quà của bạn',
   'sheet.showAtCounter': 'Hãy xuất trình tại quầy.',
+  'sheet.showCode': 'Hiển thị mã của %name%',
+  'sheet.allGifts': 'Tất cả quà của tôi',
   'sheet.failed': 'Không thể trao quà. Chưa dùng mất lượt nào — hãy thử lại.',
 
   'stats.title': 'Số liệu',

@@ -298,6 +298,8 @@ export const fr: Record<MessageKey, string> = {
   'sheet.getting': 'Un instant…',
   'sheet.yours': 'Ils sont à vous',
   'sheet.showAtCounter': 'Présentez ceci au comptoir.',
+  'sheet.showCode': 'Afficher le code de %name%',
+  'sheet.allGifts': 'Tous mes cadeaux',
   'sheet.failed': 'Les cadeaux n\'ont pas pu être remis. Rien n\'a été consommé — réessayez.',
 
   'stats.title': 'Chiffres',

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchPlayers, type AdminPlayer } from '../api/players'
 import { useT, type Translate } from '../i18n/I18nContext'
@@ -61,6 +61,7 @@ export function PlayersModule() {
   const t = useT()
   const navigate = useNavigate()
   const [search, setSearch] = useSearchParams()
+  const box = useRef<HTMLInputElement>(null)
   const [phase, setPhase] = useState<LoadPhase>('loading')
   const [players, setPlayers] = useState<AdminPlayer[]>([])
   // Held apart from `players.length`, because the list is capped and the
@@ -130,6 +131,21 @@ export function PlayersModule() {
   }, [filter, load])
 
   /**
+   * F33 R20. The box takes focus when the module opens, because a scanner
+   * types into whatever is focused and a scan that lands nowhere is lost
+   * without a sound — no beep to tell staff it went missing, nothing on
+   * screen, and a customer waiting.
+   *
+   * Once, on open, and never again: this module is only mounted while its
+   * tab is the open one (F09 R6), so mounting *is* the module opening, and
+   * re-focusing on every render would fight the admin who has clicked
+   * somewhere else.
+   */
+  useEffect(() => {
+    box.current?.focus()
+  }, [])
+
+  /**
    * R6. A ticket is one action: a complete code that found exactly one
    * customer opens that customer.
    *
@@ -181,9 +197,32 @@ export function PlayersModule() {
           id="player-filter"
           name="player-filter"
           type="search"
+          ref={box}
           placeholder={t('players.filterPlaceholder')}
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
+          /*
+            F33 R21. A scanner ends with Enter, and a code it sent is opened
+            by the effect above before Enter is even read — so what this
+            actually buys is the number somebody typed by hand: one match and
+            Enter opens it, which is the same gesture staff already use
+            everywhere else.
+
+            `preventDefault` because Enter in a `type="search"` box is a form
+            submission in some browsers, and a reload here would throw away
+            the scan along with the page.
+          */
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') {
+              return
+            }
+
+            event.preventDefault()
+
+            if (phase === 'ready' && players.length === 1) {
+              void navigate(customerPath(players[0].id, filter))
+            }
+          }}
           data-testid="player-filter"
           className={inputClass}
         />
