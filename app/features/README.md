@@ -210,6 +210,7 @@ what those screens become once several owners share an installation.
 | [F36](./F36-each-game-keeps-its-own-customer.md) | Each game keeps its own customer | Player | Agreed |
 | [F37](./F37-deleting-a-game.md) | Deleting a game | Admin | Agreed |
 | [F38](./F38-a-birthday-without-a-year.md) | A birthday without a year | Both | Agreed |
+| [F39](./F39-codes-a-scanner-reads-as-numbers.md) | Codes a scanner reads as numbers | Both | Agreed |
 
 ## Running the tests
 

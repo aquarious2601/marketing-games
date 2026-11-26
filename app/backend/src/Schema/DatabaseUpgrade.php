@@ -145,7 +145,41 @@ final class DatabaseUpgrade
             $this->fillTheBirthdaysAlreadyGiven($dryRun),
             $this->requireTheBirthdayParts($dryRun),
             $this->letTheBirthYearGo($dryRun),
+            $this->widenTheCustomerCard($dryRun),
         ];
+    }
+
+    /**
+     * F39 R3. A card is twelve digits and two spaces now, where it was ten
+     * characters and a hyphen.
+     *
+     * Only the column: the codes themselves are not converted, because F39
+     * §7 deletes every customer who holds one rather than leaving two
+     * vintages at a counter. A row that survived this somehow would keep
+     * working — the column only grew.
+     */
+    private function widenTheCustomerCard(bool $dryRun): UpgradeStep
+    {
+        $name = 'player.code holds a numeric card';
+
+        $column = $this->columnOf('player', 'code');
+
+        if (null === $column) {
+            return UpgradeStep::done($name, 'would widen it (the column does not exist yet)');
+        }
+
+        if ($column->getLength() >= CustomerCode::STORED_LENGTH) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(sprintf(
+                'ALTER TABLE player MODIFY code VARCHAR(%d) NOT NULL',
+                CustomerCode::STORED_LENGTH,
+            ));
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'widen it', 'widened'));
     }
 
     /**

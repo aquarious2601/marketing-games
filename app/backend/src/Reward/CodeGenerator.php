@@ -32,24 +32,24 @@ final class CodeGenerator
      */
     private const ALPHABET = Alphabet::CHARACTERS;
 
-    private const GROUP = 4;
-    private const GROUPS = 2;
+    /**
+     * Ten digits, in three groups (F39 R2).
+     *
+     * Four and then two threes rather than five and five: a group of five
+     * digits is one more than a reader holds in their head at a glance, and
+     * the shape 4-3-3 is the one a telephone number taught everybody.
+     *
+     * Ten digits is one in ten billion. Fewer than the thirty-character
+     * alphabet this replaced held in eight, and still far more than a shop
+     * will issue — see F39 §13 for why that trade is the right way round.
+     */
+    private const GROUPS = [4, 3, 3];
+
+    private const LENGTH = 10;
 
     public function generate(): string
     {
-        $groups = [];
-
-        for ($group = 0; $group < self::GROUPS; ++$group) {
-            $letters = '';
-
-            for ($index = 0; $index < self::GROUP; ++$index) {
-                $letters .= Alphabet::character();
-            }
-
-            $groups[] = $letters;
-        }
-
-        return implode('-', $groups);
+        return Alphabet::grouped(self::GROUPS);
     }
 
     /**
@@ -57,49 +57,41 @@ final class CodeGenerator
      * it cannot be the start of one (F16 R8, R12).
      *
      * The code is read off a screen and typed back in by somebody in a
-     * hurry, so case, spaces and the hyphen are all noise. The hyphen in
-     * particular is put back where it *must* go rather than taken from
-     * where it was typed, which is why `a7k3m9px` and `A7K3-M9PX` end up
-     * the same string.
+     * hurry, so the spaces are noise. They are put back where they *must*
+     * go rather than taken from where they were typed, which is why
+     * `4821739506` and `4821 739 506` end up the same string.
      *
      * Null rather than an empty string, because the caller's question is
-     * "should I compare this against codes at all" and a phone number
-     * answers no. That keeps a numeric filter from being asked of the code
-     * column as well.
+     * "should I compare this against codes at all", and something that
+     * cannot be a code answers no.
      */
     public static function normalise(string $input): ?string
     {
-        $letters = str_replace([' ', '-'], '', strtoupper(trim($input)));
-        $length = \strlen($letters);
+        $digits = str_replace([' ', '-'], '', trim($input));
+        $length = \strlen($digits);
 
-        if (0 === $length || $length > self::GROUP * self::GROUPS) {
+        if (0 === $length || $length > self::LENGTH) {
             return null;
         }
 
         // strspn counts the leading characters that are in the alphabet, so
-        // a short count is a character no code can contain — an O for a
-        // zero, or an accent from somebody's keyboard.
-        if ($length !== strspn($letters, self::ALPHABET)) {
+        // a short count is a character no code can contain — a letter, or an
+        // accent from somebody's keyboard.
+        if ($length !== strspn($digits, self::ALPHABET)) {
             return null;
         }
 
-        if ($length <= self::GROUP) {
-            return $letters;
-        }
-
-        return substr($letters, 0, self::GROUP).'-'.substr($letters, self::GROUP);
+        return Alphabet::group($digits, self::GROUPS);
     }
 
     /** What a code looks like, for anything that has to recognise one. */
     public static function pattern(): string
     {
         return sprintf(
-            '/^[%s]{%d}(-[%s]{%d}){%d}$/',
+            '/^[%s]{4} [%s]{3} [%s]{3}$/',
             self::ALPHABET,
-            self::GROUP,
             self::ALPHABET,
-            self::GROUP,
-            self::GROUPS - 1,
+            self::ALPHABET,
         );
     }
 }

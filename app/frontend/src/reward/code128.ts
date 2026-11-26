@@ -47,6 +47,18 @@ export const SYMBOLS: readonly string[] = [
 
 /** Code set B: every printable ASCII character, which covers F13 R18's alphabet. */
 const START_B = 104
+
+/**
+ * F39 R7. The numeric mode: one symbol per *pair* of digits.
+ *
+ * This is the whole reason F39 made the codes digits. A twelve-digit card
+ * is six symbols here against twelve in code set B, and a barcode a third
+ * narrower at the same width has bars a third wider — which is most of the
+ * difference between a scanner that reads a phone screen first time and one
+ * that has to be waved about.
+ */
+const START_C = 105
+
 const STOP = 106
 
 /** The lowest and highest character code set B can carry, as its own values. */
@@ -80,13 +92,34 @@ export function checkSymbol(code: string): number | null {
    * each data symbol counts by its position, one-based. Modulo 103 because
    * that is how many symbol values there are before the start symbols.
    */
-  let sum = START_B
+  let sum = startFor(code)
 
   values.forEach((value, index) => {
     sum += value * (index + 1)
   })
 
   return sum % 103
+}
+
+/**
+ * F39 R7, R8. Which code set this string is encoded in.
+ *
+ * Digits in an even number go in the numeric mode; everything else goes in
+ * code set B exactly as before. An odd run of digits would need a mode
+ * switch mid-code to finish, and a format that needs one is a format this
+ * does not have — F39 R2 and R3 are both even.
+ */
+function startFor(code: string): number {
+  return isNumeric(bare(code)) ? START_C : START_B
+}
+
+function isNumeric(characters: string): boolean {
+  return 0 === characters.length % 2 && /^[0-9]+$/.test(characters)
+}
+
+/** The code without the grouping, which is for eyes and not for scanners. */
+function bare(code: string): string {
+  return code.replaceAll('-', '').replaceAll(' ', '')
 }
 
 /**
@@ -106,29 +139,43 @@ export function encode(code: string): readonly number[] | null {
     return null
   }
 
-  return [START_B, ...values, check, STOP].flatMap((symbol) =>
+  return [startFor(code), ...values, check, STOP].flatMap((symbol) =>
     [...SYMBOLS[symbol]].map(Number),
   )
 }
 
 /**
- * The code's characters as code set B values, or null if any of them is not
- * one.
+ * The code's symbol values, in whichever code set it belongs to, or null if
+ * it belongs to neither.
  *
- * The hyphen goes first (F33 R2). It is grouping for human eyes — F13 R18
- * put it there so a code can be read aloud — and `CodeGenerator::normalise`
- * on the server already treats it as noise, so a scanned code and a typed
- * code arrive at the same string either way. Encoding it would only make the
- * symbol eleven modules wider.
+ * The grouping goes first (F33 R2, F39 R4). It is for human eyes — so a code
+ * can be read aloud — and the server treats it as noise too, so a scanned
+ * code and a typed code arrive at the same string either way. Encoding it
+ * would only make the barcode wider.
  */
 function valuesOf(code: string): number[] | null {
-  const characters = [...code.replaceAll('-', '')]
+  const characters = bare(code)
 
   if (0 === characters.length) {
     return null
   }
 
-  const values = characters.map(
+  return isNumeric(characters) ? numericValues(characters) : printableValues(characters)
+}
+
+/** F39 R7. Each pair of digits as the number it spells: "48" is 48. */
+function numericValues(digits: string): number[] {
+  const values: number[] = []
+
+  for (let at = 0; at < digits.length; at += 2) {
+    values.push(Number(digits.slice(at, at + 2)))
+  }
+
+  return values
+}
+
+function printableValues(characters: string): number[] | null {
+  const values = [...characters].map(
     (character) => (character.codePointAt(0) ?? 0) - FIRST_PRINTABLE,
   )
 
