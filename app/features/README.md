@@ -208,6 +208,7 @@ what those screens become once several owners share an installation.
 | [F34](./F34-the-customers-own-card.md) | The customer's own card | Both | Agreed |
 | [F35](./F35-a-background-of-your-own.md) | A background of your own | Both | Agreed |
 | [F36](./F36-each-game-keeps-its-own-customer.md) | Each game keeps its own customer | Player | Agreed |
+| [F37](./F37-deleting-a-game.md) | Deleting a game | Admin | Agreed |
 
 ## Running the tests
 

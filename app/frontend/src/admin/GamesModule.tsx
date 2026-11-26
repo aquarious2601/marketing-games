@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, ApiValidationError, type ApiViolation } from '../api/client'
 import {
   createGame,
+  deleteGame,
   fetchGames,
   setGameLive,
   type GameSummary,
@@ -36,6 +37,9 @@ export function GamesModule() {
   const [error, setError] = useState<string | null>(null)
   const [busyWith, setBusyWith] = useState<number | null>(null)
   const [copied, setCopied] = useState<number | null>(null)
+  /** F37 R4, R5. The one row that has been asked about, if any. */
+  const [confirming, setConfirming] = useState<number | null>(null)
+  const [refused, setRefused] = useState<{ id: number; message: string } | null>(null)
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -101,6 +105,40 @@ export function GamesModule() {
     } finally {
       setBusyWith(null)
     }
+  }
+
+  /**
+   * F37 R4. The first press asks; this is the second.
+   *
+   * The refusal is kept against the row rather than shown at the top of the
+   * page, because it is about that game and the page may list several.
+   */
+  const onDelete = async (game: GameSummary) => {
+    setBusyWith(game.id)
+    setRefused(null)
+
+    try {
+      await deleteGame(game.id)
+      setConfirming(null)
+      await refresh()
+    } catch (caught) {
+      setConfirming(null)
+      setRefused({
+        id: game.id,
+        message:
+          caught instanceof ApiValidationError
+            ? (caught.violations[0]?.message ?? t('games.deleteFailed'))
+            : t('games.deleteFailed'),
+      })
+    } finally {
+      setBusyWith(null)
+    }
+  }
+
+  /** F37 R5. Asking about one row abandons the question on any other. */
+  const onAskToDelete = (game: GameSummary) => {
+    setRefused(null)
+    setConfirming(game.id)
   }
 
   const onCopy = async (game: GameSummary) => {
@@ -186,6 +224,49 @@ export function GamesModule() {
                         >
                           {game.isLive ? t('games.turnOff') : t('games.turnLive')}
                         </button>
+
+                        {/*
+                          F37 R1, R9. Offered only where it can work: a live
+                          game and a played one are both refused by the
+                          server, and a control that is only ever answered
+                          with a refusal is a control that should not be
+                          there. The server still decides.
+                        */}
+                        {!game.isLive &&
+                          0 === game.plays &&
+                          (confirming === game.id ? (
+                            <>
+                              <span className="text-xs text-slate-600">
+                                {t('games.deleteConfirm')}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setConfirming(null)}
+                                data-testid={`game-${game.id}-delete-cancel`}
+                                className={secondaryButtonClass}
+                              >
+                                {t('games.deleteCancel')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void onDelete(game)}
+                                disabled={busyWith === game.id}
+                                data-testid={`game-${game.id}-delete-confirm`}
+                                className={dangerButtonClass}
+                              >
+                                {t('games.delete')}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onAskToDelete(game)}
+                              data-testid={`game-${game.id}-delete`}
+                              className={secondaryButtonClass}
+                            >
+                              {t('games.delete')}
+                            </button>
+                          ))}
                       </div>
                     </div>
 
@@ -206,6 +287,18 @@ export function GamesModule() {
                         {copied === game.id ? t('games.copied') : t('games.copyLink')}
                       </button>
                     </div>
+
+                    {/* F37 R2, R3. The server's own sentence, against the
+                        row it is about. */}
+                    {refused?.id === game.id && (
+                      <p
+                        role="alert"
+                        data-testid={`game-${game.id}-delete-refused`}
+                        className="mt-2 text-xs text-amber-800"
+                      >
+                        {refused.message}
+                      </p>
+                    )}
 
                     {/* F27 R43: why it cannot go live, before anybody presses
                         the control and finds out. */}
@@ -321,3 +414,11 @@ const primaryButtonClass =
   'rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40'
 const secondaryButtonClass =
   'rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40'
+/*
+ * F37 section 13. The quiet control asks; this one answers. Red belongs on
+ * the press that cannot be undone, not on the one that opens the question —
+ * the row's own control is Turn off, and a red button beside it would draw
+ * the eye to the wrong thing.
+ */
+const dangerButtonClass =
+  'rounded-md bg-rose-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-40'

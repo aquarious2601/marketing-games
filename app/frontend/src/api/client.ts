@@ -199,7 +199,23 @@ async function request<T>(
   }
 }
 
+/**
+ * 204 is "done, and there is nothing to say".
+ *
+ * It carries no body at all — Symfony strips one even from a
+ * `JsonResponse(null)` — so asking it for JSON throws, and every endpoint
+ * that answers 204 was reporting success as "the server returned a
+ * malformed response". Deleting a reward said that; so did deleting a game;
+ * so did Next player, which survived only because that caller ignores
+ * failures. F37 §13 records how it surfaced.
+ */
+const NO_CONTENT = 204
+
 async function readJson<T>(response: Response): Promise<T> {
+  if (NO_CONTENT === response.status) {
+    return undefined as T
+  }
+
   try {
     return (await response.json()) as T
   } catch {

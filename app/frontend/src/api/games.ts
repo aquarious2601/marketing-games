@@ -117,6 +117,17 @@ export async function saveGame(
 }
 
 /**
+ * F37 R1. Gone, with its wheel and prizes or its gifts and its picture.
+ *
+ * Refused with a sentence to show when the game has been played or is still
+ * live (R2, R3) — the page hides the control in both cases, and the server
+ * is what actually decides (R9).
+ */
+export async function deleteGame(id: number, options?: RequestOptions): Promise<void> {
+  return apiDelete<void>(`/admin/games/${id}`, options)
+}
+
+/**
  * F35 R6, R11. One picture per game; uploading another replaces it.
  *
  * The whole game comes back rather than just the URL, because the screen

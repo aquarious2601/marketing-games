@@ -129,6 +129,8 @@ game:
     daily_limit_invalid: '每日次数须为 1 至 %max% 的整数，留空表示不限。'
     live_must_be_boolean: '请说明游戏是否已上线。'
     not_found: '找不到该游戏。'
+    delete_live: '请先关闭该游戏，再删除。'
+    delete_played: '该游戏已被游玩 %count% 次。已有游玩记录的游戏无法删除 — 记录就是它送出过什么。'
     not_ready_no_wheel: '该游戏还没有转盘。'
     not_ready_prize_count: '转盘需要 %min% 至 %max% 个奖品。'
     not_ready_slice_without_reward: '上线前每个扇区都需要一个奖励。'

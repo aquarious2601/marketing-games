@@ -153,6 +153,8 @@ game:
     daily_limit_invalid: 'Plays per day must be a whole number from 1 to %max%, or blank for no limit.'
     live_must_be_boolean: 'Say whether the game is live.'
     not_found: 'No such game.'
+    delete_live: 'Turn this game off before deleting it.'
+    delete_played: 'This game has been played %count% times. A game with plays cannot be deleted — its record is what it gave away.'
     not_ready_no_wheel: 'This game has no wheel yet.'
     not_ready_prize_count: 'A wheel needs between %min% and %max% prizes.'
     not_ready_slice_without_reward: 'Every slice needs a reward before this game can go live.'

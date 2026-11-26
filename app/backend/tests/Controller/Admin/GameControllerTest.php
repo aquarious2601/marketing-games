@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Admin;
 
 use App\Branding\BackgroundStore;
+use App\Games\Wheel\WheelProvider;
+use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Game;
 use App\Game\GameType;
 use App\Game\LinkKey;
@@ -428,6 +430,191 @@ final class GameControllerTest extends DatabaseWebTestCase
 
         $this->client->request('GET', '/api/admin/games/9999/wheel');
         self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    // ---------------------------------------------------------- deleting one
+
+    /** F37 R1, R4. A game nobody played, turned off, goes. */
+    public function testItDeletesAGameNobodyHasPlayed(): void
+    {
+        $spare = $this->aSpareGame();
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+
+        $this->client->request('GET', self::URI);
+
+        self::assertSame(
+            ['Test campaign'],
+            array_column($this->decodeResponse()['games'], 'name'),
+        );
+    }
+
+    /** F37 R3, R9. Turning it off is the first decision; deleting is a second. */
+    public function testItRefusesToDeleteALiveGame(): void
+    {
+        $this->client->request('DELETE', self::URI.'/'.$this->gameId());
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertStringContainsString(
+            'Turn this game off',
+            $this->decodeResponse()['error']['violations'][0]['message'],
+        );
+    }
+
+    /**
+     * F37 R2, R9. The record of what a shop gave away is not something a
+     * button may take, and the refusal counts it rather than alluding to it.
+     */
+    public function testItRefusesToDeleteAGameThatHasBeenPlayed(): void
+    {
+        $this->givenThePlayedGameIsOff();
+
+        $this->client->request('DELETE', self::URI.'/'.$this->gameId());
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertStringContainsString(
+            'played 1 times',
+            $this->decodeResponse()['error']['violations'][0]['message'],
+        );
+    }
+
+    /**
+     * F37 R6, R7. What belongs to the game goes with it.
+     *
+     * The cascade is the database's, declared on the foreign key, so what
+     * this checks is that the row really goes and takes its wheel — the
+     * part a test can tell apart from "nothing happened".
+     */
+    public function testItTakesTheWheelAndItsPrizesWithIt(): void
+    {
+        $spare = $this->aSpareGame();
+        $this->giveItAWheel($spare);
+
+        $wheels = $this->rowsIn('wheel');
+        $prizes = $this->rowsIn('prize');
+
+        self::assertGreaterThan(0, $prizes);
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+        self::assertSame($wheels - 1, $this->rowsIn('wheel'));
+        self::assertLessThan($prizes, $this->rowsIn('prize'));
+    }
+
+    /**
+     * F37 R6. The picture is a file rather than a row, so no cascade reaches
+     * it — this is the part that would quietly leave rubbish behind.
+     */
+    public function testItTakesTheUploadedPictureWithIt(): void
+    {
+        $spare = $this->aSpareGame();
+
+        $this->client->request(
+            'POST',
+            self::URI.'/'.$spare.'/background',
+            files: ['background' => $this->picture()],
+        );
+        self::assertResponseIsSuccessful();
+
+        $path = $this->backgroundPathOf($spare);
+        self::assertFileExists($path);
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+        self::assertFileDoesNotExist($path);
+    }
+
+    /** F37 R7. The link answers as a finished promotion does. */
+    public function testADeletedGamesLinkIsGone(): void
+    {
+        $spare = $this->aSpareGame();
+        $key = $this->linkKeyOf($spare);
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+        $this->client->request('GET', '/api/play/'.$key);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    public function testItRefusesAGameThatIsNotThere(): void
+    {
+        $this->client->request('DELETE', self::URI.'/404404');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    // --------------------------------------------------- deleting's helpers
+
+    /** A second game, turned off and never played: the deletable case. */
+    private function aSpareGame(): int
+    {
+        $this->post(self::URI, ['name' => 'Spare', 'type' => 'wheel']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        return (int) $this->decodeResponse()['id'];
+    }
+
+    /** The seeded game, played once and then turned off. */
+    private function givenThePlayedGameIsOff(): void
+    {
+        $this->identifyAsPlayer();
+        $this->client->request('POST', '/api/spin');
+        self::assertResponseIsSuccessful('The test could not record a play.');
+
+        $this->put(self::URI.'/'.$this->gameId().'/live', ['live' => false]);
+        self::assertResponseIsSuccessful('The test could not turn the game off.');
+    }
+
+    /** The default wheel, so there is something for the cascade to take. */
+    private function giveItAWheel(int $id): void
+    {
+        /*
+         * Both taken from the container now rather than from setUp: a client
+         * request reboots the kernel, and the manager this test has been
+         * holding is then a different one from the provider's — which makes
+         * a game it reads look like an entity nobody has persisted.
+         */
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+
+        $game = $entityManager->getRepository(Game::class)->find($id);
+        self::assertInstanceOf(Game::class, $game);
+
+        $container->get(WheelProvider::class)->getOrCreate($game);
+        $entityManager->flush();
+    }
+
+    private function rowsIn(string $table): int
+    {
+        return (int) $this->entityManager->getConnection()->fetchOne('SELECT COUNT(*) FROM '.$table);
+    }
+
+    private function linkKeyOf(int $id): string
+    {
+        $this->client->request('GET', self::URI.'/'.$id);
+
+        return (string) $this->decodeResponse()['linkKey'];
+    }
+
+    private function backgroundPathOf(int $id): string
+    {
+        $this->entityManager->clear();
+
+        $game = $this->entityManager->getRepository(Game::class)->find($id);
+        \assert($game instanceof Game);
+
+        $filename = $game->getBackground();
+        self::assertIsString($filename);
+
+        $path = static::getContainer()->get(BackgroundStore::class)->pathFor($filename);
+        $this->stored[] = $path;
+
+        return $path;
     }
 
     // ------------------------------------------------- a theme of one's own
