@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Admin;
 
+use App\Branding\BackgroundStore;
 use App\Entity\Game;
 use App\Game\GameType;
 use App\Game\LinkKey;
 use App\Tests\Support\DatabaseWebTestCase;
+use App\Tests\Support\FakeImage;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -21,6 +24,12 @@ final class GameControllerTest extends DatabaseWebTestCase
 {
     private const URI = '/api/admin/games';
 
+    /** @var list<string> Files handed to an upload, to clear up afterwards. */
+    private array $uploaded = [];
+
+    /** @var list<string> Files the store wrote, likewise. */
+    private array $stored = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -30,6 +39,35 @@ final class GameControllerTest extends DatabaseWebTestCase
         // F27 R43: the seeded game is live, so it has to be ready — which
         // for a wheel means a wheel with prizes that total 100.
         $this->giveTheGameItsWheel();
+    }
+
+    protected function tearDown(): void
+    {
+        /*
+         * Whatever picture the game is left holding, as well as the files
+         * this test handed to an upload. Asked of the database before the
+         * parent empties it, because a test that uploads and does not look
+         * at the result would otherwise leave a file in the upload
+         * directory that nothing remembers the name of.
+         */
+        $game = $this->entityManager->getRepository(Game::class)->findOneBy([]);
+
+        if ($game instanceof Game && null !== $game->getBackground()) {
+            $this->stored[] = static::getContainer()
+                ->get(BackgroundStore::class)
+                ->pathFor($game->getBackground());
+        }
+
+        foreach ([...$this->uploaded, ...$this->stored] as $path) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+
+        $this->uploaded = [];
+        $this->stored = [];
+
+        parent::tearDown();
     }
 
     // ------------------------------------------------------------- the list
@@ -146,7 +184,7 @@ final class GameControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::URI);
 
         self::assertSame(
-            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
+            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday', 'custom'],
             array_column($this->decodeResponse()['themes'], 'value'),
         );
     }
@@ -390,6 +428,202 @@ final class GameControllerTest extends DatabaseWebTestCase
 
         $this->client->request('GET', '/api/admin/games/9999/wheel');
         self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    // ------------------------------------------------- a theme of one's own
+
+    /** F35 R2. The six that have colours of their own: Custom is not among them. */
+    public function testItOffersTheThemesAPictureMayBorrow(): void
+    {
+        $this->client->request('GET', self::URI);
+
+        self::assertSame(
+            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
+            array_column($this->decodeResponse()['themeBases'], 'value'),
+        );
+    }
+
+    /** F35 R1, R2 */
+    public function testItSavesACustomThemeAndItsBase(): void
+    {
+        $this->saveTheme('custom', 'birthday');
+
+        self::assertResponseIsSuccessful();
+
+        $body = $this->decodeResponse();
+
+        self::assertSame('custom', $body['theme']);
+        self::assertSame('birthday', $body['themeBase']);
+    }
+
+    /** F35 R2. A theme that borrows itself has no colours at the end of it. */
+    public function testItRefusesCustomAsItsOwnBase(): void
+    {
+        $this->saveTheme('custom', 'custom');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertSame(
+            ['themeBase'],
+            array_column($this->decodeResponse()['error']['violations'], 'field'),
+        );
+    }
+
+    /**
+     * F35 R5. The base is kept rather than cleared, so a shop that runs
+     * Christmas for a fortnight and comes back finds its choice made.
+     */
+    public function testItKeepsTheBaseWhenTheGameLeavesCustom(): void
+    {
+        $this->saveTheme('custom', 'birthday');
+        $this->saveTheme('christmas', 'birthday');
+
+        $body = $this->decodeResponse();
+
+        self::assertSame('christmas', $body['theme']);
+        self::assertSame('birthday', $body['themeBase']);
+    }
+
+    /** F35 R6 */
+    public function testItStoresAnUploadedPicture(): void
+    {
+        $this->uploadBackground($this->picture());
+
+        self::assertResponseIsSuccessful();
+
+        $body = $this->decodeResponse();
+
+        self::assertNotNull($body['backgroundUrl']);
+        self::assertStringContainsString('/api/branding/background/', $body['backgroundUrl']);
+        self::assertFileExists($this->backgroundPath());
+    }
+
+    /** F35 R11. One picture per game, and no orphans left in the directory. */
+    public function testItDeletesThePictureItReplaces(): void
+    {
+        $this->uploadBackground($this->picture());
+        $first = $this->backgroundPath();
+
+        $this->uploadBackground($this->picture('another.png'));
+        $second = $this->backgroundPath();
+
+        self::assertNotSame($first, $second);
+        self::assertFileDoesNotExist($first);
+        self::assertFileExists($second);
+    }
+
+    /** F35 R12. The theme stays; only the picture goes. */
+    public function testItRemovesThePictureAndLeavesTheThemeAlone(): void
+    {
+        $this->saveTheme('custom', 'birthday');
+        $this->uploadBackground($this->picture());
+        $path = $this->backgroundPath();
+
+        $this->client->request('DELETE', self::URI.'/'.$this->gameId().'/background');
+
+        self::assertResponseIsSuccessful();
+
+        $body = $this->decodeResponse();
+
+        self::assertNull($body['backgroundUrl']);
+        self::assertSame('custom', $body['theme']);
+        self::assertSame('birthday', $body['themeBase']);
+        self::assertFileDoesNotExist($path);
+    }
+
+    /** F35 R9, R23. The shop is told what was wrong with the file. */
+    public function testItRefusesAPictureTooSmallToCoverAPhone(): void
+    {
+        $this->uploadBackground($this->file('small.png', FakeImage::png(900, 600)));
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        $violation = $this->decodeResponse()['error']['violations'][0];
+
+        self::assertSame('background', $violation['field']);
+        self::assertStringContainsString('1200', $violation['message']);
+        self::assertStringContainsString('900', $violation['message']);
+    }
+
+    /** F35 R7 */
+    public function testItRefusesAFileThatOnlyLooksLikeAPicture(): void
+    {
+        $this->uploadBackground($this->file('picture.png', 'not a picture at all'));
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    public function testItRefusesAnUploadWithNoFileInIt(): void
+    {
+        $this->client->request('POST', self::URI.'/'.$this->gameId().'/background');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * F35 R5. The admin's payload reports the picture whatever the theme,
+     * because this is the screen that can put the game back on custom and it
+     * should show what it would be putting back. The player's payload is the
+     * one that asks about the theme.
+     */
+    public function testThePictureIsReportedWhateverTheTheme(): void
+    {
+        $this->uploadBackground($this->picture());
+        $this->saveTheme('christmas', 'plain');
+
+        self::assertNotNull($this->decodeResponse()['backgroundUrl']);
+    }
+
+    // --------------------------------------------------- a theme's helpers
+
+    private function saveTheme(string $theme, string $base): void
+    {
+        $this->put(self::URI.'/'.$this->gameId(), [
+            'name' => 'Test campaign',
+            'tagline' => null,
+            'dailyLimit' => null,
+            'theme' => $theme,
+            'themeBase' => $base,
+        ]);
+    }
+
+    private function uploadBackground(UploadedFile $file): void
+    {
+        $this->client->request(
+            'POST',
+            self::URI.'/'.$this->gameId().'/background',
+            files: ['background' => $file],
+        );
+    }
+
+    private function picture(string $name = 'picture.png'): UploadedFile
+    {
+        return $this->file($name, FakeImage::png(1600, 900));
+    }
+
+    private function file(string $name, string $contents): UploadedFile
+    {
+        $path = sys_get_temp_dir().'/f35-'.bin2hex(random_bytes(6));
+        file_put_contents($path, $contents);
+        $this->uploaded[] = $path;
+
+        return new UploadedFile($path, $name, null, null, true);
+    }
+
+    /** Where the game's picture is on disk, asked of the store that put it there. */
+    private function backgroundPath(): string
+    {
+        $this->entityManager->clear();
+
+        $game = $this->entityManager->getRepository(Game::class)->find($this->gameId());
+        \assert($game instanceof Game);
+
+        $filename = $game->getBackground();
+        self::assertIsString($filename);
+
+        $path = static::getContainer()->get(BackgroundStore::class)->pathFor($filename);
+        $this->stored[] = $path;
+
+        return $path;
     }
 
     private function gameId(): int

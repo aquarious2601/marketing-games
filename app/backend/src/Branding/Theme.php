@@ -10,6 +10,11 @@ namespace App\Branding;
  * Fixed in code on purpose. Each exists because it is a moment worth running
  * a promotion for; a colour editor instead would mean nobody has checked
  * that the text is readable on the background.
+ *
+ * F35 added a seventh, Custom, without giving that up. Custom is not a
+ * palette: a game wearing it also names one of the six as its base and
+ * wears that one's colours, measured as they always were. What the shop
+ * chooses is the picture behind the page, never a colour.
  */
 enum Theme: string
 {
@@ -19,6 +24,9 @@ enum Theme: string
     case NewYear = 'new-year';
     case Halloween = 'halloween';
     case Birthday = 'birthday';
+
+    /** F35 R1, R2. A picture of the shop's own, over one of the six above. */
+    case Custom = 'custom';
 
     /**
      * F04 R8. A value that is not recognised — an older release's theme, or
@@ -39,6 +47,7 @@ enum Theme: string
             self::NewYear => 'New Year',
             self::Halloween => 'Halloween',
             self::Birthday => 'Happy Birthday',
+            self::Custom => 'Custom',
         };
     }
 
@@ -52,6 +61,34 @@ enum Theme: string
     public function labelKey(): string
     {
         return 'theme.'.$this->value;
+    }
+
+    /**
+     * F35 R2. The looks that have colours of their own — everything a game
+     * may borrow a palette from, which is every case but Custom.
+     *
+     * @return list<self>
+     */
+    public static function bases(): array
+    {
+        return array_values(array_filter(
+            self::cases(),
+            static fn (self $theme): bool => self::Custom !== $theme,
+        ));
+    }
+
+    /**
+     * F35 R2. A base read back from the database.
+     *
+     * Falls back to plain like {@see fromStored}, and treats a stored
+     * 'custom' the same way: a custom theme borrowing itself has no colours
+     * at the end of it, and the page would have nothing to paint.
+     */
+    public static function baseFromStored(?string $value): self
+    {
+        $theme = self::fromStored($value);
+
+        return self::Custom === $theme ? self::Plain : $theme;
     }
 
     /**

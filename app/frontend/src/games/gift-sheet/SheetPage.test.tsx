@@ -29,6 +29,7 @@ const forgetPlayerMock = vi.mocked(forgetPlayer)
 const BRANDING = {
   companyName: 'AA Store',
   theme: 'plain',
+  backgroundUrl: null,
   currency: 'VND',
   currencySymbol: '₫',
   logoUrl: null,
@@ -271,6 +272,49 @@ describe('when the day is used up', () => {
     await user.click(screen.getByTestId('get-gifts'))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be given out/i)
+  })
+})
+
+/**
+ * F35 R18. This page never had the wheel page's card, so over an uploaded
+ * picture its words would be the only ones in the application printed on a
+ * colour nobody measured.
+ */
+describe('over a picture of the shop’s own', () => {
+  const PICTURE = '/api/branding/background/abcd1234abcd1234?v=1763650000'
+
+  it('puts the picture behind the page', async () => {
+    fetchSheetMock.mockResolvedValue(
+      sheet({ branding: { ...BRANDING, theme: 'birthday', backgroundUrl: PICTURE } }),
+    )
+
+    await renderSheet()
+
+    expect(screen.getByTestId('custom-background')).toHaveAttribute('src', PICTURE)
+  })
+
+  it('gives the words a surface of their own', async () => {
+    fetchSheetMock.mockResolvedValue(
+      sheet({ branding: { ...BRANDING, theme: 'birthday', backgroundUrl: PICTURE } }),
+    )
+
+    await renderSheet()
+
+    const plate = screen.getByTestId('sheet-plate')
+
+    expect(plate).toBeInTheDocument()
+    expect(plate.style.backgroundColor).toBe('var(--stage)')
+    // The header is on it, which is the whole point: it is the one thing
+    // this page prints straight onto the page colour.
+    expect(plate).toContainElement(screen.getByTestId('player-header'))
+  })
+
+  /** R4, R19. Without a picture the page is exactly what it was. */
+  it('adds nothing when there is no picture', async () => {
+    await renderSheet()
+
+    expect(screen.queryByTestId('sheet-plate')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('custom-background')).not.toBeInTheDocument()
   })
 })
 

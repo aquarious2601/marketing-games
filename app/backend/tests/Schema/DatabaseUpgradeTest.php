@@ -1304,6 +1304,49 @@ final class DatabaseUpgradeTest extends KernelTestCase
         );
     }
 
+    // ------------------------------- F35: a theme with a picture in it
+
+    /**
+     * R2, R6. One column for the palette a custom theme borrows and one for
+     * the picture, with the nullability each of them means: a game always
+     * has a base, and a game usually has no picture.
+     */
+    public function testItGivesEveryGameABaseToBorrowAndSomewhereToPutAPicture(): void
+    {
+        $this->upgrade()->run();
+
+        $base = $this->columnOf('game', 'theme_base');
+
+        self::assertNotNull($base);
+        self::assertTrue($base->getNotnull(), 'A game may have no base to borrow.');
+        self::assertSame('plain', $base->getDefault());
+
+        $background = $this->columnOf('game', 'background');
+
+        self::assertNotNull($background);
+        self::assertFalse($background->getNotnull(), 'A game is required to have a picture.');
+    }
+
+    /** P02. A second run changes neither. */
+    public function testASecondRunLeavesTheCustomThemesColumnsAlone(): void
+    {
+        $this->upgrade()->run();
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame('already applied', $this->detailOf($steps, 'game.theme_base'));
+        self::assertSame('already applied', $this->detailOf($steps, 'game.background'));
+    }
+
+    /** P02 R5. A dry run says what it would do and does none of it. */
+    public function testADryRunAddsNeitherColumn(): void
+    {
+        $this->upgrade()->run(dryRun: true);
+
+        self::assertNull($this->columnOf('game', 'theme_base'), 'A dry run added the base.');
+        self::assertNull($this->columnOf('game', 'background'), 'A dry run added the picture.');
+    }
+
     private function upgrade(): DatabaseUpgrade
     {
         $container = static::getContainer();

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Branding } from '../../api/branding'
 import { ApiError } from '../../api/client'
 import { fetchIdentity, forgetPlayer, type PlayerIdentity } from '../../api/player'
 import { ThemeScene } from '../../branding/ThemeScene'
@@ -147,7 +148,7 @@ export function SheetPage() {
 
   if (phase === 'loading' || sheet === null) {
     return (
-      <Screen theme={sheet?.branding.theme ?? 'plain'}>
+      <Screen branding={sheet?.branding ?? null}>
         <p role="status" className="text-sm" style={{ color: 'var(--body)' }}>
           {t('common.loading')}
         </p>
@@ -157,7 +158,7 @@ export function SheetPage() {
 
   if (phase === 'failed') {
     return (
-      <Screen theme={sheet.branding.theme}>
+      <Screen branding={sheet.branding}>
         <div role="alert" className="space-y-4 text-center">
           <p className="text-sm" style={{ color: 'var(--danger)' }}>
             {t('player.loadFailed')}
@@ -177,7 +178,7 @@ export function SheetPage() {
    */
   if (phase === 'spent') {
     return (
-      <Screen theme={sheet.branding.theme}>
+      <Screen branding={sheet.branding}>
         <PlayerHeader branding={sheet.branding} />
         <div className="mt-6 text-center" data-testid="sheet-spent">
           <p className="text-xs uppercase tracking-wider" style={{ color: 'var(--body)' }}>
@@ -208,7 +209,7 @@ export function SheetPage() {
 
   if (player === null) {
     return (
-      <Screen theme={sheet.branding.theme}>
+      <Screen branding={sheet.branding}>
         <PlayerHeader branding={sheet.branding} />
         {/* F28 R8: the wheel's form, unchanged — the same fields, the same
             validation, the same returning-player lookup. */}
@@ -232,7 +233,7 @@ export function SheetPage() {
      */
     if (open !== null && open.code !== null) {
       return (
-        <Screen theme={sheet.branding.theme}>
+        <Screen branding={sheet.branding}>
           <PlayerHeader branding={sheet.branding} />
 
           <h2
@@ -272,7 +273,7 @@ export function SheetPage() {
     }
 
     return (
-      <Screen theme={sheet.branding.theme}>
+      <Screen branding={sheet.branding}>
         <PlayerHeader branding={sheet.branding} />
 
         <h2 className="mt-6 text-center text-lg font-semibold" style={{ color: 'var(--heading)' }}>
@@ -342,7 +343,7 @@ export function SheetPage() {
   }
 
   return (
-    <Screen theme={sheet.branding.theme}>
+    <Screen branding={sheet.branding}>
       <PlayerHeader branding={sheet.branding} />
 
       <h2 className="mt-6 text-center text-lg font-semibold" style={{ color: 'var(--heading)' }}>
@@ -389,18 +390,56 @@ export function SheetPage() {
  * Phone-first (the repository's CLAUDE.md): the control and then the codes
  * sit in the middle of the viewport with nothing above them to scroll past.
  */
-function Screen({ theme, children }: { theme: string; children: React.ReactNode }) {
+function Screen({
+  branding,
+  children,
+}: {
+  branding?: Branding | null
+  children: React.ReactNode
+}) {
+  const theme = branding?.theme ?? 'plain'
+  const background = branding?.backgroundUrl ?? null
+
   return (
-    <div className="relative min-h-dvh overflow-hidden" data-theme={theme}>
-      <ThemeScene theme={theme} />
+    <div
+      className="relative min-h-dvh overflow-hidden"
+      data-theme={theme}
+      data-backdrop={null === background ? undefined : 'custom'}
+    >
+      <ThemeScene theme={theme} background={background} />
 
       <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center px-4 py-6">
-        {children}
+        {/*
+          F35 R18. The wheel's page puts every word on its card already; this
+          one never had a card, and over an uploaded picture that is the
+          difference between text on a measured colour and text on whatever
+          the shop photographed. It appears only when there is a picture, so
+          the six themes look exactly as they did.
+        */}
+        {null === background ? children : <Plate>{children}</Plate>}
       </main>
 
       <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2">
         <LanguagePicker />
       </div>
+    </div>
+  )
+}
+
+/** The wheel page's card, in the one place this page needs one (F35 R18). */
+function Plate({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      data-testid="sheet-plate"
+      className="flex w-full flex-col items-center rounded-[28px] border px-4 py-6 sm:px-6"
+      style={{
+        backgroundColor: 'var(--stage)',
+        backgroundImage: 'linear-gradient(168deg, var(--stage) 0%, var(--stage-edge) 100%)',
+        borderColor: 'var(--stage-border)',
+        boxShadow: '0 28px 60px -30px rgba(2, 6, 23, 0.45)',
+      }}
+    >
+      {children}
     </div>
   )
 }
