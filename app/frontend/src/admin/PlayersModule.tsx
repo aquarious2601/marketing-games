@@ -101,7 +101,23 @@ export function PlayersModule() {
    */
   const filter = search.get('search') ?? ''
 
+  /**
+   * Whether the filter below came from somebody using the box.
+   *
+   * F39's sting. R6 opens a customer when a complete code finds exactly
+   * one, and since F39 made the codes digits, ten digits — a phone number —
+   * is a complete code's shape. Arriving at the list with one already in
+   * the URL is precisely what "All customers" does from that customer's
+   * page, so the list opened them again and the way back became a door that
+   * would not let go.
+   *
+   * What R6 is for is a code that has just *arrived*: scanned, or typed.
+   * That is this flag, armed by the box and spent by the navigation.
+   */
+  const arrived = useRef(false)
+
   const setFilter = (typed: string) => {
+    arrived.current = true
     setSearch(typed === '' ? {} : { search: typed }, { replace: true })
   }
 
@@ -179,6 +195,14 @@ export function PlayersModule() {
     if (phase !== 'ready' || players.length !== 1 || !isACompleteCode(filter)) {
       return
     }
+
+    // Arriving with a code in the URL is a person coming back, not a code
+    // arriving. Opening them again is the bug this flag exists for.
+    if (!arrived.current) {
+      return
+    }
+
+    arrived.current = false
 
     void navigate(customerPath(players[0].id, filter))
   }, [filter, navigate, phase, players])
