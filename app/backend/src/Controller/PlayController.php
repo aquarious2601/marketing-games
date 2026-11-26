@@ -84,6 +84,17 @@ final class PlayController extends AbstractController
             );
         }
 
+        /*
+         * F36 R7. Binding here as well as on a link, so that a shop whose
+         * players arrive at `/` has its identifications belong to a game
+         * like everybody else's. Until F36 this route deliberately did not
+         * bind, because binding destroyed the identification it was about to
+         * use; now it does not, and leaving the session nameless only meant
+         * that a second game going live mid-visit lost the player their
+         * place.
+         */
+        $this->session->bindGame($game);
+
         return new JsonResponse([
             'type' => $game->getType()->value,
             'branding' => $this->branding->presentForGame($this->store->getOrCreate(), $game),

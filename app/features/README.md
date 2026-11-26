@@ -207,6 +207,7 @@ what those screens become once several owners share an installation.
 | [F33](./F33-a-barcode-the-counter-can-scan.md) | A barcode the counter can scan | Both | Agreed |
 | [F34](./F34-the-customers-own-card.md) | The customer's own card | Both | Agreed |
 | [F35](./F35-a-background-of-your-own.md) | A background of your own | Both | Agreed |
+| [F36](./F36-each-game-keeps-its-own-customer.md) | Each game keeps its own customer | Player | Agreed |
 
 ## Running the tests
 

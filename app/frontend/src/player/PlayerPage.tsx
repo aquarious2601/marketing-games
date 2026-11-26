@@ -168,9 +168,17 @@ export function PlayerPage() {
           status: caught instanceof ApiError ? caught.status : 0,
         }),
       ),
+      /*
+       * Whether the server answered, not only what it said (F36 §13).
+       *
+       * A 403 means nobody is identified. A dropped connection means we
+       * could not ask — and answering that with "nobody" would log a
+       * customer out of a game they are in the middle of. This is the page
+       * a stall phone runs, on the connection a stall has.
+       */
       fetchIdentity({ signal }).then(
-        (value) => value,
-        () => ({ player: null, spin: null, spinsLeft: null }),
+        (value) => ({ answered: true as const, value }),
+        () => ({ answered: false as const, value: null }),
       ),
     ])
 
@@ -178,22 +186,24 @@ export function PlayerPage() {
       return
     }
 
-    setPlayer(identity.player)
-    setSpinsLeft(identity.spinsLeft)
+    if (identity.answered) {
+      setPlayer(identity.value.player)
+      setSpinsLeft(identity.value.spinsLeft)
 
-    /*
-     * F20 R6. This identification has already spun, so the result goes
-     * straight on screen — at rest, with no spin control anywhere in the
-     * document — exactly as it was before the reload that lost it.
-     *
-     * Set here rather than animated: the spin happened in some earlier page
-     * that no longer exists, and replaying its animation would be a
-     * ten-second lie about something that already finished.
-     */
-    if (identity.spin !== null) {
-      setResult(identity.spin.prizeName)
-      setReward(identity.spin.reward)
-      setAnimation(atRest())
+      /*
+       * F20 R6. This identification has already spun, so the result goes
+       * straight on screen — at rest, with no spin control anywhere in the
+       * document — exactly as it was before the reload that lost it.
+       *
+       * Set here rather than animated: the spin happened in some earlier
+       * page that no longer exists, and replaying its animation would be a
+       * ten-second lie about something that already finished.
+       */
+      if (identity.value.spin !== null) {
+        setResult(identity.value.spin.prizeName)
+        setReward(identity.value.spin.reward)
+        setAnimation(atRest())
+      }
     }
 
     if (!loaded.ok) {

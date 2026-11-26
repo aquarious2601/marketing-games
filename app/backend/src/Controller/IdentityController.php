@@ -56,7 +56,10 @@ final class IdentityController extends AbstractController
     #[Route('/me', name: 'me', methods: ['GET'])]
     public function me(): JsonResponse
     {
-        $player = $this->session->current();
+        // F36: whose turn this is depends on which game is being played,
+        // and the resolver is the one place that answers that (F27 R27).
+        $game = $this->resolver->current();
+        $player = null === $game ? null : $this->session->current($game);
 
         /*
          * F20 R5. What this identification won, so a reload draws the result
@@ -66,7 +69,7 @@ final class IdentityController extends AbstractController
          * Null for an identification that has not spun (F20 R9), and the key
          * is present either way so the page reads one shape.
          */
-        $spin = null === $player ? null : $this->session->spentSpin();
+        $spin = null === $player || null === $game ? null : $this->session->spentSpin($game);
 
         return new JsonResponse([
             'player' => null === $player ? null : $this->presenter->presentForPlayer($player),
@@ -112,7 +115,7 @@ final class IdentityController extends AbstractController
             ]);
         }
 
-        $this->session->identify($player);
+        $this->identifyForTheGame($player);
 
         return new JsonResponse([
             'known' => true,
@@ -158,7 +161,7 @@ final class IdentityController extends AbstractController
         $registered = $this->registrar->register($draft);
         $player = $registered->player;
 
-        $this->session->identify($player);
+        $this->identifyForTheGame($player);
 
         /*
          * F23 R13. A new registration has spun nothing and has the whole
@@ -184,9 +187,33 @@ final class IdentityController extends AbstractController
     #[Route('/forget', name: 'forget', methods: ['POST'])]
     public function forget(): JsonResponse
     {
-        $this->session->forget();
+        // F36 R4. The game on screen, and only that one: handing the phone
+        // over at the wheel says nothing about a sheet this person may never
+        // have opened.
+        $game = $this->resolver->current();
+
+        if (null !== $game) {
+            $this->session->forget($game);
+        }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * F36 R1. An identification belongs to a game, so there has to be one.
+     *
+     * With no game resolvable there is nothing to be identified *for*, and
+     * the page could not play anything anyway — `/api/game` answers 409 and
+     * `/api/play` would have bound one. The answer this endpoint gives is
+     * still true: this number is known, or this registration happened.
+     */
+    private function identifyForTheGame(Player $player): void
+    {
+        $game = $this->resolver->current();
+
+        if (null !== $game) {
+            $this->session->identify($game, $player);
+        }
     }
 
     /**

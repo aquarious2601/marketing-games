@@ -1068,6 +1068,28 @@ describe('a reload after the spin', () => {
     expect(panel).toHaveTextContent('Free gift')
     expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
   })
+
+  /**
+   * F36 section 13. The recovery above re-reads everything, and that read
+   * used to turn any failure of the identity request into "nobody is
+   * identified" — which threw the player out of a game they were in the
+   * middle of because a stall's wifi dropped one request.
+   *
+   * A 403 means nobody. A dropped connection means we could not ask.
+   */
+  it('keeps the player when the identity check could not be made', async () => {
+    const user = await renderPlayer()
+
+    spinMock.mockRejectedValue(new ApiError('already spun', 409))
+    fetchIdentityMock.mockRejectedValue(new Error('the network went away'))
+
+    await user.click(screen.getByTestId('spin-button'))
+
+    await waitFor(() => expect(fetchIdentityMock).toHaveBeenCalledTimes(2))
+
+    expect(screen.queryByTestId('identity-phone')).not.toBeInTheDocument()
+    expect(screen.getByTestId('player-identity')).toBeInTheDocument()
+  })
 })
 
 describe('identifying the player', () => {
@@ -1221,6 +1243,17 @@ describe('identifying the player', () => {
     expect(screen.getByRole('img')).toHaveAccessibleName('M9PXK-4T7VH')
     // R10: it is a step on the way, not a screen the game waits behind.
     expect(screen.queryByTestId('wheel-preview')).not.toBeInTheDocument()
+
+    /*
+     * F36 section 13. The way on has to look like the way on. This button
+     * shipped with the shape of the game's button and none of its paint, so
+     * it rendered as a line of body text on a transparent background and
+     * customers did not see it.
+     */
+    const onwards = screen.getByTestId('card-continue')
+
+    expect(onwards.style.backgroundColor).toBe('var(--button-bg)')
+    expect(onwards.style.color).toBe('var(--button-text)')
   })
 
   /**
