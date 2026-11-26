@@ -350,26 +350,68 @@ describe('opening a customer', () => {
   /**
    * R6. A complete code that found one customer opens them, so a ticket is
    * one action. Narrowed to a complete code while building: see the module.
+   *
+   * Put into the box rather than into the URL, because that is what a
+   * scanner does and because the two are no longer the same thing — see the
+   * test below about coming back.
    */
   it('opens the one customer a complete code found', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
 
-    renderList('/admin/players?search=4821 739 506')
+    const user = userEvent.setup()
+
+    renderList('/admin/players')
+    await screen.findByTestId('player-list')
+
+    await user.type(screen.getByTestId('player-filter'), '4821 739 506')
 
     expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
   })
 
   /**
-   * F34 R14. Ten characters is a card, eight is a reward code, and both are
-   * complete inputs that mean "this customer" — so both open them.
+   * F34 R14, F39 R12. Twelve digits is a card and ten is a reward code, and
+   * both are complete inputs that mean "this customer" — so both open them.
    */
   it('opens the one customer a complete card found', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
 
-    renderList('/admin/players?search=5207 4418 9163')
+    const user = userEvent.setup()
+
+    renderList('/admin/players')
+    await screen.findByTestId('player-list')
+
+    await user.type(screen.getByTestId('player-filter'), '5207 4418 9163')
 
     expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
   })
+
+  /**
+   * The bug this rule grew: "All customers" carries the search back to the
+   * list (F09 R12), and since F39 a ten-digit phone number has a complete
+   * code's shape — so the list opened that customer again and the way back
+   * stopped working.
+   *
+   * A code in the URL is somebody coming back. A code in the box is a code
+   * arriving.
+   */
+  it.each(['6360290458', '5207 4418 9163'])(
+    'stays on the list when %j is already in the URL',
+    async (inTheUrl) => {
+      fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
+
+      renderList(`/admin/players?search=${encodeURIComponent(inTheUrl)}`)
+
+      await screen.findByTestId('player-list')
+
+      /*
+       * Waited for rather than asked once: the navigation this guards
+       * against happens an effect after the list renders, so a single
+       * `queryBy` here passes whether or not the bug is present. The first
+       * version of this test did exactly that and proved nothing.
+       */
+      await expect(screen.findByTestId('customer-page')).rejects.toThrow()
+    },
+  )
 
   it('stays on the list when one customer matched a phone fragment', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
@@ -442,7 +484,15 @@ describe('a scanned code', () => {
     async (scanned) => {
       fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
 
-      renderList(`/admin/players?search=${encodeURIComponent(scanned)}`)
+      const user = userEvent.setup()
+
+      renderList('/admin/players')
+      await screen.findByTestId('player-list')
+
+      // `paste` rather than `type`: a scanner delivers the label at once,
+      // and the control characters some of them add are not keystrokes.
+      await user.click(screen.getByTestId('player-filter'))
+      await user.paste(scanned)
 
       expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
     },
