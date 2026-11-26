@@ -108,6 +108,7 @@ keypad types them without switching to a second keyboard.
 | R12 | The one box still takes a phone number, a customer card or a reward code, and the person using it still does not have to say which ([F34](./F34-the-customers-own-card.md) R15). |
 | R13 | A number that could be either is looked up as both, which is what the customer filter already does: it asks the phone columns and the card column and shows what matches. |
 | R14 | A card is twelve digits and a local phone number is ten, so the two rarely collide by length — but nothing depends on that, because R13 does not care. |
+| R20 | A complete code **arriving** opens the one customer it found ([F34](./F34-the-customers-own-card.md) R20). A complete code already in the address bar is somebody coming back to the list, and opens nobody. |
 
 ## 7. The data this replaces
 
@@ -170,6 +171,10 @@ that is visibly narrower at the same height.
       (R10).
 - [ ] Given a card or a reward code at the counter's box, then it finds the
       right thing (R12, R13).
+- [ ] Given a code typed or scanned into the box, then the one customer it
+      found opens (R20).
+- [ ] Given that customer's page and "All customers", then the list stays on
+      screen (R20).
 - [ ] Given the command, then it deletes every customer and play and nothing
       else (R15, R16).
 - [ ] Given the command without `--force`, then nothing is deleted until the
@@ -234,6 +239,23 @@ nothing on screen to say which — and the fix would be exactly this deletion,
 later, with real customers in the table. The shop is in test today. §7 is
 written as a feature rule rather than a one-off script so that what was
 deleted, and what deliberately was not, is on the record.
+
+**Found in production, within the hour.** Opening a customer carries the
+search into the address bar so that coming back keeps it ([F09](./F09-admin-modules.md)
+R12), and the list opens the single customer a complete code matches
+([F34](./F34-the-customers-own-card.md) R20). Those two had lived together
+happily because a complete code could not be a phone number. This feature
+made it one: ten digits typed into the box to find somebody became, on the
+way back, a complete code with exactly one match — so the list opened that
+customer again and "All customers" stopped working.
+
+R20 is the rule that was always meant: the list opens somebody when a code
+*arrives*, from a scanner or from typing. A code already in the address bar
+is a person coming back. The fix is a flag armed by the box and spent by the
+navigation, and the two tests for it were checked against the bug — the
+first version of one of them passed with the bug still present, because it
+asked whether the customer's page was on screen one render before it would
+have been.
 
 ## 14. Open questions
 
