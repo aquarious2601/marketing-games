@@ -39,7 +39,7 @@ final class PlayerPresenter
     /**
      * F08 R20.
      *
-     * @return array{id: int|null, phone: string, firstName: string, lastName: string, birthday: string, createdAt: string, spinCount: int}
+     * @return array{id: int|null, phone: string, firstName: string, lastName: string, birthDay: int, birthMonth: int, createdAt: string, spinCount: int}
      */
     public function presentForAdmin(Player $player, int $spinCount): array
     {
@@ -48,9 +48,13 @@ final class PlayerPresenter
             'phone' => $player->getPhone(),
             'firstName' => $player->getFirstName(),
             'lastName' => $player->getLastName(),
-            // A date, not an instant: sending a birthday as an ISO datetime
-            // invites a timezone shift that moves it a day.
-            'birthday' => $player->getBirthday()->format('Y-m-d'),
+            /*
+             * F38 R6, R7. Two numbers, and no year — not even for the
+             * customers whose year is still on file (R5). The page names
+             * the month itself, in the reader's language (R9).
+             */
+            'birthDay' => $player->getBirthDay(),
+            'birthMonth' => $player->getBirthMonth(),
             'createdAt' => $player->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'spinCount' => $spinCount,
         ];

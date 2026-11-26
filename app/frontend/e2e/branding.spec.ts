@@ -129,6 +129,9 @@ test.describe('configuring the branding', () => {
       'New Year',
       'Halloween',
       'Happy Birthday',
+      // F35 R1. A seventh, which is not a palette: a game wearing it names
+      // one of the six above as the colours it borrows.
+      'Custom',
     ])
   })
 

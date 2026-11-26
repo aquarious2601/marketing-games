@@ -33,10 +33,9 @@ player:
     last_name_required: 'Enter your last name.'
     first_name_too_long: 'A first name can be at most %max% characters.'
     last_name_too_long: 'A last name can be at most %max% characters.'
-    birthday_required: 'Enter your birthday.'
-    birthday_invalid: 'Enter your birthday as a date, for example 1994-03-12.'
-    birthday_future: 'A birthday cannot be in the future.'
-    birthday_too_early: 'Please check that birthday.'
+    birthday_required: 'Choose the day and month of your birthday.'
+    birthday_invalid: 'Choose a day from 1 to 31 and a month.'
+    birthday_impossible: 'That day does not exist in that month.'
 
 wheel:
     invalid: 'The wheel configuration is invalid.'

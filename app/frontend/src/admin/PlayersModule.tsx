@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchPlayers, type AdminPlayer } from '../api/players'
-import { useT, type Translate } from '../i18n/I18nContext'
+import { useI18n, useT, type Translate } from '../i18n/I18nContext'
+import { formatDayAndMonth } from '../i18n/months'
 import { Cell, DataTable, Row, type Column } from './DataTable'
 import { formatDate } from './tableFormat'
 
@@ -70,6 +71,7 @@ function isACompleteCode(typed: string): boolean {
  */
 export function PlayersModule() {
   const t = useT()
+  const { locale } = useI18n()
   const navigate = useNavigate()
   const [search, setSearch] = useSearchParams()
   const box = useRef<HTMLInputElement>(null)
@@ -300,9 +302,8 @@ export function PlayersModule() {
                   </Link>
                 </Cell>
                 <Cell mono>{player.phone}</Cell>
-                <Cell numeric muted>
-                  {formatDate(player.birthday)}
-                </Cell>
+                {/* F38 R7. A day and a month, named in the admin's language. */}
+                <Cell muted>{formatDayAndMonth(player.birthDay, player.birthMonth, locale)}</Cell>
                 <Cell numeric muted>
                   {formatDate(player.createdAt)}
                 </Cell>

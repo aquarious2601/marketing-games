@@ -61,9 +61,9 @@ export const vi: Record<MessageKey, string> = {
   'identity.firstNameTooLong': 'Tên không được dài quá %max% ký tự.',
   'identity.lastNameTooLong': 'Họ không được dài quá %max% ký tự.',
   'identity.birthdayRequired': 'Nhập ngày sinh của bạn.',
-  'identity.birthdayInvalid': 'Nhập ngày sinh theo dạng ngày tháng, ví dụ 1994-03-12.',
-  'identity.birthdayFuture': 'Ngày sinh không thể ở tương lai.',
-  'identity.birthdayTooEarly': 'Vui lòng kiểm tra lại ngày sinh.',
+  'identity.birthDay': 'Ngày',
+  'identity.birthMonth': 'Tháng',
+  'identity.birthdayImpossible': 'Tháng đó không có ngày này.',
 
   'admin.title': 'Quản trị Roulette',
   'admin.signOut': 'Đăng xuất',

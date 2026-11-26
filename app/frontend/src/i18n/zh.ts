@@ -59,9 +59,9 @@ export const zh: Record<MessageKey, string> = {
   'identity.firstNameTooLong': '名字最多 %max% 个字符。',
   'identity.lastNameTooLong': '姓氏最多 %max% 个字符。',
   'identity.birthdayRequired': '请输入您的生日。',
-  'identity.birthdayInvalid': '请按日期格式输入生日，例如 1994-03-12。',
-  'identity.birthdayFuture': '生日不能是未来的日期。',
-  'identity.birthdayTooEarly': '请检查这个生日。',
+  'identity.birthDay': '日',
+  'identity.birthMonth': '月',
+  'identity.birthdayImpossible': '该月份没有这一天。',
 
   'admin.title': 'Roulette 管理后台',
   'admin.signOut': '退出登录',
