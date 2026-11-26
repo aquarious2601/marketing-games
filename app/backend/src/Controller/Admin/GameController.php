@@ -249,6 +249,59 @@ final class GameController extends AbstractController
         ];
     }
 
+    /**
+     * F37 R2, R3, R6. What this refuses is most of what it is for.
+     *
+     * Everything that points at a game cascades in the database, so a game
+     * with plays would take the shop's record of what it gave away and the
+     * money F32 counts from it. R2 is what makes the cascade safe: by the
+     * time a game can be deleted there is nothing for it to cascade to.
+     */
+    #[Route('/{id}', name: 'delete', methods: ['DELETE'], requirements: ['id' => '\d+'])]
+    public function delete(int $id): JsonResponse
+    {
+        $game = $this->games->find($id);
+
+        if (null === $game) {
+            return $this->notFound();
+        }
+
+        // F37 R3. Turning it off is one press and reversible (F27 R42);
+        // this is neither, so it is a second decision rather than the same
+        // one.
+        if ($game->isLive()) {
+            return $this->invalid([new Violation(
+                '',
+                $this->translator->trans('game.delete_live'),
+            )]);
+        }
+
+        $plays = $this->spins->countForGame($game);
+
+        if (0 < $plays) {
+            // Counted, not merely mentioned: "it has been played" leaves the
+            // owner wondering whether it was once by themselves while
+            // testing. The number is what decides it for them.
+            return $this->invalid([new Violation(
+                '',
+                $this->translator->trans('game.delete_played', ['%count%' => $plays]),
+            )]);
+        }
+
+        /*
+         * F37 R6. The picture is a file rather than a row, so no cascade
+         * reaches it. Deleted before the game, because afterwards there is
+         * nothing left to read its name from — and a missing file is not a
+         * failure (F35 R15's habit).
+         */
+        $this->backgrounds->delete($game->getBackground());
+
+        $this->entityManager->remove($game);
+        $this->entityManager->flush();
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
     /** F35 R6, R11. */
     #[Route('/{id}/background', name: 'upload_background', methods: ['POST'], requirements: ['id' => '\d+'])]
     public function uploadBackground(int $id, Request $request): JsonResponse

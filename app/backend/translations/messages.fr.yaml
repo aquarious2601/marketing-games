@@ -129,6 +129,8 @@ game:
     daily_limit_invalid: 'Le nombre de parties par jour doit être un entier de 1 à %max%, ou vide pour illimité.'
     live_must_be_boolean: 'Indiquez si le jeu est en ligne.'
     not_found: 'Ce jeu est introuvable.'
+    delete_live: 'Désactivez ce jeu avant de le supprimer.'
+    delete_played: 'Ce jeu a été joué %count% fois. Un jeu déjà joué ne peut pas être supprimé : son historique est ce qu’il a distribué.'
     not_ready_no_wheel: 'Ce jeu n''a pas encore de roue.'
     not_ready_prize_count: 'Une roue doit avoir entre %min% et %max% prix.'
     not_ready_slice_without_reward: 'Chaque case doit avoir une récompense avant la mise en ligne.'

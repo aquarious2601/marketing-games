@@ -129,6 +129,8 @@ game:
     daily_limit_invalid: 'Số lượt mỗi ngày phải là số nguyên từ 1 đến %max%, hoặc để trống nếu không giới hạn.'
     live_must_be_boolean: 'Hãy cho biết trò chơi có đang mở hay không.'
     not_found: 'Không tìm thấy trò chơi.'
+    delete_live: 'Hãy tắt trò chơi này trước khi xóa.'
+    delete_played: 'Trò chơi này đã được chơi %count% lần. Không thể xóa trò chơi đã có lượt chơi — đó là hồ sơ những gì đã trao.'
     not_ready_no_wheel: 'Trò chơi này chưa có vòng xoay.'
     not_ready_prize_count: 'Vòng xoay cần từ %min% đến %max% phần thưởng.'
     not_ready_slice_without_reward: 'Mỗi ô phải có phần thưởng trước khi mở trò chơi.'
