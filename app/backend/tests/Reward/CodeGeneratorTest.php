@@ -25,32 +25,29 @@ final class CodeGeneratorTest extends TestCase
         $this->codes = new CodeGenerator();
     }
 
-    /** F13 R18 */
-    public function testItNeverUsesACharacterThatIsMisread(): void
+    /**
+     * F39 R1. Digits and nothing else, which is what lets the barcode use
+     * the numeric mode and come out a quarter narrower.
+     */
+    public function testItIsDigitsOnly(): void
     {
         for ($i = 0; $i < 2_000; ++$i) {
             $code = $this->codes->generate();
 
-            self::assertDoesNotMatchRegularExpression(
-                '/[OIL01]/',
+            self::assertMatchesRegularExpression(
+                '/^[0-9 ]+$/',
                 $code,
-                sprintf('%s contains a character that is read as another.', $code),
+                sprintf('%s contains something that is not a digit.', $code),
             );
         }
     }
 
+    /** F39 R2. Ten digits, as four and then two threes. */
     public function testItIsGroupedSoItCanBeReadAloud(): void
     {
         self::assertMatchesRegularExpression(CodeGenerator::pattern(), $this->codes->generate());
-        self::assertSame(9, \strlen($this->codes->generate()));
-        self::assertStringContainsString('-', $this->codes->generate());
-    }
-
-    public function testItIsUppercase(): void
-    {
-        $code = $this->codes->generate();
-
-        self::assertSame(strtoupper($code), $code);
+        self::assertSame(12, \strlen($this->codes->generate()));
+        self::assertSame(10, \strlen(str_replace(' ', '', $this->codes->generate())));
     }
 
     /**
@@ -88,21 +85,16 @@ final class CodeGeneratorTest extends TestCase
     /** @return iterable<string, array{string, string}> */
     public static function carelesslyTypedCodes(): iterable
     {
-        yield 'as issued' => ['A7K3-M9PX', 'A7K3-M9PX'];
-        yield 'lower case' => ['a7k3-m9px', 'A7K3-M9PX'];
-        yield 'no hyphen' => ['a7k3m9px', 'A7K3-M9PX'];
-        yield 'a space for the hyphen' => ['A7K3 M9PX', 'A7K3-M9PX'];
-        yield 'spaces everywhere' => [' a 7 k 3 m 9 p x ', 'A7K3-M9PX'];
-        // The hyphen goes where it must, not where it was typed.
-        yield 'the hyphen in the wrong place' => ['A7-K3M9PX', 'A7K3-M9PX'];
-        yield 'a prefix shorter than a group' => ['a7k', 'A7K'];
-        yield 'a prefix exactly one group' => ['a7k3', 'A7K3'];
-        yield 'a prefix into the second group' => ['a7k3m', 'A7K3-M'];
-        yield 'a single character' => ['7', '7'];
-        // F16 §13's accepted cost: four digits are a legitimate start of a
-        // code as well as the end of a phone number, so this is asked of
-        // both columns and may show a row from each.
-        yield 'four digits, which are also a receipt' => ['5678', '5678'];
+        yield 'as issued' => ['4821 739 506', '4821 739 506'];
+        yield 'without the spaces' => ['4821739506', '4821 739 506'];
+        yield 'with hyphens instead' => ['4821-739-506', '4821 739 506'];
+        yield 'spaces everywhere' => [' 4 8 2 1 7 3 9 5 0 6 ', '4821 739 506'];
+        // The grouping goes where it must, not where it was typed.
+        yield 'grouped wrongly' => ['48 217 39506', '4821 739 506'];
+        yield 'a prefix shorter than a group' => ['482', '482'];
+        yield 'a prefix exactly one group' => ['4821', '4821'];
+        yield 'a prefix into the second group' => ['48217', '4821 7'];
+        yield 'a single digit' => ['7', '7'];
     }
 
     /**
@@ -119,15 +111,14 @@ final class CodeGeneratorTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function thingsThatAreNotCodes(): iterable
     {
-        yield 'a phone number' => ['0912345678'];
-        yield 'longer than a code' => ['A7K3-M9PXQ'];
+        yield 'longer than a code' => ['48217395061'];
         yield 'empty' => [''];
         yield 'only spaces' => ['   '];
         yield 'only a hyphen' => ['-'];
-        // The characters the alphabet leaves out precisely because they are
-        // misread (F13 R18). Somebody typing one has misread something.
-        yield 'an O for a zero' => ['A7K3-M9PO'];
-        yield 'an I for a one' => ['A7K3-M9PI'];
+        // F39 R1: a code is digits, so anything else is somebody typing a
+        // name, a note, or the wrong box.
+        yield 'a letter' => ['4821 739 50A'];
+        yield 'a word' => ['free coffee'];
         yield 'an L' => ['A7K3-M9PL'];
         yield 'a zero' => ['A7K3-M9P0'];
         yield 'a one' => ['A7K3-M9P1'];
@@ -154,7 +145,7 @@ final class CodeGeneratorTest extends TestCase
     /** Every position varies, so no group is secretly constant. */
     public function testEveryPositionVaries(): void
     {
-        $byPosition = array_fill(0, 9, []);
+        $byPosition = array_fill(0, 12, []);
 
         for ($i = 0; $i < 500; ++$i) {
             foreach (str_split($this->codes->generate()) as $position => $character) {
@@ -163,8 +154,9 @@ final class CodeGeneratorTest extends TestCase
         }
 
         foreach ($byPosition as $position => $characters) {
-            // Position 4 is the hyphen and is meant to be constant.
-            $expected = 4 === $position ? 1 : 10;
+            // F39 R2: `4821 739 506`, so positions 4 and 8 are the spaces
+            // between the groups and are meant to be constant.
+            $expected = \in_array($position, [4, 8], true) ? 1 : 10;
 
             self::assertGreaterThanOrEqual(
                 $expected,

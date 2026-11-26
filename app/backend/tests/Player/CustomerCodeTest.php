@@ -20,17 +20,19 @@ use PHPUnit\Framework\TestCase;
 final class CustomerCodeTest extends TestCase
 {
     /** R2 */
-    public function testItIsTenCharactersInTwoGroups(): void
+    /** F39 R3. Twelve digits in three groups of four. */
+    public function testItIsTwelveDigitsInThreeGroups(): void
     {
         self::assertMatchesRegularExpression(CustomerCode::pattern(), CustomerCode::generate());
-        self::assertSame(11, \strlen(CustomerCode::generate()));
+        self::assertSame(14, \strlen(CustomerCode::generate()));
+        self::assertSame(12, \strlen(str_replace(' ', '', CustomerCode::generate())));
     }
 
-    /** R2. No O against 0, no I or L against 1. */
+    /** F39 R1. Digits, which is what the scanner's numeric mode needs. */
     public function testItUsesNothingThatGetsMisread(): void
     {
         for ($attempt = 0; $attempt < 200; ++$attempt) {
-            $letters = str_replace('-', '', CustomerCode::generate());
+            $letters = str_replace(' ', '', CustomerCode::generate());
 
             self::assertSame(
                 \strlen($letters),
@@ -73,17 +75,17 @@ final class CustomerCodeTest extends TestCase
     #[DataProvider('spellings')]
     public function testItReadsEverySpellingTheSameWay(string $typed): void
     {
-        self::assertSame('M9PXK-4T7VH', CustomerCode::normalise($typed));
+        self::assertSame('5207 4418 9163', CustomerCode::normalise($typed));
     }
 
     /** @return iterable<string, array{string}> */
     public static function spellings(): iterable
     {
-        yield 'as issued' => ['M9PXK-4T7VH'];
-        yield 'no hyphen' => ['M9PXK4T7VH'];
-        yield 'lower case' => ['m9pxk-4t7vh'];
-        yield 'with spaces' => [' M9PXK 4T7VH '];
-        yield 'scanned with a carriage return' => ["M9PXK4T7VH\r"];
+        yield 'as issued' => ['5207 4418 9163'];
+        yield 'without the spaces' => ['520744189163'];
+        yield 'with hyphens instead' => ['5207-4418-9163'];
+        yield 'grouped wrongly' => ['52 0744 189163'];
+        yield 'scanned with a carriage return' => ["520744189163\r"];
     }
 
     /**
@@ -99,18 +101,29 @@ final class CustomerCodeTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function notCards(): iterable
     {
-        yield 'a phone number' => ['0912345678'];
-        yield 'too long' => ['M9PXK4T7VHX'];
+        yield 'too long' => ['5207441891634'];
         yield 'nothing' => [''];
         yield 'a hyphen alone' => ['-'];
-        yield 'a letter no code contains' => ['M9PXK4T7VO'];
-        yield 'an accent from somebody keyboard' => ['M9PXK4T7Vé'];
+        yield 'a letter' => ['5207 4418 916A'];
+        yield 'an accent from somebody keyboard' => ['5207 4418 916é'];
+    }
+
+    /**
+     * F39 R13, R14, and the cost the old alphabet used to cover for free.
+     *
+     * Ten digits is a phone number and also the start of a card, so this no
+     * longer declines to be asked. The counter's box asks both columns and
+     * shows what matched, which is why that is survivable — see F39 §13.
+     */
+    public function testAPhoneNumberIsNowAPossibleCard(): void
+    {
+        self::assertSame('0912 3456 78', CustomerCode::normalise('0912345678'));
     }
 
     /** R15. A partial card is a partial card, so staff can type as they go. */
     public function testItKeepsAPartialCard(): void
     {
-        self::assertSame('M9PXK', CustomerCode::normalise('m9pxk'));
-        self::assertSame('M9PXK-4T7', CustomerCode::normalise('M9PXK4T7'));
+        self::assertSame('5207', CustomerCode::normalise('5207'));
+        self::assertSame('5207 4418 91', CustomerCode::normalise('52074418 91'));
     }
 }

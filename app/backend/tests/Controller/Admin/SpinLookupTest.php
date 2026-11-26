@@ -20,7 +20,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * what RewardIssueTest does and deliberately so. That test is about a code
  * being issued inside the recording transaction, which only a real spin
  * exercises; this one is about a query, and a query is best tested against
- * codes the test chose — `A7K3-M9PX` is in the feature file's acceptance
+ * codes the test chose — `4821 739 506` is in the feature file's acceptance
  * criteria, and a generated code could not be named there.
  */
 final class SpinLookupTest extends DatabaseWebTestCase
@@ -28,7 +28,7 @@ final class SpinLookupTest extends DatabaseWebTestCase
     private const SPINS_URI = '/api/admin/spins';
 
     /** The code the acceptance criteria talk about. */
-    private const CODE = 'A7K3-M9PX';
+    private const CODE = '4821 739 506';
 
 
     /** F16 R7, R13 */
@@ -64,11 +64,10 @@ final class SpinLookupTest extends DatabaseWebTestCase
     public static function carelesslyTyped(): iterable
     {
         yield 'as issued' => [self::CODE];
-        yield 'lower case' => ['a7k3-m9px'];
-        yield 'without the hyphen' => ['a7k3m9px'];
-        yield 'with a space instead' => ['A7K3 M9PX'];
-        yield 'with trailing space' => ['A7K3-M9PX '];
-        yield 'mixed case, no hyphen' => ['a7K3m9Px'];
+        yield 'without the spaces' => ['4821739506'];
+        yield 'with hyphens instead' => ['4821-739-506'];
+        yield 'grouped wrongly' => ['48 217 39506'];
+        yield 'with trailing space' => ['4821 739 506 '];
     }
 
     /** F16 R9: the row arrives as the code is typed, not only at the end. */
@@ -76,7 +75,7 @@ final class SpinLookupTest extends DatabaseWebTestCase
     {
         $this->givenASpin('Free coffee', self::CODE);
 
-        foreach (['A', 'A7', 'A7K', 'A7K3', 'A7K3-M', 'A7K3-M9P'] as $prefix) {
+        foreach (['4', '48', '482', '4821', '4821 7', '4821 739 50'] as $prefix) {
             $found = $this->search($prefix);
 
             self::assertCount(1, $found['spins'], sprintf('"%s" found nothing.', $prefix));
@@ -152,7 +151,7 @@ final class SpinLookupTest extends DatabaseWebTestCase
     {
         $this->givenASpin('Free coffee', self::CODE);
 
-        foreach (['A7K3-M9PO', 'A7K3-M9P0', 'A7K3-M9PI', 'A7K3-M9PL'] as $misread) {
+        foreach (['4821 739 507', '4821 739 505', '4821 739 516', '1821 739 506'] as $misread) {
             $found = $this->search($misread);
 
             self::assertSame([], $found['spins'], sprintf('"%s" matched something.', $misread));
@@ -177,7 +176,7 @@ final class SpinLookupTest extends DatabaseWebTestCase
         self::assertSame(1, $everything['total'], 'The log is wins only.');
         self::assertSame(1, $everything['wonNothing'], 'And says how many it left out.');
 
-        $found = $this->search('A7K3');
+        $found = $this->search('4821');
 
         self::assertCount(1, $found['spins']);
         self::assertSame(self::CODE, $found['spins'][0]['code']);

@@ -354,7 +354,7 @@ describe('opening a customer', () => {
   it('opens the one customer a complete code found', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
 
-    renderList('/admin/players?search=A7K3-M9PX')
+    renderList('/admin/players?search=4821 739 506')
 
     expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
   })
@@ -366,7 +366,7 @@ describe('opening a customer', () => {
   it('opens the one customer a complete card found', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
 
-    renderList('/admin/players?search=M9PXK-4T7VH')
+    renderList('/admin/players?search=5207 4418 9163')
 
     expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
   })
@@ -382,11 +382,11 @@ describe('opening a customer', () => {
   })
 
   it('reads its filter from the URL', async () => {
-    renderList('/admin/players?search=A7K3')
+    renderList('/admin/players?search=4821')
 
-    await waitFor(() => expect(fetchPlayersMock).toHaveBeenCalledWith('A7K3', expect.anything()))
+    await waitFor(() => expect(fetchPlayersMock).toHaveBeenCalledWith('4821', expect.anything()))
 
-    expect(screen.getByTestId('player-filter')).toHaveValue('A7K3')
+    expect(screen.getByTestId('player-filter')).toHaveValue('4821')
   })
 })
 
@@ -437,7 +437,7 @@ describe('a scanned code', () => {
    * not the shop that configures it: a space either side, a tab, a carriage
    * return. None of it is the code.
    */
-  it.each([' A7K3-M9PX ', 'A7K3M9PX', 'a7k3-m9px', 'A7K3-M9PX\r'])(
+  it.each([' 4821 739 506 ', '4821739506', '4821-739-506', '4821 739 506\r'])(
     'reads %j as the same code',
     async (scanned) => {
       fetchPlayersMock.mockResolvedValue({ players: [ANH], total: 1, winWithoutCustomer: false })
@@ -455,10 +455,10 @@ describe('a scanned code', () => {
   it('keeps what was scanned when it matches nobody', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: false })
 
-    renderList('/admin/players?search=A7K3-M9PX')
+    renderList('/admin/players?search=4821 739 506')
 
     expect(await screen.findByTestId('players-empty')).toBeInTheDocument()
-    expect(screen.getByTestId('player-filter')).toHaveValue('A7K3-M9PX')
+    expect(screen.getByTestId('player-filter')).toHaveValue('4821 739 506')
     expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
   })
 })
@@ -468,7 +468,7 @@ describe('a code whose win has no customer', () => {
   it('says where it can still be handed over', async () => {
     fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: true })
 
-    renderList('/admin/players?search=A7K3-M9PX')
+    renderList('/admin/players?search=4821 739 506')
 
     const message = await screen.findByTestId('players-orphan-win')
 

@@ -1347,6 +1347,33 @@ final class DatabaseUpgradeTest extends KernelTestCase
         self::assertNull($this->columnOf('game', 'background'), 'A dry run added the picture.');
     }
 
+    // ----------------------------- F39: a card made of twelve digits
+
+    /** F39 R3. Twelve digits and two spaces need more room than ten and a hyphen. */
+    public function testItWidensTheCustomerCard(): void
+    {
+        $this->upgrade()->run();
+
+        $column = $this->columnOf('player', 'code');
+
+        self::assertNotNull($column);
+        self::assertGreaterThanOrEqual(14, $column->getLength());
+        self::assertTrue($column->getNotnull(), 'A card may now be null.');
+    }
+
+    /** P02. A second run leaves it alone. */
+    public function testASecondRunLeavesTheCardColumnAlone(): void
+    {
+        $this->upgrade()->run();
+
+        $steps = $this->upgrade()->run();
+
+        self::assertSame(
+            'already applied',
+            $this->detailOf($steps, 'player.code holds a numeric card'),
+        );
+    }
+
     private function upgrade(): DatabaseUpgrade
     {
         $container = static::getContainer();
