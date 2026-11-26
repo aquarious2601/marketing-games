@@ -57,6 +57,8 @@ export const fr: Record<MessageKey, string> = {
   'identity.phoneRequired': 'Saisissez votre numéro de téléphone.',
   'identity.phoneInvalid':
     'Cela ne ressemble pas à un numéro de téléphone. Il faut entre %min% et %max% chiffres.',
+  'identity.phoneNotFrench':
+    'Cela ne ressemble pas à un numéro français. Un numéro français a dix chiffres, comme 06 14 85 62 40.',
   'identity.firstNameRequired': 'Saisissez votre prénom.',
   'identity.lastNameRequired': 'Saisissez votre nom.',
   'identity.firstNameTooLong': 'Un prénom ne peut pas dépasser %max% caractères.',

@@ -211,6 +211,7 @@ what those screens become once several owners share an installation.
 | [F37](./F37-deleting-a-game.md) | Deleting a game | Admin | Agreed |
 | [F38](./F38-a-birthday-without-a-year.md) | A birthday without a year | Both | Agreed |
 | [F39](./F39-codes-a-scanner-reads-as-numbers.md) | Codes a scanner reads as numbers | Both | Agreed |
+| [F40](./F40-a-number-that-looks-french.md) | A number that looks French | Player | Agreed |
 
 ## Running the tests
 

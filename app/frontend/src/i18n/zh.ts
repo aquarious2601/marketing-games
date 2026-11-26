@@ -54,6 +54,7 @@ export const zh: Record<MessageKey, string> = {
 
   'identity.phoneRequired': '请输入您的手机号码。',
   'identity.phoneInvalid': '这看起来不像手机号码。需要 %min% 到 %max% 位数字。',
+  'identity.phoneNotFrench': '这看起来不像法国号码。法国号码有十位数字，例如 06 14 85 62 40。',
   'identity.firstNameRequired': '请输入您的名字。',
   'identity.lastNameRequired': '请输入您的姓氏。',
   'identity.firstNameTooLong': '名字最多 %max% 个字符。',

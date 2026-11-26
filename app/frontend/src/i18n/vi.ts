@@ -56,6 +56,8 @@ export const vi: Record<MessageKey, string> = {
   'identity.phoneRequired': 'Nhập số điện thoại của bạn.',
   'identity.phoneInvalid':
     'Số đó trông không giống số điện thoại. Cần từ %min% đến %max% chữ số.',
+  'identity.phoneNotFrench':
+    'Số đó trông không giống số điện thoại Pháp. Số của Pháp có mười chữ số, ví dụ 06 14 85 62 40.',
   'identity.firstNameRequired': 'Nhập tên của bạn.',
   'identity.lastNameRequired': 'Nhập họ của bạn.',
   'identity.firstNameTooLong': 'Tên không được dài quá %max% ký tự.',
