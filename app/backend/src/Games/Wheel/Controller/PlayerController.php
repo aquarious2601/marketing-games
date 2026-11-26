@@ -99,7 +99,7 @@ final class PlayerController extends AbstractController
             return $this->noGame();
         }
 
-        $player = $this->session->current();
+        $player = $this->session->current($game);
 
         /**
          * F08 R16. A 403 rather than a 401 on purpose: the API client turns
@@ -133,7 +133,7 @@ final class PlayerController extends AbstractController
          * Checked before the draw, so a refused request costs no prize and
          * mints no code (F16 R1).
          */
-        if (null !== $this->session->spentSpin()) {
+        if (null !== $this->session->spentSpin($game)) {
             return new JsonResponse(
                 [
                     'error' => [
@@ -183,7 +183,7 @@ final class PlayerController extends AbstractController
          * window between the two is the risk written down in F20 section 13,
          * and it errs towards one extra spin rather than one lost prize.
          */
-        $this->session->recordSpin($spin);
+        $this->session->recordSpin($game, $spin);
 
         return new JsonResponse([
             'prize' => $this->presenter->presentPrize($prize),

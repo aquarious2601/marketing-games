@@ -216,6 +216,12 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
           onClick={() => onIdentified(phase.identified)}
           data-testid="card-continue"
           className={buttonClass}
+          /*
+           * The paint as well as the shape. Without this the one control
+           * that carries a customer from their card to the game rendered as
+           * a line of body text on a transparent background — see F36 §13.
+           */
+          style={buttonStyle}
         >
           {t('identity.cardContinue')}
         </button>

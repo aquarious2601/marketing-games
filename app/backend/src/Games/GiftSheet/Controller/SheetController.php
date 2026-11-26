@@ -63,7 +63,7 @@ final class SheetController extends AbstractController
             return $this->noGame();
         }
 
-        $player = $this->session->current();
+        $player = $this->session->current($game);
 
         return new JsonResponse([
             'gifts' => $this->presenter->present($this->gifts->onSheet($game)),
@@ -89,7 +89,7 @@ final class SheetController extends AbstractController
             return $this->noGame();
         }
 
-        $player = $this->session->current();
+        $player = $this->session->current($game);
 
         // F08 R16's rule, and its reasoning: a 403 rather than a 401,
         // because the API client turns every 401 into "your session has
