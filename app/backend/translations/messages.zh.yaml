@@ -22,10 +22,9 @@ player:
     last_name_required: '请输入您的姓氏。'
     first_name_too_long: '名字最多 %max% 个字符。'
     last_name_too_long: '姓氏最多 %max% 个字符。'
-    birthday_required: '请输入您的生日。'
-    birthday_invalid: '请按日期格式输入生日，例如 1994-03-12。'
-    birthday_future: '生日不能是未来的日期。'
-    birthday_too_early: '请检查这个生日。'
+    birthday_required: '请选择您生日的日和月。'
+    birthday_invalid: '请选择 1 到 31 之间的日期和一个月份。'
+    birthday_impossible: '该月份没有这一天。'
 
 wheel:
     invalid: '转盘配置无效。'
@@ -61,6 +60,15 @@ logo:
     svg_entities: '该 SVG 声明了 XML 实体，这是不允许的。请在导出时去掉它们后重试。'
     sanitised_notice: '出于安全考虑，已从该 SVG 中移除部分内容：%removed%。'
 
+background:
+    required: '请选择要上传的图片。'
+    not_an_image: '该文件不是图片。'
+    too_large: '图片大小不得超过 %max%MB，该图片为 %size%MB。'
+    wrong_type: '图片必须是 PNG、JPEG 或 WebP 格式。'
+    too_small: '图片最长边至少需要 %min% 像素，该图片为 %width%×%height%。'
+    too_big: '图片每边最多 %max% 像素，该图片为 %width%×%height%。'
+    upload_failed: '上传未完成，请重试。'
+
 theme:
     plain: '简约'
     black-friday: '黑色星期五'
@@ -68,6 +76,7 @@ theme:
     new-year: '新年'
     halloween: '万圣节'
     birthday: '生日快乐'
+    custom: '自定义'
 
 tagline:
     default: '一次转动，一份奖品。祝您好运！'
@@ -119,6 +128,8 @@ game:
     daily_limit_invalid: '每日次数须为 1 至 %max% 的整数，留空表示不限。'
     live_must_be_boolean: '请说明游戏是否已上线。'
     not_found: '找不到该游戏。'
+    delete_live: '请先关闭该游戏，再删除。'
+    delete_played: '该游戏已被游玩 %count% 次。已有游玩记录的游戏无法删除 — 记录就是它送出过什么。'
     not_ready_no_wheel: '该游戏还没有转盘。'
     not_ready_prize_count: '转盘需要 %min% 至 %max% 个奖品。'
     not_ready_slice_without_reward: '上线前每个扇区都需要一个奖励。'

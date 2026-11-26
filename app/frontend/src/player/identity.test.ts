@@ -8,7 +8,6 @@ import {
   detailsProblems,
   hasProblems,
   phoneProblem,
-  today,
 } from './identity'
 
 /**
@@ -108,7 +107,7 @@ describe('phoneProblem', () => {
 })
 
 describe('detailsProblems', () => {
-  const valid = { firstName: 'Anh', lastName: 'Le', birthday: '1994-03-12' }
+  const valid = { firstName: 'Anh', lastName: 'Le', birthDay: '12', birthMonth: '3' }
 
   it('passes a complete set of details', () => {
     expect(detailsProblems(valid)).toEqual({})
@@ -120,7 +119,12 @@ describe('detailsProblems', () => {
    * discover three mistakes in three submissions.
    */
   it('reports every problem at once', () => {
-    const problems = detailsProblems({ firstName: '', lastName: '  ', birthday: '' })
+    const problems = detailsProblems({
+      firstName: '',
+      lastName: '  ',
+      birthDay: '',
+      birthMonth: '',
+    })
 
     expect(Object.keys(problems).sort()).toEqual(['birthday', 'firstName', 'lastName'])
   })
@@ -142,7 +146,12 @@ describe('detailsProblems', () => {
    * Vietnamese and Chinese both want to reorder the sentence.
    */
   it('names the field that is wrong rather than interpolating it', () => {
-    const problems = detailsProblems({ firstName: '', lastName: '', birthday: '' })
+    const problems = detailsProblems({
+      firstName: '',
+      lastName: '',
+      birthDay: '',
+      birthMonth: '',
+    })
 
     expect(problems.firstName).toBe('identity.firstNameRequired')
     expect(problems.lastName).toBe('identity.lastNameRequired')
@@ -154,40 +163,40 @@ describe('detailsProblems', () => {
     expect(detailsProblems({ ...valid, lastName: 'ễ'.repeat(NAME_MAX_LENGTH) })).toEqual({})
   })
 
+  /** F38 R4. Both, or neither is an answer. */
   it.each([
-    ['empty', ''],
-    ['prose', 'sometime in the nineties'],
-    ['the wrong way round', '12/03/1994'],
-    ['a datetime', '1994-03-12T00:00:00Z'],
-    // Date rolls this into 2 March rather than rejecting it, so the parsed
-    // value is compared back against the input.
-    ['a day that does not exist', '1994-02-30'],
-    ['the future', '2099-01-01'],
-    ['before records', '1823-04-01'],
-  ])('rejects %s as a birthday', (_name, birthday) => {
-    expect(detailsProblems({ ...valid, birthday }).birthday).toBeDefined()
-  })
-
-  it('accepts a birthday of today', () => {
-    expect(detailsProblems({ ...valid, birthday: today() })).toEqual({})
+    ['neither chosen', '', ''],
+    ['no month', '12', ''],
+    ['no day', '', '3'],
+  ])('rejects a birthday with %s', (_name, birthDay, birthMonth) => {
+    expect(detailsProblems({ ...valid, birthDay, birthMonth }).birthday).toBe(
+      'identity.birthdayRequired',
+    )
   })
 
   /**
-   * The reason `today()` reads a local clock rather than a UTC one: a player
-   * in Hanoi filling this in during the morning is seven hours ahead of UTC,
-   * and would be told their own birthday is in the future.
+   * F38 R3. The pickers cannot offer a 31st of February, but they can be
+   * left on one: choosing 31 and then changing the month is two presses.
    */
-  it('does not call a birthday in the future when the browser is ahead of UTC', () => {
-    vi.useFakeTimers()
-    // 07:00 in Hanoi on 15 November is still 14 November in UTC.
-    vi.setSystemTime(new Date('2026-11-15T00:00:00+07:00'))
-    const offset = vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(-420)
+  it.each([
+    ['the 31st of February', '31', '2'],
+    ['the 31st of April', '31', '4'],
+    ['the 31st of November', '31', '11'],
+  ])('rejects %s', (_name, birthDay, birthMonth) => {
+    expect(detailsProblems({ ...valid, birthDay, birthMonth }).birthday).toBe(
+      'identity.birthdayImpossible',
+    )
+  })
 
-    try {
-      expect(detailsProblems({ ...valid, birthday: '2026-11-15' })).toEqual({})
-    } finally {
-      offset.mockRestore()
-    }
+  /** F38 R3. It comes round every four years; the birthday is every year. */
+  it('accepts the 29th of February', () => {
+    expect(detailsProblems({ ...valid, birthDay: '29', birthMonth: '2' })).toEqual({})
+  })
+
+  /** F38 R1. There is no year to be in the future, or before records began. */
+  it('asks nothing about a year', () => {
+    expect(detailsProblems({ ...valid, birthDay: '1', birthMonth: '1' })).toEqual({})
+    expect(detailsProblems({ ...valid, birthDay: '31', birthMonth: '12' })).toEqual({})
   })
 
   afterEach(() => {

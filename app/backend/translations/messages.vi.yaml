@@ -22,10 +22,9 @@ player:
     last_name_required: 'Nhập họ của bạn.'
     first_name_too_long: 'Tên không được dài quá %max% ký tự.'
     last_name_too_long: 'Họ không được dài quá %max% ký tự.'
-    birthday_required: 'Nhập ngày sinh của bạn.'
-    birthday_invalid: 'Nhập ngày sinh theo dạng ngày tháng, ví dụ 1994-03-12.'
-    birthday_future: 'Ngày sinh không thể ở tương lai.'
-    birthday_too_early: 'Vui lòng kiểm tra lại ngày sinh.'
+    birthday_required: 'Hãy chọn ngày và tháng sinh của bạn.'
+    birthday_invalid: 'Hãy chọn ngày từ 1 đến 31 và một tháng.'
+    birthday_impossible: 'Tháng đó không có ngày này.'
 
 wheel:
     invalid: 'Cấu hình vòng quay không hợp lệ.'
@@ -61,6 +60,15 @@ logo:
     svg_entities: 'Tệp SVG này khai báo thực thể XML, điều đó không được phép. Hãy xuất lại mà không có chúng.'
     sanitised_notice: 'Một số nội dung đã được loại bỏ khỏi tệp SVG để đảm bảo an toàn: %removed%.'
 
+background:
+    required: 'Hãy chọn một hình ảnh để tải lên.'
+    not_an_image: 'Tệp này không phải hình ảnh.'
+    too_large: 'Ảnh phải nhỏ hơn hoặc bằng %max%MB. Ảnh này là %size%MB.'
+    wrong_type: 'Ảnh phải ở định dạng PNG, JPEG hoặc WebP.'
+    too_small: 'Cạnh dài nhất của ảnh phải từ %min% pixel trở lên. Ảnh này là %width%×%height%.'
+    too_big: 'Mỗi cạnh của ảnh không được vượt quá %max% pixel. Ảnh này là %width%×%height%.'
+    upload_failed: 'Tải lên chưa hoàn tất. Vui lòng thử lại.'
+
 theme:
     plain: 'Đơn giản'
     black-friday: 'Black Friday'
@@ -68,6 +76,7 @@ theme:
     new-year: 'Năm mới'
     halloween: 'Halloween'
     birthday: 'Chúc mừng sinh nhật'
+    custom: 'Tùy chỉnh'
 
 tagline:
     default: 'Một lượt quay, một phần thưởng. Chúc may mắn!'
@@ -119,6 +128,8 @@ game:
     daily_limit_invalid: 'Số lượt mỗi ngày phải là số nguyên từ 1 đến %max%, hoặc để trống nếu không giới hạn.'
     live_must_be_boolean: 'Hãy cho biết trò chơi có đang mở hay không.'
     not_found: 'Không tìm thấy trò chơi.'
+    delete_live: 'Hãy tắt trò chơi này trước khi xóa.'
+    delete_played: 'Trò chơi này đã được chơi %count% lần. Không thể xóa trò chơi đã có lượt chơi — đó là hồ sơ những gì đã trao.'
     not_ready_no_wheel: 'Trò chơi này chưa có vòng xoay.'
     not_ready_prize_count: 'Vòng xoay cần từ %min% đến %max% phần thưởng.'
     not_ready_slice_without_reward: 'Mỗi ô phải có phần thưởng trước khi mở trò chơi.'

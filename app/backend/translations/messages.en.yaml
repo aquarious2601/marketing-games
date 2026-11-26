@@ -33,10 +33,9 @@ player:
     last_name_required: 'Enter your last name.'
     first_name_too_long: 'A first name can be at most %max% characters.'
     last_name_too_long: 'A last name can be at most %max% characters.'
-    birthday_required: 'Enter your birthday.'
-    birthday_invalid: 'Enter your birthday as a date, for example 1994-03-12.'
-    birthday_future: 'A birthday cannot be in the future.'
-    birthday_too_early: 'Please check that birthday.'
+    birthday_required: 'Choose the day and month of your birthday.'
+    birthday_invalid: 'Choose a day from 1 to 31 and a month.'
+    birthday_impossible: 'That day does not exist in that month.'
 
 wheel:
     invalid: 'The wheel configuration is invalid.'
@@ -79,6 +78,17 @@ logo:
 
 # Shown in the admin's theme picker. The application's own words, so they
 # are translated (F12 R9) — unlike anything the admin types (F12 R10).
+# F35 R23. The background a game can wear. Every rejection names the thing
+# that was wrong with the file, so the next attempt is informed.
+background:
+    required: 'Choose a picture to upload.'
+    not_an_image: 'That file is not an image.'
+    too_large: 'The picture must be %max%MB or smaller. That one is %size%MB.'
+    wrong_type: 'The picture must be a PNG, JPEG or WebP image.'
+    too_small: 'The picture must be at least %min% pixels on its longest side. That one is %width%×%height%.'
+    too_big: 'The picture must be at most %max% pixels on each side. That one is %width%×%height%.'
+    upload_failed: 'The upload did not complete. Please try again.'
+
 theme:
     plain: 'Plain'
     black-friday: 'Black Friday'
@@ -86,6 +96,7 @@ theme:
     new-year: 'New Year'
     halloween: 'Halloween'
     birthday: 'Happy Birthday'
+    custom: 'Custom'
 
 # F12 R11: supplied by the application when the admin has set no tagline of
 # their own, so it is ours to translate. An admin's own tagline never is.
@@ -141,6 +152,8 @@ game:
     daily_limit_invalid: 'Plays per day must be a whole number from 1 to %max%, or blank for no limit.'
     live_must_be_boolean: 'Say whether the game is live.'
     not_found: 'No such game.'
+    delete_live: 'Turn this game off before deleting it.'
+    delete_played: 'This game has been played %count% times. A game with plays cannot be deleted — its record is what it gave away.'
     not_ready_no_wheel: 'This game has no wheel yet.'
     not_ready_prize_count: 'A wheel needs between %min% and %max% prizes.'
     not_ready_slice_without_reward: 'Every slice needs a reward before this game can go live.'

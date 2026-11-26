@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Admin;
 
+use App\Branding\BackgroundStore;
+use App\Games\Wheel\WheelProvider;
+use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Game;
 use App\Game\GameType;
 use App\Game\LinkKey;
 use App\Tests\Support\DatabaseWebTestCase;
+use App\Tests\Support\FakeImage;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -21,6 +26,12 @@ final class GameControllerTest extends DatabaseWebTestCase
 {
     private const URI = '/api/admin/games';
 
+    /** @var list<string> Files handed to an upload, to clear up afterwards. */
+    private array $uploaded = [];
+
+    /** @var list<string> Files the store wrote, likewise. */
+    private array $stored = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -30,6 +41,35 @@ final class GameControllerTest extends DatabaseWebTestCase
         // F27 R43: the seeded game is live, so it has to be ready — which
         // for a wheel means a wheel with prizes that total 100.
         $this->giveTheGameItsWheel();
+    }
+
+    protected function tearDown(): void
+    {
+        /*
+         * Whatever picture the game is left holding, as well as the files
+         * this test handed to an upload. Asked of the database before the
+         * parent empties it, because a test that uploads and does not look
+         * at the result would otherwise leave a file in the upload
+         * directory that nothing remembers the name of.
+         */
+        $game = $this->entityManager->getRepository(Game::class)->findOneBy([]);
+
+        if ($game instanceof Game && null !== $game->getBackground()) {
+            $this->stored[] = static::getContainer()
+                ->get(BackgroundStore::class)
+                ->pathFor($game->getBackground());
+        }
+
+        foreach ([...$this->uploaded, ...$this->stored] as $path) {
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+
+        $this->uploaded = [];
+        $this->stored = [];
+
+        parent::tearDown();
     }
 
     // ------------------------------------------------------------- the list
@@ -146,7 +186,7 @@ final class GameControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::URI);
 
         self::assertSame(
-            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
+            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday', 'custom'],
             array_column($this->decodeResponse()['themes'], 'value'),
         );
     }
@@ -390,6 +430,387 @@ final class GameControllerTest extends DatabaseWebTestCase
 
         $this->client->request('GET', '/api/admin/games/9999/wheel');
         self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    // ---------------------------------------------------------- deleting one
+
+    /** F37 R1, R4. A game nobody played, turned off, goes. */
+    public function testItDeletesAGameNobodyHasPlayed(): void
+    {
+        $spare = $this->aSpareGame();
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+
+        $this->client->request('GET', self::URI);
+
+        self::assertSame(
+            ['Test campaign'],
+            array_column($this->decodeResponse()['games'], 'name'),
+        );
+    }
+
+    /** F37 R3, R9. Turning it off is the first decision; deleting is a second. */
+    public function testItRefusesToDeleteALiveGame(): void
+    {
+        $this->client->request('DELETE', self::URI.'/'.$this->gameId());
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertStringContainsString(
+            'Turn this game off',
+            $this->decodeResponse()['error']['violations'][0]['message'],
+        );
+    }
+
+    /**
+     * F37 R2, R9. The record of what a shop gave away is not something a
+     * button may take, and the refusal counts it rather than alluding to it.
+     */
+    public function testItRefusesToDeleteAGameThatHasBeenPlayed(): void
+    {
+        $this->givenThePlayedGameIsOff();
+
+        $this->client->request('DELETE', self::URI.'/'.$this->gameId());
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertStringContainsString(
+            'played 1 times',
+            $this->decodeResponse()['error']['violations'][0]['message'],
+        );
+    }
+
+    /**
+     * F37 R6, R7. What belongs to the game goes with it.
+     *
+     * The cascade is the database's, declared on the foreign key, so what
+     * this checks is that the row really goes and takes its wheel — the
+     * part a test can tell apart from "nothing happened".
+     */
+    public function testItTakesTheWheelAndItsPrizesWithIt(): void
+    {
+        $spare = $this->aSpareGame();
+        $this->giveItAWheel($spare);
+
+        $wheels = $this->rowsIn('wheel');
+        $prizes = $this->rowsIn('prize');
+
+        self::assertGreaterThan(0, $prizes);
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+        self::assertSame($wheels - 1, $this->rowsIn('wheel'));
+        self::assertLessThan($prizes, $this->rowsIn('prize'));
+    }
+
+    /**
+     * F37 R6. The picture is a file rather than a row, so no cascade reaches
+     * it — this is the part that would quietly leave rubbish behind.
+     */
+    public function testItTakesTheUploadedPictureWithIt(): void
+    {
+        $spare = $this->aSpareGame();
+
+        $this->client->request(
+            'POST',
+            self::URI.'/'.$spare.'/background',
+            files: ['background' => $this->picture()],
+        );
+        self::assertResponseIsSuccessful();
+
+        $path = $this->backgroundPathOf($spare);
+        self::assertFileExists($path);
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+        self::assertFileDoesNotExist($path);
+    }
+
+    /** F37 R7. The link answers as a finished promotion does. */
+    public function testADeletedGamesLinkIsGone(): void
+    {
+        $spare = $this->aSpareGame();
+        $key = $this->linkKeyOf($spare);
+
+        $this->client->request('DELETE', self::URI.'/'.$spare);
+        $this->client->request('GET', '/api/play/'.$key);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    public function testItRefusesAGameThatIsNotThere(): void
+    {
+        $this->client->request('DELETE', self::URI.'/404404');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    // --------------------------------------------------- deleting's helpers
+
+    /** A second game, turned off and never played: the deletable case. */
+    private function aSpareGame(): int
+    {
+        $this->post(self::URI, ['name' => 'Spare', 'type' => 'wheel']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        return (int) $this->decodeResponse()['id'];
+    }
+
+    /** The seeded game, played once and then turned off. */
+    private function givenThePlayedGameIsOff(): void
+    {
+        $this->identifyAsPlayer();
+        $this->client->request('POST', '/api/spin');
+        self::assertResponseIsSuccessful('The test could not record a play.');
+
+        $this->put(self::URI.'/'.$this->gameId().'/live', ['live' => false]);
+        self::assertResponseIsSuccessful('The test could not turn the game off.');
+    }
+
+    /** The default wheel, so there is something for the cascade to take. */
+    private function giveItAWheel(int $id): void
+    {
+        /*
+         * Both taken from the container now rather than from setUp: a client
+         * request reboots the kernel, and the manager this test has been
+         * holding is then a different one from the provider's — which makes
+         * a game it reads look like an entity nobody has persisted.
+         */
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+
+        $game = $entityManager->getRepository(Game::class)->find($id);
+        self::assertInstanceOf(Game::class, $game);
+
+        $container->get(WheelProvider::class)->getOrCreate($game);
+        $entityManager->flush();
+    }
+
+    private function rowsIn(string $table): int
+    {
+        return (int) $this->entityManager->getConnection()->fetchOne('SELECT COUNT(*) FROM '.$table);
+    }
+
+    private function linkKeyOf(int $id): string
+    {
+        $this->client->request('GET', self::URI.'/'.$id);
+
+        return (string) $this->decodeResponse()['linkKey'];
+    }
+
+    private function backgroundPathOf(int $id): string
+    {
+        $this->entityManager->clear();
+
+        $game = $this->entityManager->getRepository(Game::class)->find($id);
+        \assert($game instanceof Game);
+
+        $filename = $game->getBackground();
+        self::assertIsString($filename);
+
+        $path = static::getContainer()->get(BackgroundStore::class)->pathFor($filename);
+        $this->stored[] = $path;
+
+        return $path;
+    }
+
+    // ------------------------------------------------- a theme of one's own
+
+    /** F35 R2. The six that have colours of their own: Custom is not among them. */
+    public function testItOffersTheThemesAPictureMayBorrow(): void
+    {
+        $this->client->request('GET', self::URI);
+
+        self::assertSame(
+            ['plain', 'black-friday', 'christmas', 'new-year', 'halloween', 'birthday'],
+            array_column($this->decodeResponse()['themeBases'], 'value'),
+        );
+    }
+
+    /** F35 R1, R2 */
+    public function testItSavesACustomThemeAndItsBase(): void
+    {
+        $this->saveTheme('custom', 'birthday');
+
+        self::assertResponseIsSuccessful();
+
+        $body = $this->decodeResponse();
+
+        self::assertSame('custom', $body['theme']);
+        self::assertSame('birthday', $body['themeBase']);
+    }
+
+    /** F35 R2. A theme that borrows itself has no colours at the end of it. */
+    public function testItRefusesCustomAsItsOwnBase(): void
+    {
+        $this->saveTheme('custom', 'custom');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertSame(
+            ['themeBase'],
+            array_column($this->decodeResponse()['error']['violations'], 'field'),
+        );
+    }
+
+    /**
+     * F35 R5. The base is kept rather than cleared, so a shop that runs
+     * Christmas for a fortnight and comes back finds its choice made.
+     */
+    public function testItKeepsTheBaseWhenTheGameLeavesCustom(): void
+    {
+        $this->saveTheme('custom', 'birthday');
+        $this->saveTheme('christmas', 'birthday');
+
+        $body = $this->decodeResponse();
+
+        self::assertSame('christmas', $body['theme']);
+        self::assertSame('birthday', $body['themeBase']);
+    }
+
+    /** F35 R6 */
+    public function testItStoresAnUploadedPicture(): void
+    {
+        $this->uploadBackground($this->picture());
+
+        self::assertResponseIsSuccessful();
+
+        $body = $this->decodeResponse();
+
+        self::assertNotNull($body['backgroundUrl']);
+        self::assertStringContainsString('/api/branding/background/', $body['backgroundUrl']);
+        self::assertFileExists($this->backgroundPath());
+    }
+
+    /** F35 R11. One picture per game, and no orphans left in the directory. */
+    public function testItDeletesThePictureItReplaces(): void
+    {
+        $this->uploadBackground($this->picture());
+        $first = $this->backgroundPath();
+
+        $this->uploadBackground($this->picture('another.png'));
+        $second = $this->backgroundPath();
+
+        self::assertNotSame($first, $second);
+        self::assertFileDoesNotExist($first);
+        self::assertFileExists($second);
+    }
+
+    /** F35 R12. The theme stays; only the picture goes. */
+    public function testItRemovesThePictureAndLeavesTheThemeAlone(): void
+    {
+        $this->saveTheme('custom', 'birthday');
+        $this->uploadBackground($this->picture());
+        $path = $this->backgroundPath();
+
+        $this->client->request('DELETE', self::URI.'/'.$this->gameId().'/background');
+
+        self::assertResponseIsSuccessful();
+
+        $body = $this->decodeResponse();
+
+        self::assertNull($body['backgroundUrl']);
+        self::assertSame('custom', $body['theme']);
+        self::assertSame('birthday', $body['themeBase']);
+        self::assertFileDoesNotExist($path);
+    }
+
+    /** F35 R9, R23. The shop is told what was wrong with the file. */
+    public function testItRefusesAPictureTooSmallToCoverAPhone(): void
+    {
+        $this->uploadBackground($this->file('small.png', FakeImage::png(900, 600)));
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        $violation = $this->decodeResponse()['error']['violations'][0];
+
+        self::assertSame('background', $violation['field']);
+        self::assertStringContainsString('1200', $violation['message']);
+        self::assertStringContainsString('900', $violation['message']);
+    }
+
+    /** F35 R7 */
+    public function testItRefusesAFileThatOnlyLooksLikeAPicture(): void
+    {
+        $this->uploadBackground($this->file('picture.png', 'not a picture at all'));
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    public function testItRefusesAnUploadWithNoFileInIt(): void
+    {
+        $this->client->request('POST', self::URI.'/'.$this->gameId().'/background');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * F35 R5. The admin's payload reports the picture whatever the theme,
+     * because this is the screen that can put the game back on custom and it
+     * should show what it would be putting back. The player's payload is the
+     * one that asks about the theme.
+     */
+    public function testThePictureIsReportedWhateverTheTheme(): void
+    {
+        $this->uploadBackground($this->picture());
+        $this->saveTheme('christmas', 'plain');
+
+        self::assertNotNull($this->decodeResponse()['backgroundUrl']);
+    }
+
+    // --------------------------------------------------- a theme's helpers
+
+    private function saveTheme(string $theme, string $base): void
+    {
+        $this->put(self::URI.'/'.$this->gameId(), [
+            'name' => 'Test campaign',
+            'tagline' => null,
+            'dailyLimit' => null,
+            'theme' => $theme,
+            'themeBase' => $base,
+        ]);
+    }
+
+    private function uploadBackground(UploadedFile $file): void
+    {
+        $this->client->request(
+            'POST',
+            self::URI.'/'.$this->gameId().'/background',
+            files: ['background' => $file],
+        );
+    }
+
+    private function picture(string $name = 'picture.png'): UploadedFile
+    {
+        return $this->file($name, FakeImage::png(1600, 900));
+    }
+
+    private function file(string $name, string $contents): UploadedFile
+    {
+        $path = sys_get_temp_dir().'/f35-'.bin2hex(random_bytes(6));
+        file_put_contents($path, $contents);
+        $this->uploaded[] = $path;
+
+        return new UploadedFile($path, $name, null, null, true);
+    }
+
+    /** Where the game's picture is on disk, asked of the store that put it there. */
+    private function backgroundPath(): string
+    {
+        $this->entityManager->clear();
+
+        $game = $this->entityManager->getRepository(Game::class)->find($this->gameId());
+        \assert($game instanceof Game);
+
+        $filename = $game->getBackground();
+        self::assertIsString($filename);
+
+        $path = static::getContainer()->get(BackgroundStore::class)->pathFor($filename);
+        $this->stored[] = $path;
+
+        return $path;
     }
 
     private function gameId(): int

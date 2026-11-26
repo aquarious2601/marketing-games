@@ -104,6 +104,7 @@ const PRIZES = ['Try again', 'Free sample', 'Free gift', 'Grand prize']
 const PLAIN_BRANDING = {
   companyName: null,
   campaignName: '',
+  backgroundUrl: null,
   tagline: 'One spin, one prize. Good luck.',
   theme: 'plain',
   currency: 'VND',
@@ -523,6 +524,50 @@ describe('branding and themes', () => {
     const screenEl = screen.getByTestId('player-screen')
     expect(screenEl).toHaveAttribute('data-theme', theme)
     expect(screenEl).toHaveStyle({ backgroundColor: THEMES[theme].background })
+  })
+
+  /**
+   * F35 R2, R16. A custom theme reaches this page as a palette it already
+   * has and a picture it does not: the page is never told the word
+   * “custom”, and nothing here has a case for it.
+   */
+  it('puts the shop’s own picture behind the game', async () => {
+    const picture = '/api/branding/background/abcd1234abcd1234?v=1763650000'
+
+    fetchWheelMock.mockResolvedValue(wheel({ theme: 'birthday', backgroundUrl: picture }))
+
+    await renderPlayer()
+
+    expect(screen.getByTestId('custom-background')).toHaveAttribute('src', picture)
+
+    const screenEl = screen.getByTestId('player-screen')
+
+    expect(screenEl).toHaveAttribute('data-theme', 'birthday')
+    expect(screenEl).toHaveStyle({ backgroundColor: THEMES.birthday.background })
+    // F35 R18's hook: the stylesheet gives the language picker a surface of
+    // its own while a photograph is behind it.
+    expect(screenEl).toHaveAttribute('data-backdrop', 'custom')
+  })
+
+  /** F35 R19. The picture is the scene; the painted one is not drawn over it. */
+  it('draws none of the borrowed theme over the picture', async () => {
+    fetchWheelMock.mockResolvedValue(
+      wheel({ theme: 'christmas', backgroundUrl: '/api/branding/background/k?v=1' }),
+    )
+
+    await renderPlayer()
+
+    expect(screen.getByTestId('theme-scene')).toHaveAttribute('data-scene', 'custom')
+  })
+
+  /** F35 R4, R19. No picture is the page exactly as it was. */
+  it.each(THEME_NAMES)('leaves the %s page alone when there is no picture', async (theme) => {
+    fetchWheelMock.mockResolvedValue(wheel({ theme, backgroundUrl: null }))
+
+    await renderPlayer()
+
+    expect(screen.queryByTestId('custom-background')).not.toBeInTheDocument()
+    expect(screen.getByTestId('player-screen')).not.toHaveAttribute('data-backdrop')
   })
 
   /**
@@ -1023,6 +1068,28 @@ describe('a reload after the spin', () => {
     expect(panel).toHaveTextContent('Free gift')
     expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
   })
+
+  /**
+   * F36 section 13. The recovery above re-reads everything, and that read
+   * used to turn any failure of the identity request into "nobody is
+   * identified" — which threw the player out of a game they were in the
+   * middle of because a stall's wifi dropped one request.
+   *
+   * A 403 means nobody. A dropped connection means we could not ask.
+   */
+  it('keeps the player when the identity check could not be made', async () => {
+    const user = await renderPlayer()
+
+    spinMock.mockRejectedValue(new ApiError('already spun', 409))
+    fetchIdentityMock.mockRejectedValue(new Error('the network went away'))
+
+    await user.click(screen.getByTestId('spin-button'))
+
+    await waitFor(() => expect(fetchIdentityMock).toHaveBeenCalledTimes(2))
+
+    expect(screen.queryByTestId('identity-phone')).not.toBeInTheDocument()
+    expect(screen.getByTestId('player-identity')).toBeInTheDocument()
+  })
 })
 
 describe('identifying the player', () => {
@@ -1094,7 +1161,8 @@ describe('identifying the player', () => {
     expect(await screen.findByTestId('identity-details')).toBeInTheDocument()
     expect(screen.getByTestId('first-name-input')).toBeInTheDocument()
     expect(screen.getByTestId('last-name-input')).toBeInTheDocument()
-    expect(screen.getByTestId('birthday-input')).toBeInTheDocument()
+    expect(screen.getByTestId('birth-day-input')).toBeInTheDocument()
+    expect(screen.getByTestId('birth-month-input')).toBeInTheDocument()
 
     // Still no wheel: unknown is not identified (F08 R1).
     expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
@@ -1134,7 +1202,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     // F34 R7, R10. Their card, once, on the way to the game.
@@ -1148,7 +1217,9 @@ describe('identifying the player', () => {
       phone: '0912345678',
       firstName: 'Anh',
       lastName: 'Le',
-      birthday: '1994-03-12',
+      // F38 R1. Two numbers, and nothing that says an age.
+      birthDay: 12,
+      birthMonth: 3,
     })
   })
 
@@ -1168,7 +1239,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     expect(await screen.findByTestId('identity-card')).toBeInTheDocument()
@@ -1176,6 +1248,17 @@ describe('identifying the player', () => {
     expect(screen.getByRole('img')).toHaveAccessibleName('M9PXK-4T7VH')
     // R10: it is a step on the way, not a screen the game waits behind.
     expect(screen.queryByTestId('wheel-preview')).not.toBeInTheDocument()
+
+    /*
+     * F36 section 13. The way on has to look like the way on. This button
+     * shipped with the shape of the game's button and none of its paint, so
+     * it rendered as a line of body text on a transparent background and
+     * customers did not see it.
+     */
+    const onwards = screen.getByTestId('card-continue')
+
+    expect(onwards.style.backgroundColor).toBe('var(--button-bg)')
+    expect(onwards.style.color).toBe('var(--button-text)')
   })
 
   /**
@@ -1198,7 +1281,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
@@ -1288,7 +1372,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     expect(await screen.findByText('Server says no.')).toBeInTheDocument()

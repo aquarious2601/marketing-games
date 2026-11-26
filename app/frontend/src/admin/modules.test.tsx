@@ -95,7 +95,8 @@ const PLAYER = {
   phone: '0912345678',
   firstName: 'Anh',
   lastName: 'Le',
-  birthday: '1994-03-12',
+  birthDay: 12,
+  birthMonth: 3,
   createdAt: '2026-11-15T09:30:00+00:00',
   spinCount: 2,
 }
@@ -136,6 +137,7 @@ beforeEach(() => {
     games: [],
     types: [{ value: 'wheel', label: 'Prize wheel' }],
     themes: [{ value: 'plain', label: 'Plain' }],
+    themeBases: [{ value: 'plain', label: 'Plain' }],
     maxDailyLimit: 99,
   })
   fetchPlayersMock.mockResolvedValue({ players: [PLAYER], total: 1, winWithoutCustomer: false })

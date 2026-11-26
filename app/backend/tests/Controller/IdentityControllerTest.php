@@ -269,7 +269,8 @@ final class IdentityControllerTest extends DatabaseWebTestCase
             'phone' => '+33614856240',
             'firstName' => 'Somebody',
             'lastName' => 'Else',
-            'birthday' => '1980-01-01',
+            'birthDay' => 1,
+            'birthMonth' => 1,
         ]);
 
         self::assertResponseIsSuccessful();
@@ -382,7 +383,9 @@ final class IdentityControllerTest extends DatabaseWebTestCase
         self::assertSame(self::PHONE, $player->getPhone());
         self::assertSame('Anh', $player->getFirstName());
         self::assertSame('Le', $player->getLastName());
-        self::assertSame('1994-03-12', $player->getBirthday()->format('Y-m-d'));
+        // F38 R1: the day and the month, and no year to assert.
+        self::assertSame(12, $player->getBirthDay());
+        self::assertSame(3, $player->getBirthMonth());
     }
 
     /** F34 R1, R7, R9. A customer being created is given their card. */
@@ -410,7 +413,7 @@ final class IdentityControllerTest extends DatabaseWebTestCase
         $this->register();
         $this->post(self::FORGET_URI);
 
-        $this->register(['firstName' => 'Someone', 'lastName' => 'Else', 'birthday' => '2000-01-01']);
+        $this->register(['firstName' => 'Someone', 'lastName' => 'Else', 'birthDay' => 1, 'birthMonth' => 1]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
         self::assertNull($this->decodeResponse()['card']);
@@ -476,7 +479,7 @@ final class IdentityControllerTest extends DatabaseWebTestCase
         $this->register();
         $this->post(self::FORGET_URI);
 
-        $this->register(['firstName' => 'Someone', 'lastName' => 'Else', 'birthday' => '2000-01-01']);
+        $this->register(['firstName' => 'Someone', 'lastName' => 'Else', 'birthDay' => 1, 'birthMonth' => 1]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
         self::assertSame(1, $this->countRows('player'), 'A second row would split one person in two.');
@@ -498,7 +501,7 @@ final class IdentityControllerTest extends DatabaseWebTestCase
             'phone' => '12',
             'firstName' => '  ',
             'lastName' => str_repeat('x', Player::NAME_MAX_LENGTH + 1),
-            'birthday' => 'not a date',
+            'birthDay' => 'not a day',
         ]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -510,14 +513,15 @@ final class IdentityControllerTest extends DatabaseWebTestCase
     }
 
     /**
-     * F08 R10.
+     * F08 R10, F38 R3, R4.
      *
-     * @param string|int $birthday
+     * @param mixed $day
+     * @param mixed $month
      */
     #[DataProvider('unusableBirthdays')]
-    public function testItRejectsABirthdayThatIsNotOne(mixed $birthday): void
+    public function testItRejectsABirthdayThatIsNotOne(mixed $day, mixed $month): void
     {
-        $this->register(['birthday' => $birthday]);
+        $this->register(['birthDay' => $day, 'birthMonth' => $month]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
         self::assertSame(
@@ -528,30 +532,44 @@ final class IdentityControllerTest extends DatabaseWebTestCase
     }
 
     /**
-     * @return iterable<string, array{mixed}>
+     * @return iterable<string, array{mixed, mixed}>
      */
     public static function unusableBirthdays(): iterable
     {
-        yield 'empty' => [''];
-        yield 'prose' => ['sometime in the nineties'];
-        yield 'the wrong way round' => ['12/03/1994'];
-        yield 'a datetime' => ['1994-03-12T00:00:00+00:00'];
-        // PHP happily rolls this into 2 March. The parsed date is compared
-        // back against the input so it cannot.
-        yield 'a day that does not exist' => ['1994-02-30'];
-        yield 'the future' => ['2099-01-01'];
-        yield 'before records' => ['1823-04-01'];
-        yield 'not a string' => [19940312];
+        yield 'nothing at all' => [null, null];
+        yield 'no month' => [12, null];
+        yield 'no day' => [null, 3];
+        yield 'empty' => ['', ''];
+        yield 'prose' => ['the twelfth', 'March'];
+        yield 'a day too far' => [32, 3];
+        yield 'a month too far' => [12, 13];
+        yield 'day zero' => [0, 3];
+        yield 'month zero' => [12, 0];
+        // F38 R3. February has no 31st; PHP would roll it into March.
+        yield 'a day that does not exist' => [31, 2];
+        yield 'nor does the 31st of April' => [31, 4];
     }
 
-    /** F08 R10 — the boundary is today, not yesterday */
-    public function testItAcceptsABirthdayOfToday(): void
+    /**
+     * F38 R3. It exists once every four years, and the people born on it
+     * have a birthday every one of them.
+     */
+    public function testItAcceptsTheTwentyNinthOfFebruary(): void
     {
-        $this->register([
-            'birthday' => (new \DateTimeImmutable('today', new \DateTimeZone('UTC')))->format('Y-m-d'),
-        ]);
+        $this->register(['birthDay' => 29, 'birthMonth' => 2]);
 
         self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+    }
+
+    /** F38 R1. A year sent by some other client is not stored. */
+    public function testItKeepsNoYearForSomebodyRegisteringNow(): void
+    {
+        $this->register(['birthDay' => 12, 'birthMonth' => 3, 'birthday' => '1994-03-12']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        self::assertNull(
+            $this->entityManager->getConnection()->fetchOne('SELECT birthday FROM player'),
+        );
     }
 
     // ------------------------------------------------- POST /api/player/forget
@@ -800,7 +818,8 @@ final class IdentityControllerTest extends DatabaseWebTestCase
             'phone' => self::PHONE,
             'firstName' => 'Anh',
             'lastName' => 'Le',
-            'birthday' => '1994-03-12',
+            'birthDay' => 12,
+            'birthMonth' => 3,
             ...$overrides,
         ]);
     }

@@ -39,7 +39,8 @@ const ANH: AdminPlayer = {
   phone: '0912345678',
   firstName: 'Anh',
   lastName: 'Le',
-  birthday: '1994-03-12',
+  birthDay: 12,
+  birthMonth: 3,
   createdAt: '2026-11-15T09:30:00+00:00',
   spinCount: 2,
 }
@@ -49,7 +50,8 @@ const BINH: AdminPlayer = {
   phone: '0987654321',
   firstName: 'Binh',
   lastName: 'Tran',
-  birthday: '1988-07-04',
+  birthDay: 4,
+  birthMonth: 7,
   createdAt: '2026-11-15T10:00:00+00:00',
   spinCount: 0,
 }
@@ -130,8 +132,12 @@ describe('the player list', () => {
     // Rendered in the test runner's locale, so the assertion is on the
     // parts rather than on one locale's spelling of them.
     const row = screen.getAllByTestId('player-row')[0]
-    expect(row).toHaveTextContent('1994')
+    expect(row).toHaveTextContent('12')
     expect(row).toHaveTextContent(/Mar/i)
+
+    // F38 R6. The year is not in the payload and so cannot be on the row,
+    // for this customer or for one who registered before the feature.
+    expect(row).not.toHaveTextContent('1994')
   })
 
   it('says so when nobody has played', async () => {

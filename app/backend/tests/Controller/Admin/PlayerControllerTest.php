@@ -87,7 +87,7 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->client->request('GET', self::LIST_URI);
 
         self::assertSame(
-            ['id', 'phone', 'firstName', 'lastName', 'birthday', 'createdAt', 'spinCount'],
+            ['id', 'phone', 'firstName', 'lastName', 'birthDay', 'birthMonth', 'createdAt', 'spinCount'],
             array_keys($this->decodeResponse()['players'][0]),
         );
     }
@@ -100,7 +100,8 @@ final class PlayerControllerTest extends DatabaseWebTestCase
         $this->signInAsAdmin();
         $this->client->request('GET', self::LIST_URI);
 
-        self::assertSame('1994-03-12', $this->decodeResponse()['players'][0]['birthday']);
+        self::assertSame(12, $this->decodeResponse()['players'][0]['birthDay']);
+        self::assertSame(3, $this->decodeResponse()['players'][0]['birthMonth']);
     }
 
     public function testAnEmptyTableIsAnEmptyListAndNotAnError(): void
@@ -603,7 +604,8 @@ final class PlayerControllerTest extends DatabaseWebTestCase
             'phone' => $phone,
             'firstName' => $firstName,
             'lastName' => $lastName,
-            'birthday' => '1994-03-12',
+            'birthDay' => 12,
+            'birthMonth' => 3,
         ]);
         self::assertResponseIsSuccessful();
 

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller\Admin;
 
+use App\Branding\BackgroundStore;
 use App\Branding\Theme;
+use App\Branding\UploadRejected;
 use App\Dto\Violation;
 use App\Entity\Game;
 use App\Game\GameReadiness;
@@ -15,6 +17,7 @@ use App\Store\StoreProvider;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -35,6 +38,7 @@ final class GameController extends AbstractController
         private readonly SpinRepository $spins,
         private readonly StoreProvider $store,
         private readonly GameReadiness $readiness,
+        private readonly BackgroundStore $backgrounds,
         private readonly EntityManagerInterface $entityManager,
         private readonly TranslatorInterface $translator,
     ) {
@@ -66,6 +70,18 @@ final class GameController extends AbstractController
                     'label' => $this->translator->trans($theme->labelKey()),
                 ],
                 Theme::cases(),
+            ),
+            // F35 R2. The six a custom theme may borrow from, which is the
+            // same list without Custom in it. Sent separately rather than
+            // filtered on the page: which themes have colours of their own
+            // is the backend's fact, and a page that filtered it would be a
+            // second place to remember when a seventh palette arrives.
+            'themeBases' => array_map(
+                fn (Theme $theme): array => [
+                    'value' => $theme->value,
+                    'label' => $this->translator->trans($theme->labelKey()),
+                ],
+                Theme::bases(),
             ),
             'maxDailyLimit' => Game::MAX_DAILY_LIMIT,
         ]);
@@ -135,6 +151,7 @@ final class GameController extends AbstractController
         $tagline = $this->readTagline($payload, $violations);
         $limit = $this->readDailyLimit($payload, $violations);
         $theme = $this->readTheme($payload, $violations);
+        $themeBase = $this->readThemeBase($payload, $violations);
 
         /*
          * F27 R5. A payload naming a different type is refused rather than
@@ -153,6 +170,7 @@ final class GameController extends AbstractController
         $game->setTagline($tagline);
         $game->setDailyLimit($limit);
         $game->setTheme($theme ?? Theme::Plain);
+        $game->setThemeBase($themeBase ?? Theme::Plain);
 
         $this->entityManager->flush();
 
@@ -216,6 +234,11 @@ final class GameController extends AbstractController
             'dailyLimit' => $game->getDailyLimit(),
             // F30 R1
             'theme' => $game->getTheme()->value,
+            // F35 R2. The admin is the one screen where custom and its base
+            // are two separate facts; the player's payload resolves them
+            // into one (F35 section 8).
+            'themeBase' => $game->getThemeBase()->value,
+            'backgroundUrl' => $this->backgroundUrl($game),
             'linkKey' => $game->getLinkKey(),
             // F27 R41: the path, which the page turns into the whole URL
             // with its own origin.
@@ -224,6 +247,136 @@ final class GameController extends AbstractController
             'plays' => $this->spins->countForGame($game),
             'notReady' => $this->readiness->whyNotLive($game),
         ];
+    }
+
+    /**
+     * F37 R2, R3, R6. What this refuses is most of what it is for.
+     *
+     * Everything that points at a game cascades in the database, so a game
+     * with plays would take the shop's record of what it gave away and the
+     * money F32 counts from it. R2 is what makes the cascade safe: by the
+     * time a game can be deleted there is nothing for it to cascade to.
+     */
+    #[Route('/{id}', name: 'delete', methods: ['DELETE'], requirements: ['id' => '\d+'])]
+    public function delete(int $id): JsonResponse
+    {
+        $game = $this->games->find($id);
+
+        if (null === $game) {
+            return $this->notFound();
+        }
+
+        // F37 R3. Turning it off is one press and reversible (F27 R42);
+        // this is neither, so it is a second decision rather than the same
+        // one.
+        if ($game->isLive()) {
+            return $this->invalid([new Violation(
+                '',
+                $this->translator->trans('game.delete_live'),
+            )]);
+        }
+
+        $plays = $this->spins->countForGame($game);
+
+        if (0 < $plays) {
+            // Counted, not merely mentioned: "it has been played" leaves the
+            // owner wondering whether it was once by themselves while
+            // testing. The number is what decides it for them.
+            return $this->invalid([new Violation(
+                '',
+                $this->translator->trans('game.delete_played', ['%count%' => $plays]),
+            )]);
+        }
+
+        /*
+         * F37 R6. The picture is a file rather than a row, so no cascade
+         * reaches it. Deleted before the game, because afterwards there is
+         * nothing left to read its name from — and a missing file is not a
+         * failure (F35 R15's habit).
+         */
+        $this->backgrounds->delete($game->getBackground());
+
+        $this->entityManager->remove($game);
+        $this->entityManager->flush();
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /** F35 R6, R11. */
+    #[Route('/{id}/background', name: 'upload_background', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function uploadBackground(int $id, Request $request): JsonResponse
+    {
+        $game = $this->games->find($id);
+
+        if (null === $game) {
+            return $this->notFound();
+        }
+
+        $file = $request->files->get('background');
+
+        if (!$file instanceof UploadedFile) {
+            return $this->invalid([
+                new Violation('background', $this->translator->trans('background.required')),
+            ]);
+        }
+
+        $previous = $game->getBackground();
+
+        try {
+            $stored = $this->backgrounds->store($file);
+        } catch (UploadRejected $rejected) {
+            return $this->invalid([new Violation(
+                'background',
+                $this->translator->trans($rejected->getKey(), $rejected->getParameters()),
+            )]);
+        }
+
+        $game->setBackground($stored['filename']);
+        $this->entityManager->flush();
+
+        // F35 R11. Deleted only once the new one is safely recorded, so a
+        // failure here never leaves the game pointing at nothing.
+        $this->backgrounds->delete($previous);
+
+        return new JsonResponse($this->present($game));
+    }
+
+    /**
+     * F35 R12. The game stays on Custom and falls back to its base, which is
+     * what it looked like before anything was uploaded (R4).
+     */
+    #[Route('/{id}/background', name: 'delete_background', methods: ['DELETE'], requirements: ['id' => '\d+'])]
+    public function deleteBackground(int $id): JsonResponse
+    {
+        $game = $this->games->find($id);
+
+        if (null === $game) {
+            return $this->notFound();
+        }
+
+        $filename = $game->getBackground();
+
+        $game->setBackground(null);
+        $this->entityManager->flush();
+
+        $this->backgrounds->delete($filename);
+
+        return new JsonResponse($this->present($game));
+    }
+
+    /**
+     * Unlike the player's payload, this does not ask whether the theme is
+     * Custom (F35 R5): a game that stepped away from Custom for a fortnight
+     * still has its picture, and the screen that could put it back is this
+     * one. What it does ask is whether the file is really there (R15).
+     */
+    private function backgroundUrl(Game $game): ?string
+    {
+        $filename = $game->getBackground();
+
+        return $this->backgrounds->exists($filename)
+            ? $this->backgrounds->urlFor($game->getLinkKey(), $game->getUpdatedAt())
+            : null;
     }
 
     /**
@@ -272,6 +425,42 @@ final class GameController extends AbstractController
         }
 
         return $theme;
+    }
+
+    /**
+     * F35 R2. Absent, null or empty means `plain`, exactly as the theme
+     * itself does — and `custom` is refused, because a custom theme
+     * borrowing itself has no colours at the end of it.
+     *
+     * @param array<mixed>     $payload
+     * @param list<Violation> $violations
+     */
+    private function readThemeBase(array $payload, array &$violations): ?Theme
+    {
+        /** @var mixed $value */
+        $value = $payload['themeBase'] ?? null;
+
+        if (null === $value || '' === $value) {
+            return Theme::Plain;
+        }
+
+        $base = \is_string($value) ? Theme::tryFrom($value) : null;
+
+        if (null === $base || Theme::Custom === $base) {
+            $violations[] = new Violation(
+                'themeBase',
+                $this->translator->trans('branding.choose_one_of', [
+                    '%values%' => implode(', ', array_map(
+                        static fn (Theme $t): string => $t->value,
+                        Theme::bases(),
+                    )),
+                ]),
+            );
+
+            return null;
+        }
+
+        return $base;
     }
 
     /** @param array<mixed> $payload */

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, ApiTimeoutError, apiBaseUrl, apiGet } from './client'
+import { ApiError, ApiTimeoutError, apiBaseUrl, apiDelete, apiGet } from './client'
 
 /** A minimal stand-in for Response — enough for the client, no network. */
 function jsonResponse(body: unknown, init: { status?: number; statusText?: string } = {}): Response {
@@ -175,5 +175,38 @@ describe('apiGet', () => {
 
     expect(error).toBeInstanceOf(TypeError)
     expect(error).not.toBeInstanceOf(ApiTimeoutError)
+  })
+})
+
+/**
+ * F37 section 13. A 204 has no body, and asking one for JSON throws — which
+ * turned every successful delete into "the server returned a malformed
+ * response" on screen.
+ */
+describe('a response with no content', () => {
+  /** What a real 204 does: there is nothing there to parse. */
+  function noContentResponse(): Response {
+    return {
+      ok: true,
+      status: 204,
+      statusText: 'No Content',
+      json: async () => {
+        throw new SyntaxError('Unexpected end of JSON input')
+      },
+    } as unknown as Response
+  }
+
+  it('resolves instead of reporting a malformed response', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', '')
+    stubFetch(noContentResponse())
+
+    await expect(apiDelete<void>('/admin/games/2')).resolves.toBeUndefined()
+  })
+
+  it('still reports a malformed body on a response that should have one', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', '')
+    stubFetch(malformedResponse(200))
+
+    await expect(apiDelete<void>('/admin/games/2')).rejects.toBeInstanceOf(ApiError)
   })
 })

@@ -49,7 +49,13 @@ final class PlayerRegistrar
             return new Registered($existing, created: false);
         }
 
-        $player = new Player($draft->phone, $draft->firstName, $draft->lastName, $draft->birthday);
+        $player = new Player(
+            $draft->phone,
+            $draft->firstName,
+            $draft->lastName,
+            $draft->birthDay,
+            $draft->birthMonth,
+        );
 
         try {
             $this->entityManager->persist($player);

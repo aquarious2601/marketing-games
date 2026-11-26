@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Barcode } from '../reward/Barcode'
 import { ApiValidationError } from '../api/client'
 import {
@@ -7,7 +7,8 @@ import {
   type Identified,
   type Registration,
 } from '../api/player'
-import { useT, type Translate } from '../i18n/I18nContext'
+import { useI18n, useT, type Translate } from '../i18n/I18nContext'
+import { monthNames } from '../i18n/months'
 import {
   MAX_PHONE_DIGITS,
   MIN_PHONE_DIGITS,
@@ -16,7 +17,6 @@ import {
   detailsProblems,
   hasProblems,
   phoneProblem,
-  today,
   type DetailsDraft,
   type DetailsProblems,
 } from './identity'
@@ -75,7 +75,8 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
   const [details, setDetails] = useState<DetailsDraft>({
     firstName: '',
     lastName: '',
-    birthday: '',
+    birthDay: '',
+    birthMonth: '',
   })
   const [phoneError, setPhoneError] = useState<string | null>(null)
   const [detailErrors, setDetailErrors] = useState<FieldErrors>({})
@@ -152,7 +153,9 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
       phone: phase.phone,
       firstName: details.firstName.trim(),
       lastName: details.lastName.trim(),
-      birthday: details.birthday,
+      // F38 R1. Numbers on the wire; the pickers hold strings.
+      birthDay: Number(details.birthDay),
+      birthMonth: Number(details.birthMonth),
     }
 
     try {
@@ -216,6 +219,12 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
           onClick={() => onIdentified(phase.identified)}
           data-testid="card-continue"
           className={buttonClass}
+          /*
+           * The paint as well as the shape. Without this the one control
+           * that carries a customer from their card to the game rendered as
+           * a line of body text on a transparent background — see F36 §13.
+           */
+          style={buttonStyle}
         >
           {t('identity.cardContinue')}
         </button>
@@ -262,19 +271,18 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
           onChange={(value) => setDetails((current) => ({ ...current, lastName: value }))}
         />
 
-        <Field
-          id="player-birthday"
-          label={t('identity.birthday')}
-          testId="birthday-input"
-          type="date"
-          autoComplete="bday"
-          // Clamped in the control as well as checked on submit, so the
-          // native picker cannot offer a date the server will refuse.
-          max={today()}
-          min="1900-01-01"
-          value={details.birthday}
+        {/*
+          F38 R1, R2. A day and a month, and no year: a gift needs the date
+          and not the age. Two short lists rather than a date field, which on
+          a phone opens on this year and asks somebody at a counter to scroll
+          back thirty of them.
+        */}
+        <BirthdayFields
+          day={details.birthDay}
+          month={details.birthMonth}
           error={detailErrors.birthday}
-          onChange={(value) => setDetails((current) => ({ ...current, birthday: value }))}
+          onDay={(value) => setDetails((current) => ({ ...current, birthDay: value }))}
+          onMonth={(value) => setDetails((current) => ({ ...current, birthMonth: value }))}
         />
 
         {failure !== null && <Failure message={failure} />}
@@ -407,6 +415,92 @@ interface FieldProps {
   min?: string
 }
 
+/**
+ * F38 R2, R9. A day and a month, the month named by the browser in the
+ * reader's own language.
+ *
+ * One label and one error for the pair, because they are one answer: being
+ * told "choose a month" under the second list when the first is also empty
+ * is two sentences for one mistake.
+ */
+function BirthdayFields({
+  day,
+  month,
+  error,
+  onDay,
+  onMonth,
+}: {
+  day: string
+  month: string
+  error?: string
+  onDay: (value: string) => void
+  onMonth: (value: string) => void
+}) {
+  const t = useT()
+  const { locale } = useI18n()
+  const months = useMemo(() => monthNames(locale), [locale])
+  const errorId = 'player-birthday-error'
+
+  return (
+    <div>
+      <span className="player-kicker block" style={{ color: 'var(--body)' }}>
+        {t('identity.birthday')}
+      </span>
+
+      <div className="mt-1 flex gap-2">
+        <select
+          id="player-birth-day"
+          name="player-birth-day"
+          value={day}
+          aria-label={t('identity.birthDay')}
+          aria-invalid={error !== undefined}
+          aria-describedby={error === undefined ? undefined : errorId}
+          data-testid="birth-day-input"
+          onChange={(event) => onDay(event.target.value)}
+          className={`${selectClass} w-24`}
+          style={fieldStyle}
+        >
+          <option value="">{t('identity.birthDay')}</option>
+          {DAYS.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+
+        <select
+          id="player-birth-month"
+          name="player-birth-month"
+          value={month}
+          aria-label={t('identity.birthMonth')}
+          aria-invalid={error !== undefined}
+          aria-describedby={error === undefined ? undefined : errorId}
+          data-testid="birth-month-input"
+          onChange={(event) => onMonth(event.target.value)}
+          className={`${selectClass} flex-1`}
+          style={fieldStyle}
+        >
+          <option value="">{t('identity.birthMonth')}</option>
+          {months.map((name, index) => (
+            <option key={name} value={index + 1}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error !== undefined && (
+        <p id={errorId} role="alert" className="mt-1 text-xs" style={{ color: 'var(--danger)' }}>
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** 1 to 31, built once rather than on every render. */
+const DAYS = Array.from({ length: 31 }, (_, index) => index + 1)
+
 function Field({
   id,
   label,
@@ -485,6 +579,23 @@ const inputClass = [
   'focus-visible:outline-none focus-visible:ring-2',
   'focus-visible:ring-[color:var(--accent)]',
 ].join(' ')
+
+/** The same control, without the top margin the pair's own row provides. */
+const selectClass = [
+  'rounded-xl border px-3 py-2.5 text-base',
+  'focus-visible:outline-none focus-visible:ring-2',
+  'focus-visible:ring-[color:var(--accent)]',
+].join(' ')
+
+/**
+ * The card's own surfaces, both contrast-checked against `--body` (F04 R11),
+ * so a themed control cannot become an unreadable one.
+ */
+const fieldStyle: React.CSSProperties = {
+  backgroundColor: 'var(--stage-edge)',
+  borderColor: 'var(--stage-border)',
+  color: 'var(--body)',
+}
 
 /** The game's own button, so the step is part of the game (F08 §9). */
 const buttonClass = [

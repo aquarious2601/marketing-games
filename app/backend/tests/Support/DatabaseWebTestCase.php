@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
+use App\Branding\BackgroundStore;
+use App\Branding\Theme;
 use App\Entity\Game;
 use App\Entity\Reward;
 use App\Entity\Store;
@@ -12,6 +14,7 @@ use App\Games\Wheel\WheelProvider;
 use App\Entity\User;
 use App\Repository\RewardRepository;
 use App\Reward\RewardType;
+use App\Tests\Support\FakeImage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -113,6 +116,36 @@ abstract class DatabaseWebTestCase extends WebTestCase
         $this->entityManager->flush();
     }
 
+    /**
+     * F35. Puts the seeded game on the custom theme with a picture really on
+     * disk, and hands back the path so a test can take it away again.
+     *
+     * Written here rather than through the upload endpoint because the tests
+     * that want it are about what the player's page is told and what the
+     * public route serves, not about uploading — and an upload needs an
+     * admin session those tests have no other reason to have.
+     */
+    protected function giveTheGameAPicture(Theme $base = Theme::Birthday, string $filename = 'f35-test.png'): string
+    {
+        $backgrounds = static::getContainer()->get(BackgroundStore::class);
+        \assert($backgrounds instanceof BackgroundStore);
+
+        $path = $backgrounds->pathFor($filename);
+
+        if (!is_dir(\dirname($path))) {
+            mkdir(\dirname($path), 0o775, true);
+        }
+
+        file_put_contents($path, FakeImage::png(1600, 900));
+
+        $this->game->setTheme(Theme::Custom);
+        $this->game->setThemeBase($base);
+        $this->game->setBackground($filename);
+        $this->entityManager->flush();
+
+        return $path;
+    }
+
     /** The admin path for this game's prize list (F27 R40). */
     protected function wheelUri(?Game $game = null): string
     {
@@ -170,7 +203,8 @@ abstract class DatabaseWebTestCase extends WebTestCase
             'phone' => $phone,
             'firstName' => 'Anh',
             'lastName' => 'Le',
-            'birthday' => '1994-03-12',
+            'birthDay' => 12,
+            'birthMonth' => 3,
         ]);
 
         self::assertResponseIsSuccessful('The test could not identify a player.');

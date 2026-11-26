@@ -70,7 +70,7 @@ final class PlayerInputParser
             return [null, $violations];
         }
 
-        return [new PlayerDraft($phone, $firstName, $lastName, $birthday), []];
+        return [new PlayerDraft($phone, $firstName, $lastName, $birthday[0], $birthday[1]), []];
     }
 
     /**
@@ -158,43 +158,72 @@ final class PlayerInputParser
      * @param array<mixed>    $payload
      * @param list<Violation> $violations
      */
-    private function birthdayFrom(array $payload, array &$violations): ?\DateTimeImmutable
+    /**
+     * F38 R1, R3. The day and the month, and nothing that says an age.
+     *
+     * Returned as a pair rather than a date: there is no year to make one
+     * out of, and inventing one here would put a number in the database
+     * that nobody chose.
+     *
+     * @param array<mixed>    $payload
+     * @param list<Violation> $violations
+     *
+     * @return array{int, int}|null
+     */
+    private function birthdayFrom(array $payload, array &$violations): ?array
     {
-        $raw = $payload['birthday'] ?? null;
+        $day = $this->numberFrom($payload, 'birthDay');
+        $month = $this->numberFrom($payload, 'birthMonth');
 
-        if (!\is_string($raw) || '' === trim($raw)) {
+        if (null === $day || null === $month) {
             $violations[] = new Violation('birthday', $this->translator->trans('player.birthday_required'));
 
             return null;
         }
 
-        // createFromFormat with a `!` resets the time, so two birthdays on the
-        // same day are the same value. Without it the unset fields default to
-        // now and every comparison depends on what time the form was sent.
-        $birthday = \DateTimeImmutable::createFromFormat('!Y-m-d', trim($raw), new \DateTimeZone('UTC'));
-
-        // A format match is not enough: PHP accepts 2026-02-31 and rolls it
-        // into March, so the parsed date is compared back against the input.
-        if (false === $birthday || $birthday->format('Y-m-d') !== trim($raw)) {
+        if ($day < 1 || $day > 31 || $month < 1 || $month > 12) {
             $violations[] = new Violation('birthday', $this->translator->trans('player.birthday_invalid'));
 
             return null;
         }
 
-        $today = new \DateTimeImmutable('today', new \DateTimeZone('UTC'));
-
-        if ($birthday > $today) {
-            $violations[] = new Violation('birthday', $this->translator->trans('player.birthday_future'));
+        /*
+         * R3. 31 February is not a birthday; 29 February is somebody's.
+         * Checked in a leap year on purpose, so the one date that exists
+         * every four years is not refused in the other three.
+         */
+        if (!checkdate($month, $day, 2024)) {
+            $violations[] = new Violation(
+                'birthday',
+                $this->translator->trans('player.birthday_impossible'),
+            );
 
             return null;
         }
 
-        if ($birthday < new \DateTimeImmutable(Player::EARLIEST_BIRTHDAY, new \DateTimeZone('UTC'))) {
-            $violations[] = new Violation('birthday', $this->translator->trans('player.birthday_too_early'));
+        return [$day, $month];
+    }
 
-            return null;
+    /**
+     * A whole number from the payload, however the client sent it.
+     *
+     * A select sends "3" and a JSON client sends 3; both mean March, and
+     * refusing one of them would be refusing a client for its taste in
+     * types rather than for what it said.
+     *
+     * @param array<mixed> $payload
+     */
+    private function numberFrom(array $payload, string $key): ?int
+    {
+        /** @var mixed $raw */
+        $raw = $payload[$key] ?? null;
+
+        if (\is_int($raw)) {
+            return $raw;
         }
 
-        return $birthday;
+        return \is_string($raw) && 1 === preg_match('/^\d{1,2}$/', trim($raw))
+            ? (int) trim($raw)
+            : null;
     }
 }

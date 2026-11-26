@@ -395,3 +395,14 @@
   font-weight: 800;
   letter-spacing: -0.01em;
 }
+
+/*
+ * F35 R18. Over an uploaded picture, every word needs a surface of its own.
+ * The two pages' cards cover the content; this covers the one control that
+ * deliberately has none — the language picker's pill is transparent so it
+ * can sit on any scene, and a scene is exactly what a stranger's photograph
+ * is not.
+ */
+[data-backdrop='custom'] [data-testid='language-picker'] {
+  background-color: var(--stage);
+}

@@ -65,12 +65,18 @@ because there is no sense testing by hand what the suites already reject.
 Then, on your word, the merge button on the pull request, or:
 
 ```bash
-gh pr merge --no-ff --delete-branch
+gh pr merge --merge --delete-branch
 ```
 
-`--no-ff` on purpose: the merge commit is the record of when a feature
-landed and what it brought. Fast-forwarding would scatter a feature's
-commits into the sprint's history with nothing tying them together.
+`--merge` on purpose, rather than `--squash` or `--rebase`: it is the one
+that writes a merge commit, and that commit is the record of when a feature
+landed and what it brought. The others scatter a feature's commits into the
+sprint's history with nothing tying them together, or flatten them into one
+and lose the shape of the work.
+
+Until sprint 1.4 this line read `--no-ff`, which is `git merge`'s spelling
+of the same intent, not the CLI's — `gh` answers `unknown flag` and merges
+nothing.
 
 ### Ending a sprint
 
@@ -198,6 +204,12 @@ what those screens become once several owners share an installation.
 | [F30](./F30-the-theme-belongs-to-the-game.md) | The theme belongs to the game | Both | Agreed |
 | [F31](./F31-claiming-at-the-counter.md) | Claiming at the counter | Admin | Agreed |
 | [F32](./F32-what-the-game-costs-and-brings.md) | What the game costs and brings | Admin | Agreed |
+| [F33](./F33-a-barcode-the-counter-can-scan.md) | A barcode the counter can scan | Both | Agreed |
+| [F34](./F34-the-customers-own-card.md) | The customer's own card | Both | Agreed |
+| [F35](./F35-a-background-of-your-own.md) | A background of your own | Both | Agreed |
+| [F36](./F36-each-game-keeps-its-own-customer.md) | Each game keeps its own customer | Player | Agreed |
+| [F37](./F37-deleting-a-game.md) | Deleting a game | Admin | Agreed |
+| [F38](./F38-a-birthday-without-a-year.md) | A birthday without a year | Both | Agreed |
 
 ## Running the tests
 

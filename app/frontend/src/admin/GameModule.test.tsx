@@ -37,6 +37,8 @@ const GAME = {
   linkKey: 'q7mfd2xkbnrt',
   // F30 R1, R9: a game starts plain.
   theme: 'plain',
+  themeBase: 'plain',
+  backgroundUrl: null,
   playPath: '/play/q7mfd2xkbnrt',
   isLive: true,
   plays: 0,
@@ -112,6 +114,10 @@ beforeEach(() => {
     games: [GAME],
     types: [{ value: 'wheel', label: 'Prize wheel' }],
     themes: [
+      { value: 'plain', label: 'Plain' },
+      { value: 'christmas', label: 'Christmas' },
+    ],
+    themeBases: [
       { value: 'plain', label: 'Plain' },
       { value: 'christmas', label: 'Christmas' },
     ],

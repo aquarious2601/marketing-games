@@ -22,10 +22,9 @@ player:
     last_name_required: 'Saisissez votre nom.'
     first_name_too_long: 'Un prénom ne peut pas dépasser %max% caractères.'
     last_name_too_long: 'Un nom ne peut pas dépasser %max% caractères.'
-    birthday_required: 'Saisissez votre date de naissance.'
-    birthday_invalid: 'Saisissez votre date de naissance, par exemple 1994-03-12.'
-    birthday_future: 'Une date de naissance ne peut pas être dans le futur.'
-    birthday_too_early: 'Veuillez vérifier cette date de naissance.'
+    birthday_required: 'Choisissez le jour et le mois de votre anniversaire.'
+    birthday_invalid: 'Choisissez un jour de 1 à 31 et un mois.'
+    birthday_impossible: "Ce jour n'existe pas dans ce mois."
 
 wheel:
     invalid: "La configuration de la roue n'est pas valide."
@@ -61,6 +60,15 @@ logo:
     svg_entities: "Ce SVG déclare des entités XML, qui ne sont pas autorisées. Exportez-le sans elles et réessayez."
     sanitised_notice: 'Du contenu a été retiré du SVG par sécurité : %removed%.'
 
+background:
+    required: 'Choisissez une image à envoyer.'
+    not_an_image: "Ce fichier n'est pas une image."
+    too_large: "L'image ne doit pas dépasser %max% Mo. Celle-ci fait %size% Mo."
+    wrong_type: "L'image doit être au format PNG, JPEG ou WebP."
+    too_small: "L'image doit faire au moins %min% pixels sur son plus grand côté. Celle-ci fait %width%×%height%."
+    too_big: "L'image ne doit pas dépasser %max% pixels de côté. Celle-ci fait %width%×%height%."
+    upload_failed: "L'envoi ne s'est pas terminé. Veuillez réessayer."
+
 theme:
     plain: 'Sobre'
     black-friday: 'Black Friday'
@@ -68,6 +76,7 @@ theme:
     new-year: 'Nouvel An'
     halloween: 'Halloween'
     birthday: 'Joyeux anniversaire'
+    custom: 'Personnalisé'
 
 tagline:
     default: 'Un tour, un lot. Bonne chance !'
@@ -119,6 +128,8 @@ game:
     daily_limit_invalid: 'Le nombre de parties par jour doit être un entier de 1 à %max%, ou vide pour illimité.'
     live_must_be_boolean: 'Indiquez si le jeu est en ligne.'
     not_found: 'Ce jeu est introuvable.'
+    delete_live: 'Désactivez ce jeu avant de le supprimer.'
+    delete_played: 'Ce jeu a été joué %count% fois. Un jeu déjà joué ne peut pas être supprimé : son historique est ce qu’il a distribué.'
     not_ready_no_wheel: 'Ce jeu n''a pas encore de roue.'
     not_ready_prize_count: 'Une roue doit avoir entre %min% et %max% prix.'
     not_ready_slice_without_reward: 'Chaque case doit avoir une récompense avant la mise en ligne.'

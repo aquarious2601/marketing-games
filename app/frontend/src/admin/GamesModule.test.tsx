@@ -3,7 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiValidationError } from '../api/client'
-import { createGame, fetchGames, setGameLive, type GameSummary } from '../api/games'
+import {
+  createGame,
+  deleteGame,
+  fetchGames,
+  setGameLive,
+  type GameSummary,
+} from '../api/games'
 import { I18nProvider } from '../i18n/I18nContext'
 import { GamesModule } from './GamesModule'
 
@@ -12,11 +18,13 @@ vi.mock('../api/games', async (importOriginal) => ({
   fetchGames: vi.fn(),
   createGame: vi.fn(),
   setGameLive: vi.fn(),
+  deleteGame: vi.fn(),
 }))
 
 const fetchGamesMock = vi.mocked(fetchGames)
 const createGameMock = vi.mocked(createGame)
 const setGameLiveMock = vi.mocked(setGameLive)
+const deleteGameMock = vi.mocked(deleteGame)
 
 function game(overrides: Partial<GameSummary> = {}): GameSummary {
   return {
@@ -29,6 +37,8 @@ function game(overrides: Partial<GameSummary> = {}): GameSummary {
     linkKey: 'q7mfd2xkbnrt',
     // F30 R1, R9: a game starts plain.
     theme: 'plain',
+    themeBase: 'plain',
+    backgroundUrl: null,
     playPath: '/play/q7mfd2xkbnrt',
     isLive: true,
     plays: 4,
@@ -48,8 +58,10 @@ beforeEach(() => {
   fetchGamesMock.mockReset()
   createGameMock.mockReset()
   setGameLiveMock.mockReset()
+  deleteGameMock.mockReset()
+  deleteGameMock.mockResolvedValue()
 
-  fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, maxDailyLimit: 99 })
+  fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, themeBases: THEMES, maxDailyLimit: 99 })
 })
 
 async function renderModule() {
@@ -94,7 +106,7 @@ describe('the list', () => {
   })
 
   it('offers an empty list rather than nothing at all', async () => {
-    fetchGamesMock.mockResolvedValue({ games: [], types: TYPES, themes: THEMES, maxDailyLimit: 99 })
+    fetchGamesMock.mockResolvedValue({ games: [], types: TYPES, themes: THEMES, themeBases: THEMES, maxDailyLimit: 99 })
     await renderModule()
 
     expect(screen.getByText(/no games yet/i)).toBeInTheDocument()
@@ -114,7 +126,7 @@ describe('the list', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
 
-    fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, maxDailyLimit: 99 })
+    fetchGamesMock.mockResolvedValue({ games: [game()], types: TYPES, themes: THEMES, themeBases: THEMES, maxDailyLimit: 99 })
     await user.click(screen.getByRole('button', { name: /try again/i }))
 
     expect(await screen.findByTestId('games-list')).toBeInTheDocument()
@@ -171,6 +183,7 @@ describe('turning one live', () => {
       games: [game({ isLive: false })],
       types: TYPES,
       themes: THEMES,
+      themeBases: THEMES,
       maxDailyLimit: 99,
     })
     setGameLiveMock.mockResolvedValue(game({ isLive: true }))
@@ -191,6 +204,7 @@ describe('turning one live', () => {
       games: [game({ isLive: false, notReady: 'This game has no wheel yet.' })],
       types: TYPES,
       themes: THEMES,
+      themeBases: THEMES,
       maxDailyLimit: 99,
     })
     setGameLiveMock.mockRejectedValue(new ApiError('The probabilities total 97.', 409))
@@ -207,6 +221,7 @@ describe('turning one live', () => {
       games: [game({ isLive: false, notReady: 'This game has no wheel yet.' })],
       types: TYPES,
       themes: THEMES,
+      themeBases: THEMES,
       maxDailyLimit: 99,
     })
     await renderModule()
@@ -219,5 +234,103 @@ describe('turning one live', () => {
     await renderModule()
 
     expect(screen.queryByTestId('game-1-not-ready')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * F37. The control, what it refuses to offer, and the press in between.
+ *
+ * The deletable case is narrow on purpose: a game nobody played, that is
+ * not live. Those two conditions are what make one confirming press the
+ * right weight rather than a sentence to type (F37 §13).
+ */
+describe('deleting a game', () => {
+  const spare = () => game({ id: 2, name: 'Spare', isLive: false, plays: 0 })
+
+  async function renderWith(...games: GameSummary[]) {
+    fetchGamesMock.mockResolvedValue({
+      games,
+      types: TYPES,
+      themes: THEMES,
+      themeBases: THEMES,
+      maxDailyLimit: 99,
+    })
+
+    return renderModule()
+  }
+
+  /** R1 */
+  it('offers it for a game nobody played that is off', async () => {
+    await renderWith(spare())
+
+    expect(screen.getByTestId('game-2-delete')).toBeInTheDocument()
+  })
+
+  /** R3, R9: the server refuses a live game, so the row does not offer it. */
+  it('offers nothing for a live game', async () => {
+    await renderWith(game({ id: 2, name: 'Spare', isLive: true, plays: 0 }))
+
+    expect(screen.queryByTestId('game-2-delete')).not.toBeInTheDocument()
+  })
+
+  /** R2, R9: nor for one that has been played. */
+  it('offers nothing for a game that has been played', async () => {
+    await renderWith(game({ id: 2, name: 'Spare', isLive: false, plays: 1 }))
+
+    expect(screen.queryByTestId('game-2-delete')).not.toBeInTheDocument()
+  })
+
+  /** R4. The first press asks and does nothing else. */
+  it('asks before it deletes', async () => {
+    const user = await renderWith(spare())
+
+    await user.click(screen.getByTestId('game-2-delete'))
+
+    expect(screen.getByTestId('game-2-delete-confirm')).toBeInTheDocument()
+    expect(deleteGameMock).not.toHaveBeenCalled()
+  })
+
+  /** R5 */
+  it('puts the row back when the question is declined', async () => {
+    const user = await renderWith(spare())
+
+    await user.click(screen.getByTestId('game-2-delete'))
+    await user.click(screen.getByTestId('game-2-delete-cancel'))
+
+    expect(screen.getByTestId('game-2-delete')).toBeInTheDocument()
+    expect(deleteGameMock).not.toHaveBeenCalled()
+  })
+
+  /** R4. The second press is the one that deletes. */
+  it('deletes on the second press and reloads the list', async () => {
+    const user = await renderWith(spare())
+
+    await user.click(screen.getByTestId('game-2-delete'))
+    await user.click(screen.getByTestId('game-2-delete-confirm'))
+
+    await waitFor(() => expect(deleteGameMock).toHaveBeenCalledWith(2))
+    expect(fetchGamesMock).toHaveBeenCalledTimes(2)
+  })
+
+  /**
+   * R2, R3, R9. The page hides the control where it knows the answer, but
+   * the rule lives at the endpoint — and when the endpoint says no, what the
+   * admin reads is the server's sentence, against the row it is about.
+   */
+  it('shows the refusal the server gave, on that row', async () => {
+    deleteGameMock.mockRejectedValue(
+      new ApiValidationError('Unprocessable', [
+        { field: '', message: 'This game has been played 38 times.' },
+      ]),
+    )
+
+    const user = await renderWith(spare())
+
+    await user.click(screen.getByTestId('game-2-delete'))
+    await user.click(screen.getByTestId('game-2-delete-confirm'))
+
+    const refusal = await screen.findByTestId('game-2-delete-refused')
+
+    expect(refusal).toHaveTextContent('38 times')
   })
 })

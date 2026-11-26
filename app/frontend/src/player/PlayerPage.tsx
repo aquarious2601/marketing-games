@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import type { Branding } from '../api/branding'
 import { ApiError } from '../api/client'
 import {
   fetchIdentity,
@@ -67,6 +68,9 @@ export function PlayerPage() {
       currency: 'VND',
       currencySymbol: '₫',
       logoUrl: null,
+      // F35 R16. Nothing fetches a picture for a page that has not learned
+      // which game it is yet; the first paint is the plain theme's.
+      backgroundUrl: null,
     },
   })
   // F03: the whole spin — phase, angle, duration and easing — lives in one
@@ -164,9 +168,17 @@ export function PlayerPage() {
           status: caught instanceof ApiError ? caught.status : 0,
         }),
       ),
+      /*
+       * Whether the server answered, not only what it said (F36 §13).
+       *
+       * A 403 means nobody is identified. A dropped connection means we
+       * could not ask — and answering that with "nobody" would log a
+       * customer out of a game they are in the middle of. This is the page
+       * a stall phone runs, on the connection a stall has.
+       */
       fetchIdentity({ signal }).then(
-        (value) => value,
-        () => ({ player: null, spin: null, spinsLeft: null }),
+        (value) => ({ answered: true as const, value }),
+        () => ({ answered: false as const, value: null }),
       ),
     ])
 
@@ -174,22 +186,24 @@ export function PlayerPage() {
       return
     }
 
-    setPlayer(identity.player)
-    setSpinsLeft(identity.spinsLeft)
+    if (identity.answered) {
+      setPlayer(identity.value.player)
+      setSpinsLeft(identity.value.spinsLeft)
 
-    /*
-     * F20 R6. This identification has already spun, so the result goes
-     * straight on screen — at rest, with no spin control anywhere in the
-     * document — exactly as it was before the reload that lost it.
-     *
-     * Set here rather than animated: the spin happened in some earlier page
-     * that no longer exists, and replaying its animation would be a
-     * ten-second lie about something that already finished.
-     */
-    if (identity.spin !== null) {
-      setResult(identity.spin.prizeName)
-      setReward(identity.spin.reward)
-      setAnimation(atRest())
+      /*
+       * F20 R6. This identification has already spun, so the result goes
+       * straight on screen — at rest, with no spin control anywhere in the
+       * document — exactly as it was before the reload that lost it.
+       *
+       * Set here rather than animated: the spin happened in some earlier
+       * page that no longer exists, and replaying its animation would be a
+       * ten-second lie about something that already finished.
+       */
+      if (identity.value.spin !== null) {
+        setResult(identity.value.spin.prizeName)
+        setReward(identity.value.spin.reward)
+        setAnimation(atRest())
+      }
     }
 
     if (!loaded.ok) {
@@ -410,7 +424,7 @@ export function PlayerPage() {
 
   if (load.phase === 'failed') {
     return (
-      <Screen theme={wheel.branding.theme}>
+      <Screen branding={wheel.branding}>
         <Stage>
           <div role="alert" className="space-y-4 text-center">
             <p className="text-sm" style={{ color: 'var(--danger)' }}>
@@ -445,7 +459,7 @@ export function PlayerPage() {
    */
   if (load.phase === 'loading') {
     return (
-      <Screen theme={wheel.branding.theme}>
+      <Screen branding={wheel.branding}>
         <Stage>
           <PlayerHeader branding={wheel.branding} />
 
@@ -474,7 +488,7 @@ export function PlayerPage() {
    */
   if (player === null) {
     return (
-      <Screen theme={wheel.branding.theme}>
+      <Screen branding={wheel.branding}>
         <Stage>
           <PlayerHeader branding={wheel.branding} />
 
@@ -519,7 +533,7 @@ export function PlayerPage() {
    */
   if (spinsLeft === 0 && result === null) {
     return (
-      <Screen theme={wheel.branding.theme}>
+      <Screen branding={wheel.branding}>
         <Stage>
           <PlayerHeader branding={wheel.branding} />
 
@@ -569,7 +583,7 @@ export function PlayerPage() {
   }
 
   return (
-    <Screen theme={wheel.branding.theme}>
+    <Screen branding={wheel.branding}>
       <Stage>
         <PlayerHeader branding={wheel.branding} />
 
@@ -844,11 +858,20 @@ function ResultPanel({ name, reward }: { name: string; reward: SpinReward | null
  */
 function Screen({
   children,
-  theme,
+  branding,
 }: {
   children: React.ReactNode
-  theme?: string | null
+  branding?: Branding | null
 }) {
+  /*
+   * F35 section 8: `theme` is always one of the six. A game on the custom
+   * theme sends the palette it borrows, and arrives as custom by having a
+   * picture rather than by being named one — so everything keyed off the
+   * theme here, the tokens and the type treatment both, needs no case for
+   * it.
+   */
+  const theme = branding?.theme ?? null
+  const background = branding?.backgroundUrl ?? null
   const tokens = themeFor(theme)
 
   return (
@@ -856,9 +879,12 @@ function Screen({
       className="relative isolate flex min-h-dvh flex-col items-center justify-center px-4 py-8"
       data-testid="player-screen"
       data-theme={theme ?? 'plain'}
+      /* F35 R18. The hook index.css uses to give the one control with no
+         surface of its own — the language picker — an opaque one. */
+      data-backdrop={null === background ? undefined : 'custom'}
       style={{ ...themeStyle(tokens), backgroundColor: tokens.background }}
     >
-      <ThemeScene theme={theme} />
+      <ThemeScene theme={theme} background={background} />
 
       {children}
     </main>

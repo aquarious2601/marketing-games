@@ -75,6 +75,24 @@ class Game
     private string $theme = Theme::Plain->value;
 
     /**
+     * F35 R2. The palette Custom borrows.
+     *
+     * It says nothing while the theme is not custom, and is deliberately
+     * kept rather than cleared when a game leaves Custom (R5): a shop that
+     * switches to Christmas for a fortnight and back should not have to
+     * choose again.
+     */
+    #[ORM\Column(name: 'theme_base', length: 20, options: ['default' => 'plain'])]
+    private string $themeBase = Theme::Plain->value;
+
+    /**
+     * F35 R6. The generated name of the uploaded picture, null when there is
+     * none — never the name the uploader gave it (F04 R20).
+     */
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $background = null;
+
+    /**
      * Minted once and never changed (F27 R21), so a printed poster survives
      * the game being turned off and on again.
      */
@@ -177,6 +195,45 @@ class Game
     public function setTheme(Theme $theme): void
     {
         $this->theme = $theme->value;
+        $this->touch();
+    }
+
+    /** F35 R2. Never Custom: a custom theme cannot borrow itself. */
+    public function getThemeBase(): Theme
+    {
+        return Theme::baseFromStored($this->themeBase);
+    }
+
+    public function setThemeBase(Theme $base): void
+    {
+        // The controller rejects a custom base on the way in (F04 R12's
+        // habit). This is the second line of defence, and it chooses the
+        // same fallback the getter would.
+        $this->themeBase = (Theme::Custom === $base ? Theme::Plain : $base)->value;
+        $this->touch();
+    }
+
+    /**
+     * The theme whose colours the page actually wears (F35 R2).
+     *
+     * The player's page is never handed the word "custom": there is no
+     * palette under that name, and what makes a game custom reaches the page
+     * as a picture instead (F35 section 8).
+     */
+    public function getPalette(): Theme
+    {
+        return Theme::Custom === $this->getTheme() ? $this->getThemeBase() : $this->getTheme();
+    }
+
+    /** F35 R6. The stored filename, or null while the game has no picture. */
+    public function getBackground(): ?string
+    {
+        return $this->background;
+    }
+
+    public function setBackground(?string $filename): void
+    {
+        $this->background = $filename;
         $this->touch();
     }
 

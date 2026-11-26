@@ -157,7 +157,9 @@ export interface Registration {
   phone: string
   firstName: string
   lastName: string
-  birthday: string
+  /** F38 R1. The day and the month of a birthday, and no year. */
+  birthDay: number
+  birthMonth: number
 }
 
 /**

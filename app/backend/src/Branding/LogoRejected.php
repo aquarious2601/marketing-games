@@ -5,36 +5,12 @@ declare(strict_types=1);
 namespace App\Branding;
 
 /**
- * An upload that will not be stored, with a message the admin can act on.
+ * A logo that will not be stored (F04, F05).
  *
- * It carries a translation key rather than a sentence (F12 R15, R16). The
- * English text stays as the exception message so a log line is readable
- * without a translator, but what reaches the admin is translated at the
- * controller, in their language.
+ * Everything it does is in {@see UploadRejected}; the name survives because
+ * the logo endpoints catch this and nothing else, and a background's
+ * rejection has no business being caught there.
  */
-final class LogoRejected extends \RuntimeException
+final class LogoRejected extends UploadRejected
 {
-    /**
-     * @param array<string, string|int> $parameters
-     */
-    public function __construct(
-        private readonly string $key,
-        private readonly array $parameters = [],
-        string $englishForTheLog = '',
-    ) {
-        parent::__construct('' === $englishForTheLog ? $key : $englishForTheLog);
-    }
-
-    public function getKey(): string
-    {
-        return $this->key;
-    }
-
-    /**
-     * @return array<string, string|int>
-     */
-    public function getParameters(): array
-    {
-        return $this->parameters;
-    }
 }
