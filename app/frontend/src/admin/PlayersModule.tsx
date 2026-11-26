@@ -31,24 +31,31 @@ type LoadPhase = 'loading' | 'ready' | 'failed'
  * job — this is about whether the ticket in somebody's hand has been typed
  * in full.
  */
-const CODE_LENGTH = 8
+const CODE_LENGTH = 10
 
 /**
- * F34 R2, R14. Ten characters is a customer's own card, eight is a reward
- * code, and the two can never be the same string — which is why the counter
- * can act on either without being told which it was handed.
+ * F34 R14, F39 R12. Twelve digits is a customer's own card and ten is a
+ * reward code, so the counter can act on either without being told which it
+ * was handed.
+ *
+ * F39 made both of them digits, which is what the scanner wanted and what
+ * cost this its certainty: ten digits is also what a local phone number
+ * looks like. That is survivable because the server asks both questions of
+ * whatever it is given and answers with what matched (F39 R13) — this test
+ * only decides whether to jump straight to a single result, and a wrong
+ * guess here costs a list of one instead of a page.
  */
-const CARD_LENGTH = 10
-const CODE_ALPHABET = /^[A-HJ-KM-NP-Z2-9]+$/
+const CARD_LENGTH = 12
+const CODE_DIGITS = /^[0-9]+$/
 
 function isACompleteCode(typed: string): boolean {
-  const bare = typed.replace(/[\s-]/g, '').toUpperCase()
+  const bare = typed.replace(/[\s-]/g, '')
 
   if (bare.length !== CODE_LENGTH && bare.length !== CARD_LENGTH) {
     return false
   }
 
-  return CODE_ALPHABET.test(bare)
+  return CODE_DIGITS.test(bare)
 }
 
 /**

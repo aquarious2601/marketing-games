@@ -123,3 +123,70 @@ describe('encoding a reward code', () => {
     expect(encode('-')).toBeNull()
   })
 })
+
+/**
+ * F39 R7, R8. The numeric mode, which is the whole reason the codes became
+ * digits: one symbol for every two of them.
+ */
+describe('the numeric mode', () => {
+  const CARD = '5207 4418 9163'
+  const REWARD = '4821 739 506'
+
+  /**
+   * `encode` returns element widths, so the symbol count and the module
+   * count are two different sums: six elements a symbol and seven for the
+   * stop, against eleven modules a symbol and thirteen for the stop.
+   */
+  const modulesIn = (code: string) => encode(code)!.reduce((total, width) => total + width, 0)
+
+  /** Start symbol 105, six pairs, a check symbol, a stop: eight and a stop. */
+  it('encodes a twelve-digit card in eight symbols and a stop', () => {
+    expect(encode(CARD)).toHaveLength(8 * 6 + 7)
+    expect(modulesIn(CARD)).toBe(8 * 11 + 13)
+  })
+
+  it('encodes a ten-digit reward code in seven and a stop', () => {
+    expect(encode(REWARD)).toHaveLength(7 * 6 + 7)
+    expect(modulesIn(REWARD)).toBe(7 * 11 + 13)
+  })
+
+  /**
+   * The point of all of it: the same information, narrower. Ten letters in
+   * code set B is 134 modules; twelve digits here is 101.
+   */
+  it('is narrower than the alphabetic code it replaced', () => {
+    // Twelve digits against the ten characters of the card F34 issued.
+    expect(modulesIn(CARD)).toBe(101)
+    expect(modulesIn('M9PXK-4T7VH')).toBe(145)
+  })
+
+  it('starts with code set C', () => {
+    expect(encode(CARD)?.slice(0, 6)).toEqual([...SYMBOLS[105]].map(Number))
+  })
+
+  /** Each pair is the number it spells, so 52 is symbol value 52. */
+  it('encodes a pair of digits as the number it spells', () => {
+    expect(encode('5207')?.slice(6, 12)).toEqual([...SYMBOLS[52]].map(Number))
+  })
+
+  /** R4. The grouping is for eyes; it never reaches the bars. */
+  it.each(['520744189163', '5207 4418 9163', '5207-4418-9163'])(
+    'reads %s as the same code',
+    (written) => {
+      expect(encode(written)).toEqual(encode('520744189163'))
+    },
+  )
+
+  /** R8. Anything the numeric mode cannot take goes the old way. */
+  it.each(['ABCD-EFGH', '123', '12A'])('keeps code set B for %s', (code) => {
+    expect(encode(code)?.slice(0, 6)).toEqual([...SYMBOLS[104]].map(Number))
+  })
+
+  /** R9. The check symbol counts the start it actually used. */
+  it('counts the numeric start symbol in the check', () => {
+    // 105 + 52×1 + 7×2 + 44×3 + 18×4 + 91×5 + 63×6, modulo 103.
+    const expected = (105 + 52 + 7 * 2 + 44 * 3 + 18 * 4 + 91 * 5 + 63 * 6) % 103
+
+    expect(checkSymbol(CARD)).toBe(expected)
+  })
+})
