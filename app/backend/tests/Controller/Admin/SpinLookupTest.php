@@ -291,7 +291,7 @@ final class SpinLookupTest extends DatabaseWebTestCase
         $player = $this->entityManager->getRepository(Player::class)->findOneBy(['phone' => $phone]);
 
         if (!$player instanceof Player) {
-            $player = new Player($phone, 'Anh', 'Le', new \DateTimeImmutable('1994-03-12'));
+            $player = new Player($phone, 'Anh', 'Le', 12, 3);
             $this->entityManager->persist($player);
         }
 

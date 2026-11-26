@@ -62,10 +62,9 @@ export const fr: Record<MessageKey, string> = {
   'identity.firstNameTooLong': 'Un prénom ne peut pas dépasser %max% caractères.',
   'identity.lastNameTooLong': 'Un nom ne peut pas dépasser %max% caractères.',
   'identity.birthdayRequired': 'Saisissez votre date de naissance.',
-  'identity.birthdayInvalid':
-    'Saisissez votre date de naissance, par exemple 1994-03-12.',
-  'identity.birthdayFuture': 'Une date de naissance ne peut pas être dans le futur.',
-  'identity.birthdayTooEarly': 'Veuillez vérifier cette date de naissance.',
+  'identity.birthDay': 'Jour',
+  'identity.birthMonth': 'Mois',
+  'identity.birthdayImpossible': "Ce jour n'existe pas dans ce mois.",
 
   'admin.title': 'Administration Roulette',
   'admin.signOut': 'Se déconnecter',

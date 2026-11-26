@@ -16,6 +16,7 @@
  */
 
 import type { MessageKey } from '../i18n/en'
+import { isADate } from '../i18n/months'
 
 /** F08 R4 */
 export const MIN_PHONE_DIGITS = 6
@@ -23,9 +24,6 @@ export const MAX_PHONE_DIGITS = 20
 
 /** F08 R10 */
 export const NAME_MAX_LENGTH = 40
-
-/** F08 R10. A birthday before this is a typo, not a customer. */
-export const EARLIEST_BIRTHDAY = '1900-01-01'
 
 /**
  * Digits and a leading `+`, exactly as the backend does it (F08 R3).
@@ -69,7 +67,14 @@ export function phoneProblem(raw: string): MessageKey | null {
 export interface DetailsDraft {
   firstName: string
   lastName: string
-  birthday: string
+  /**
+   * F38 R1. What the two pickers hold: a chosen number as a string, or ''
+   * for one nobody has touched. Strings because that is what a `select`
+   * gives back, and converting once on the way out beats converting on
+   * every render.
+   */
+  birthDay: string
+  birthMonth: string
 }
 
 export interface DetailsProblems {
@@ -98,7 +103,7 @@ export function detailsProblems(draft: DetailsDraft): DetailsProblems {
     problems.lastName = lastName
   }
 
-  const birthday = birthdayProblem(draft.birthday)
+  const birthday = birthdayProblem(draft.birthDay, draft.birthMonth)
   if (birthday !== null) {
     problems.birthday = birthday
   }
@@ -132,46 +137,16 @@ function nameProblem(raw: string, which: 'first' | 'last'): MessageKey | null {
   return null
 }
 
-function birthdayProblem(raw: string): MessageKey | null {
-  const value = raw.trim()
-
-  if (value === '') {
+/**
+ * F38 R3, R4. Both chosen, and a pair that is a date.
+ *
+ * There is no "in the future" and no "before records began" any more: those
+ * were questions about a year, and a birthday no longer has one.
+ */
+function birthdayProblem(day: string, month: string): MessageKey | null {
+  if (day.trim() === '' || month.trim() === '') {
     return 'identity.birthdayRequired'
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return 'identity.birthdayInvalid'
-  }
-
-  // Parsed as UTC and compared back against the input, because Date rolls
-  // 1994-02-30 into March rather than rejecting it.
-  const parsed = new Date(`${value}T00:00:00Z`)
-
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
-    return 'identity.birthdayInvalid'
-  }
-
-  if (value > today()) {
-    return 'identity.birthdayFuture'
-  }
-
-  if (value < EARLIEST_BIRTHDAY) {
-    return 'identity.birthdayTooEarly'
-  }
-
-  return null
-}
-
-/**
- * Today in the browser's own timezone, as `YYYY-MM-DD`.
- *
- * Local rather than UTC on purpose: a player in Hanoi filling this in at 8am
- * would be told their own birthday is in the future if "today" were read off
- * a UTC clock still on yesterday.
- */
-export function today(): string {
-  const now = new Date()
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-
-  return local.toISOString().slice(0, 10)
+  return isADate(Number(day), Number(month)) ? null : 'identity.birthdayImpossible'
 }

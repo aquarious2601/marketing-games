@@ -13,7 +13,9 @@ export const E2E_PLAYER = {
   phone: '0912345678',
   firstName: 'Anh',
   lastName: 'Le',
-  birthday: '1994-03-12',
+  // F38 R1. A day and a month; the year is no longer collected.
+  birthDay: 12,
+  birthMonth: 3,
 } as const
 
 /**

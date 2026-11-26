@@ -1161,7 +1161,8 @@ describe('identifying the player', () => {
     expect(await screen.findByTestId('identity-details')).toBeInTheDocument()
     expect(screen.getByTestId('first-name-input')).toBeInTheDocument()
     expect(screen.getByTestId('last-name-input')).toBeInTheDocument()
-    expect(screen.getByTestId('birthday-input')).toBeInTheDocument()
+    expect(screen.getByTestId('birth-day-input')).toBeInTheDocument()
+    expect(screen.getByTestId('birth-month-input')).toBeInTheDocument()
 
     // Still no wheel: unknown is not identified (F08 R1).
     expect(screen.queryByTestId('spin-button')).not.toBeInTheDocument()
@@ -1201,7 +1202,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     // F34 R7, R10. Their card, once, on the way to the game.
@@ -1215,7 +1217,9 @@ describe('identifying the player', () => {
       phone: '0912345678',
       firstName: 'Anh',
       lastName: 'Le',
-      birthday: '1994-03-12',
+      // F38 R1. Two numbers, and nothing that says an age.
+      birthDay: 12,
+      birthMonth: 3,
     })
   })
 
@@ -1235,7 +1239,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     expect(await screen.findByTestId('identity-card')).toBeInTheDocument()
@@ -1276,7 +1281,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
@@ -1366,7 +1372,8 @@ describe('identifying the player', () => {
 
     await user.type(screen.getByTestId('first-name-input'), 'Anh')
     await user.type(screen.getByTestId('last-name-input'), 'Le')
-    await user.type(screen.getByTestId('birthday-input'), '1994-03-12')
+    await user.selectOptions(screen.getByTestId('birth-day-input'), '12')
+    await user.selectOptions(screen.getByTestId('birth-month-input'), '3')
     await user.click(screen.getByTestId('details-submit'))
 
     expect(await screen.findByText('Server says no.')).toBeInTheDocument()

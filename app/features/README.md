@@ -209,6 +209,7 @@ what those screens become once several owners share an installation.
 | [F35](./F35-a-background-of-your-own.md) | A background of your own | Both | Agreed |
 | [F36](./F36-each-game-keeps-its-own-customer.md) | Each game keeps its own customer | Player | Agreed |
 | [F37](./F37-deleting-a-game.md) | Deleting a game | Admin | Agreed |
+| [F38](./F38-a-birthday-without-a-year.md) | A birthday without a year | Both | Agreed |
 
 ## Running the tests
 

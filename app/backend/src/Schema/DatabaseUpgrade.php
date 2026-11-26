@@ -13,6 +13,7 @@ use App\Player\PhoneMatch;
 use App\Reward\RewardProvider;
 use App\Reward\RewardType;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Schema\Column;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
@@ -139,7 +140,156 @@ final class DatabaseUpgrade
             $this->constrainPlayerCard($dryRun),
             $this->addGameThemeBase($dryRun),
             $this->addGameBackground($dryRun),
+            $this->addPlayerBirthDay($dryRun),
+            $this->addPlayerBirthMonth($dryRun),
+            $this->fillTheBirthdaysAlreadyGiven($dryRun),
+            $this->requireTheBirthdayParts($dryRun),
+            $this->letTheBirthYearGo($dryRun),
         ];
+    }
+
+    /**
+     * F38. The day of a birthday, added empty so the fill below can take it
+     * from the date already on file.
+     */
+    private function addPlayerBirthDay(bool $dryRun): UpgradeStep
+    {
+        return $this->addBirthdayPart($dryRun, 'birth_day');
+    }
+
+    /** F38. And the month. */
+    private function addPlayerBirthMonth(bool $dryRun): UpgradeStep
+    {
+        return $this->addBirthdayPart($dryRun, 'birth_month');
+    }
+
+    private function addBirthdayPart(bool $dryRun, string $column): UpgradeStep
+    {
+        $name = 'player.'.$column;
+
+        if (!$this->tableExists('player')) {
+            return UpgradeStep::done($name, 'would add it (the table does not exist yet)');
+        }
+
+        if ($this->columnExists('player', $column)) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                'ALTER TABLE player ADD '.$column.' SMALLINT DEFAULT NULL'
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'add it', 'added'));
+    }
+
+    /**
+     * F38 R5. Takes the day and the month from the date each customer
+     * already gave, and leaves the year exactly where it is.
+     *
+     * One statement rather than a loop: unlike F34's cards there is nothing
+     * to generate here, only two numbers that are already in the row.
+     */
+    private function fillTheBirthdaysAlreadyGiven(bool $dryRun): UpgradeStep
+    {
+        $name = 'the birthdays already given';
+
+        if (!$this->tableExists('player') || !$this->columnExists('player', 'birth_day')) {
+            return UpgradeStep::done($name, 'would do every customer (the columns do not exist yet)');
+        }
+
+        $waiting = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM player WHERE birth_day IS NULL AND birthday IS NOT NULL'
+        );
+
+        if (0 === $waiting) {
+            return UpgradeStep::skipped($name, 'every customer already has one');
+        }
+
+        if ($dryRun) {
+            return UpgradeStep::done($name, sprintf('would do %d customer(s)', $waiting));
+        }
+
+        $this->connection->executeStatement(
+            'UPDATE player SET birth_day = DAY(birthday), birth_month = MONTH(birthday)'
+            .' WHERE birth_day IS NULL AND birthday IS NOT NULL'
+        );
+
+        return UpgradeStep::done($name, sprintf('filled %d', $waiting));
+    }
+
+    /**
+     * F38 R4. Required, once every row has them.
+     *
+     * After the fill, so the statement cannot fail on a row the previous
+     * step was about to serve.
+     */
+    private function requireTheBirthdayParts(bool $dryRun): UpgradeStep
+    {
+        $name = 'a birthday is a day and a month';
+
+        $day = $this->columnOf('player', 'birth_day');
+
+        if (null === $day) {
+            return UpgradeStep::done($name, 'would require them (the columns do not exist yet)');
+        }
+
+        if ($day->getNotnull()) {
+            return UpgradeStep::skipped($name);
+        }
+
+        $empty = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM player WHERE birth_day IS NULL OR birth_month IS NULL'
+        );
+
+        if (0 < $empty) {
+            // Reported rather than forced: a NOT NULL on a column with holes
+            // in it either fails or fills them with a number nobody chose,
+            // and both are worse than saying so.
+            return UpgradeStep::done($name, sprintf('%d customer(s) still have none', $empty));
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                'ALTER TABLE player MODIFY birth_day SMALLINT NOT NULL'
+            );
+            $this->connection->executeStatement(
+                'ALTER TABLE player MODIFY birth_month SMALLINT NOT NULL'
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'require them', 'required'));
+    }
+
+    /**
+     * F38 R5. The year stops being something every customer must have.
+     *
+     * The column stays, and so does every year in it. What changes is that a
+     * customer registered from now on can have a birthday without having a
+     * date, which is the whole point of the feature.
+     */
+    private function letTheBirthYearGo(bool $dryRun): UpgradeStep
+    {
+        $name = 'a birthday needs no year';
+
+        $birthday = $this->columnOf('player', 'birthday');
+
+        if (null === $birthday) {
+            return UpgradeStep::skipped($name, 'there is no such column');
+        }
+
+        if (!$birthday->getNotnull()) {
+            return UpgradeStep::skipped($name);
+        }
+
+        if (!$dryRun) {
+            $this->connection->executeStatement(
+                'ALTER TABLE player MODIFY birthday DATE DEFAULT NULL'
+            );
+        }
+
+        return UpgradeStep::done($name, $this->tense($dryRun, 'allow it', 'allowed'));
     }
 
     /**
@@ -2333,6 +2483,25 @@ final class DatabaseUpgrade
         }
 
         return false;
+    }
+
+    /**
+     * The column itself, for the steps that ask more than whether it is
+     * there — whether it may be null, in F38's case.
+     */
+    private function columnOf(string $table, string $column): ?Column
+    {
+        if (!$this->tableExists($table)) {
+            return null;
+        }
+
+        foreach ($this->connection->createSchemaManager()->listTableColumns($table) as $existing) {
+            if (strtolower($column) === strtolower($existing->getName())) {
+                return $existing;
+            }
+        }
+
+        return null;
     }
 
     private function indexExists(string $table, string $index): bool

@@ -22,10 +22,9 @@ player:
     last_name_required: 'Saisissez votre nom.'
     first_name_too_long: 'Un prénom ne peut pas dépasser %max% caractères.'
     last_name_too_long: 'Un nom ne peut pas dépasser %max% caractères.'
-    birthday_required: 'Saisissez votre date de naissance.'
-    birthday_invalid: 'Saisissez votre date de naissance, par exemple 1994-03-12.'
-    birthday_future: 'Une date de naissance ne peut pas être dans le futur.'
-    birthday_too_early: 'Veuillez vérifier cette date de naissance.'
+    birthday_required: 'Choisissez le jour et le mois de votre anniversaire.'
+    birthday_invalid: 'Choisissez un jour de 1 à 31 et un mois.'
+    birthday_impossible: "Ce jour n'existe pas dans ce mois."
 
 wheel:
     invalid: "La configuration de la roue n'est pas valide."

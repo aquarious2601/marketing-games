@@ -203,7 +203,8 @@ abstract class DatabaseWebTestCase extends WebTestCase
             'phone' => $phone,
             'firstName' => 'Anh',
             'lastName' => 'Le',
-            'birthday' => '1994-03-12',
+            'birthDay' => 12,
+            'birthMonth' => 3,
         ]);
 
         self::assertResponseIsSuccessful('The test could not identify a player.');

@@ -22,10 +22,9 @@ player:
     last_name_required: 'Nhập họ của bạn.'
     first_name_too_long: 'Tên không được dài quá %max% ký tự.'
     last_name_too_long: 'Họ không được dài quá %max% ký tự.'
-    birthday_required: 'Nhập ngày sinh của bạn.'
-    birthday_invalid: 'Nhập ngày sinh theo dạng ngày tháng, ví dụ 1994-03-12.'
-    birthday_future: 'Ngày sinh không thể ở tương lai.'
-    birthday_too_early: 'Vui lòng kiểm tra lại ngày sinh.'
+    birthday_required: 'Hãy chọn ngày và tháng sinh của bạn.'
+    birthday_invalid: 'Hãy chọn ngày từ 1 đến 31 và một tháng.'
+    birthday_impossible: 'Tháng đó không có ngày này.'
 
 wheel:
     invalid: 'Cấu hình vòng quay không hợp lệ.'

@@ -44,7 +44,12 @@ class Player
     /** F08 R10 */
     public const NAME_MAX_LENGTH = 40;
 
-    /** F08 R10. A birthday before this is a typo, not a customer. */
+    /**
+     * F08 R10. A birthday before this is a typo, not a customer.
+     *
+     * Kept for the dates already on file (F38 R5); nothing new is measured
+     * against it, because nothing new carries a year.
+     */
     public const EARLIEST_BIRTHDAY = '1900-01-01';
 
     #[ORM\Id]
@@ -76,12 +81,31 @@ class Player
     private string $lastName;
 
     /**
-     * A calendar date, so `date_immutable` rather than a datetime: a birthday
-     * has no time and belongs to no timezone, and storing one as a UTC
-     * instant moves it a day for half the world.
+     * F38 R1, R2. The two numbers a birthday gift needs.
+     *
+     * Separate columns rather than a date with a pretended year: a row that
+     * says 1970 would be a row that says something untrue, and the next
+     * person to read the table would have no way to know it.
      */
-    #[ORM\Column(type: 'date_immutable')]
-    private \DateTimeImmutable $birthday;
+    #[ORM\Column(name: 'birth_day', type: 'smallint')]
+    private int $birthDay;
+
+    #[ORM\Column(name: 'birth_month', type: 'smallint')]
+    private int $birthMonth;
+
+    /**
+     * The full date, for the customers who gave one before F38 (R5).
+     *
+     * A calendar date, so `date_immutable` rather than a datetime: a
+     * birthday has no time and belongs to no timezone, and storing one as a
+     * UTC instant moves it a day for half the world.
+     *
+     * Null from F38 onward, and never written again. It is not read by
+     * anything and is not sent anywhere (R6); it is here because deleting
+     * what was already collected is not this feature's call to make.
+     */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $birthday = null;
 
     #[ORM\Column(name: 'created_at')]
     private \DateTimeImmutable $createdAt;
@@ -102,13 +126,15 @@ class Player
         string $phone,
         string $firstName,
         string $lastName,
-        \DateTimeImmutable $birthday,
+        int $birthDay,
+        int $birthMonth,
     ) {
         $this->phone = $phone;
         $this->phoneTail = PhoneMatch::tail($phone);
         $this->firstName = $firstName;
         $this->lastName = $lastName;
-        $this->birthday = $birthday;
+        $this->birthDay = $birthDay;
+        $this->birthMonth = $birthMonth;
         $this->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
         $this->code = CustomerCode::generate();
     }
@@ -144,9 +170,16 @@ class Player
         return $this->lastName;
     }
 
-    public function getBirthday(): \DateTimeImmutable
+    /** F38 R1. 1 to 31. */
+    public function getBirthDay(): int
     {
-        return $this->birthday;
+        return $this->birthDay;
+    }
+
+    /** F38 R1. 1 to 12. */
+    public function getBirthMonth(): int
+    {
+        return $this->birthMonth;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

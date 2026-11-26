@@ -22,10 +22,9 @@ player:
     last_name_required: '请输入您的姓氏。'
     first_name_too_long: '名字最多 %max% 个字符。'
     last_name_too_long: '姓氏最多 %max% 个字符。'
-    birthday_required: '请输入您的生日。'
-    birthday_invalid: '请按日期格式输入生日，例如 1994-03-12。'
-    birthday_future: '生日不能是未来的日期。'
-    birthday_too_early: '请检查这个生日。'
+    birthday_required: '请选择您生日的日和月。'
+    birthday_invalid: '请选择 1 到 31 之间的日期和一个月份。'
+    birthday_impossible: '该月份没有这一天。'
 
 wheel:
     invalid: '转盘配置无效。'

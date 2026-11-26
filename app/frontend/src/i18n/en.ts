@@ -86,9 +86,9 @@ export const en = {
   'identity.firstNameTooLong': 'A first name can be at most %max% characters.',
   'identity.lastNameTooLong': 'A last name can be at most %max% characters.',
   'identity.birthdayRequired': 'Enter your birthday.',
-  'identity.birthdayInvalid': 'Enter your birthday as a date, for example 1994-03-12.',
-  'identity.birthdayFuture': 'A birthday cannot be in the future.',
-  'identity.birthdayTooEarly': 'Please check that birthday.',
+  'identity.birthDay': 'Day',
+  'identity.birthMonth': 'Month',
+  'identity.birthdayImpossible': 'That day does not exist in that month.',
 
   // -- Admin frame ----------------------------------------------------
   'admin.title': 'Roulette admin',

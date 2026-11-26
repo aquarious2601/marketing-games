@@ -17,7 +17,9 @@ final readonly class PlayerDraft
         public string $phone,
         public string $firstName,
         public string $lastName,
-        public \DateTimeImmutable $birthday,
+        /** F38 R1. The day and the month, and no year. */
+        public int $birthDay,
+        public int $birthMonth,
     ) {
     }
 }

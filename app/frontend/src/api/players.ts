@@ -13,8 +13,13 @@ export interface AdminPlayer {
   phone: string
   firstName: string
   lastName: string
-  /** `YYYY-MM-DD`. A calendar date, deliberately not an instant. */
-  birthday: string
+  /**
+   * F38 R6, R7. Two numbers; the page names the month in the admin's own
+   * language. No year is sent, including for the customers who gave one
+   * before F38 (R5).
+   */
+  birthDay: number
+  birthMonth: number
   createdAt: string
   spinCount: number
 }
