@@ -8,6 +8,9 @@ import { fetchGame, fetchGames } from '../api/games'
 import { fetchRewards } from '../api/rewards'
 import { fetchWheel, saveWheel, type WheelConfiguration } from '../games/wheel/api'
 import { GameModule } from './GameModule'
+import { I18nProvider, translate } from '../i18n/I18nContext'
+import { STORAGE_KEY } from '../i18n/locales'
+import { REQUIRED_TOTAL } from '../games/wheel/editor'
 
 vi.mock('../api/rewards', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/rewards')>()),
@@ -102,6 +105,7 @@ function wheelOf(count: number): WheelConfiguration {
 }
 
 beforeEach(() => {
+  window.localStorage.clear()
   fetchRewardsMock.mockReset()
   fetchRewardsMock.mockResolvedValue({ rewards: REWARDS, types: REWARD_TYPES })
   fetchWheelMock.mockReset()
@@ -131,11 +135,13 @@ beforeEach(() => {
  */
 function renderEditor() {
   return render(
-    <MemoryRouter initialEntries={['/admin/games/1']}>
-      <Routes>
-        <Route path="/admin/games/:id" element={<GameModule />} />
-      </Routes>
-    </MemoryRouter>,
+    <I18nProvider>
+      <MemoryRouter initialEntries={['/admin/games/1']}>
+        <Routes>
+          <Route path="/admin/games/:id" element={<GameModule />} />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
   )
 }
 
@@ -293,6 +299,46 @@ describe('loading', () => {
 
     expect(await screen.findByText('Wheel prizes')).toBeInTheDocument()
     expect(screen.getAllByTestId('prize-row')).toHaveLength(2)
+  })
+})
+
+/**
+ * F12 R15: the badge's words come from the dictionary.
+ *
+ * Asserted in French, and it has to be: the English entry reads word for
+ * word like the literal JSX this badge used to carry, so an English-only
+ * test passes either way. That is how the untranslated badge survived to
+ * be photographed for the user guide.
+ */
+describe('the running total, in the language the admin is read in', () => {
+  function inFrench() {
+    window.localStorage.setItem(STORAGE_KEY, 'fr')
+  }
+
+  // The shared helper finds this field by its English label, which a French
+  // page does not have.
+  function percentageField(index: number): HTMLInputElement {
+    return within(screen.getAllByTestId('prize-row')[index]).getByLabelText(
+      translate('fr', 'game.prizePercentage'),
+    ) as HTMLInputElement
+  }
+
+  it('names the figure in French', async () => {
+    inFrench()
+    await renderAdmin()
+
+    expect(total()).toHaveTextContent(
+      translate('fr', 'game.total', { total: 100, required: REQUIRED_TOTAL }),
+    )
+  })
+
+  it('says the total is unknown in French', async () => {
+    inFrench()
+    const user = await renderAdmin()
+
+    await user.clear(percentageField(0))
+
+    expect(total()).toHaveTextContent(translate('fr', 'game.totalUnknown'))
   })
 })
 
