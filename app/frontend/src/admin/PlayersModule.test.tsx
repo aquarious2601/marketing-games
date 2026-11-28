@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { MemoryRouter, Route, Router, Routes, type To } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import { fetchPlayers, type AdminPlayer } from '../api/players'
@@ -32,6 +33,68 @@ function renderList(at = '/admin/players') {
 /** Stands in for the customer's page, which has its own tests. */
 function CustomerStandIn() {
   return <p data-testid="customer-page">the customer</p>
+}
+
+/**
+ * The same list, under a router whose location lags behind what has been
+ * typed — which is `BrowserRouter`'s own behaviour, since it puts every
+ * location change inside `startTransition`.
+ *
+ * Staged by hand because no amount of typing in jsdom opens that gap: the
+ * test renderer settles the router between keystrokes, and a real scanner
+ * does not wait for it.
+ */
+function renderWithALaggingRouter() {
+  const queued: string[] = []
+  let next = () => {}
+
+  function Lagging() {
+    const [showing, setShowing] = useState('/admin/players')
+
+    // Handed out in an effect rather than on render: the harness releases a
+    // location from outside React, and only once there is something to show.
+    useEffect(() => {
+      next = () => {
+        const waiting = queued.shift()
+
+        if (waiting !== undefined) {
+          setShowing(waiting)
+        }
+      }
+    }, [])
+
+    const navigator = useMemo(
+      () => ({
+        createHref: (to: To) => asHref(to),
+        go: () => {},
+        push: (to: To) => void queued.push(asHref(to)),
+        replace: (to: To) => void queued.push(asHref(to)),
+      }),
+      [],
+    )
+
+    return (
+      <Router location={showing} navigator={navigator}>
+        <Routes>
+          <Route path="/admin/players" element={<PlayersModule />} />
+          <Route path="/admin/players/:id" element={<CustomerStandIn />} />
+        </Routes>
+      </Router>
+    )
+  }
+
+  render(<Lagging />)
+
+  return { letOneLocationThrough: () => act(() => next()) }
+}
+
+/** `setSearchParams` navigates to a search on its own, which has no path. */
+function asHref(to: To): string {
+  if (typeof to === 'string') {
+    return to.startsWith('?') ? `/admin/players${to}` : to
+  }
+
+  return `${to.pathname ?? '/admin/players'}${to.search ?? ''}`
 }
 
 const ANH: AdminPlayer = {
@@ -497,6 +560,32 @@ describe('a scanned code', () => {
       expect(await screen.findByTestId('customer-page')).toBeInTheDocument()
     },
   )
+
+  /**
+   * R20, R23, and the bug they did not cover: the box used to read its value
+   * back out of the URL, and the URL arrives late.
+   *
+   * A scanner fires twelve digits in the time one render takes, so a render
+   * made from the first of them wrote that one digit back over the whole
+   * number — and the counter searched for a code nobody has. The spin log's
+   * box never did this, because its filter is state of its own.
+   */
+  it('keeps every digit while the URL is still catching up', async () => {
+    fetchPlayersMock.mockResolvedValue({ players: [], total: 0, winWithoutCustomer: false })
+
+    const lagging = renderWithALaggingRouter()
+    const box = await screen.findByTestId('player-filter')
+
+    fireEvent.change(box, { target: { value: '5' } })
+    fireEvent.change(box, { target: { value: '52' } })
+    fireEvent.change(box, { target: { value: '520744189163' } })
+
+    // Now the first of those three reaches the router: a render made from a
+    // query string eleven digits out of date.
+    lagging.letOneLocationThrough()
+
+    expect(box).toHaveValue('520744189163')
+  })
 
   /*
    * R23. A field that blanks itself on a bad scan throws away the one clue

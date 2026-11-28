@@ -148,6 +148,7 @@ in the shop already does, for the same reason.
 | R22 | Whatever the scanner sends around the code — a leading or trailing space, a tab, a carriage return, a line feed — is ignored. Scanners ship configured differently and the shop that buys one is not the shop that configures it. |
 | R23 | A scan that matches nothing says so and **keeps what was scanned in the box**, so staff can read what the scanner actually made of it. A field that blanks itself on a bad scan hides the one clue there was. |
 | R24 | A scan of a code that exists opens that customer's page with the win on it, collected or not (F31 R8). The scan finds; it does not claim. |
+| R27 | The box holds the **whole** code, at any speed it arrives. A scanner sends twelve digits in a few milliseconds — faster than the screen is redrawn — so the box's value is its own state, never read back from anything slower than the keystrokes, the address bar included. A box that lags gives back a shortened number and the counter searches for a code nobody has. |
 
 ### Everywhere
 
@@ -297,6 +298,8 @@ failed scan on screen (R23).
       still holds what was scanned (R23).
 - [x] Given a scanned code whose win is already collected, then the page opens
       and shows it as collected; nothing is claimed by the scan (R24).
+- [x] Given twelve digits arriving faster than the address bar follows, then
+      the box holds all twelve (R27).
 - [ ] Given the wheel's result panel at 375px, then it needs no scrolling to
       reach the prize, the barcode or the button (R12). The end-to-end suite
       checks exactly this and is the user's to run (`CLAUDE.md`).
@@ -326,8 +329,15 @@ characters, so moving the characters above the barcode fails a test that says
 why they are below it. `SheetPage.test.tsx` carries R15 to R19: no barcodes
 on the list, one gift opening alone, the hand-over kept off that screen, and
 going back without a second request to the server. `PlayersModule.test.tsx`
-carries R20 to R23, and the Enter test presses Enter without clicking
+carries R20 to R23 and R27, and the Enter test presses Enter without clicking
 anything first, so it only passes while R20's focus holds.
+
+R27's test stages what jsdom will not give: a router whose location arrives
+late. Typing in a test settles the router between keystrokes, which is the
+one thing a scanner never does, so the harness holds each location back and
+releases the first of three after all three digits have been typed. With the
+box reading the address bar it reports `5`; it is the shape of the bug as it
+was found at the counter.
 
 R24 — a scan finds and does not claim — rests on two things already true: the
 navigation test above ends on the customer's page, and F31's
@@ -412,6 +422,20 @@ fact by `sheetId` (F31). Minting a visit code means a new column, a new
 uniqueness guarantee, and a decision about what it means when one of its six
 is collected and five are not. Worth its own feature if a shop running gift
 sheets asks for it.
+
+**Found with the shop's own scanner, which is what section 11's last line
+was for.** The counter's box came back with a shortened number — the same
+scan read into the spin log's box arrived whole. The difference was where
+each box kept its value. The log's filter is state of its own; the Customers
+box took its value from the address bar, because [F31](./F31-claiming-at-the-counter.md)
+R18 put the search there so that opening a customer could not lose it. That
+is still right, and the box still writes it there. What it may not do is read
+it back: `BrowserRouter` puts every location change inside React's
+`startTransition`, so the rendered query string is allowed to arrive a render
+late — and when it does, React writes that shorter value back into the input,
+over digits the scanner has already sent. Typed by hand the gap is invisible.
+A scanner opens it every time. The box's value is now its own state and the
+address bar is the record of it, which is R27.
 
 **The characters stay, and that was the shop's instruction.** They are also
 what every barcode in a supermarket does. Nothing here is a reason to remove
