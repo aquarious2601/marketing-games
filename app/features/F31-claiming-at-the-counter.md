@@ -120,6 +120,7 @@ exist. What is missing is a screen built for the person standing at the till.
 | R7 | A code belonging to a spin with **no customer** — one predating [F08](./F08-player-identification.md), or one whose customer was deleted ([F08](./F08-player-identification.md) R19) — cannot be shown on a customer's page. The list says so in as many words and names the Spins module, where that spin still carries its control (R26). It is a prize the shop owes somebody, so it is never silently nothing. |
 | R8 | A blank or whitespace filter lists customers as it does today. |
 | R9 | The list keeps reporting how many customers matched rather than how many rows it returned ([F09](./F09-admin-modules.md) R21). |
+| R32 | R6 opens a customer, and Enter opens one, **only when the rows on screen are the answer to what is in the box now**. The list is refetched after a pause, so between a keystroke and that pause the single row showing belongs to an earlier filter — and opening it means opening somebody else's page under a code that is not theirs. |
 
 ### The customer's page
 
@@ -134,6 +135,7 @@ exist. What is missing is a screen built for the person standing at the till.
 | R16 | The control is a deliberate press. Pressing Enter in the search box searches and never claims. |
 | R17 | A win recorded before [F16](./F16-a-code-on-every-win.md) has no code ([F16](./F16-a-code-on-every-win.md) R5) and is listed and collected like any other. It is a prize somebody is owed; the code is how it is *found*, not what makes it real. |
 | R18 | Handing a reward over moves it from one section to the other in place, without a reload and without losing the search. |
+| R31 | The way back from this page is **the whole list**, which is what the control already says it is. It carries no search: by the time staff press it, the customer in front of them has been served and the next one is holding out a ticket. The search that found this customer is still one Back away, in the history, which is where "the way I came" belongs. |
 
 ### Who handed it over
 
@@ -173,9 +175,28 @@ single row is still one click away.
 **Also while building: the search lives in the URL.** The customer is a page
 now, and [F09](./F09-admin-modules.md) R12 kept the history inside the row
 precisely so that opening it could not lose the search somebody typed to
-find it. The filter travels as `?search=`, the customer's page links back
-with it, and R18 stays true for a page: `/admin/players?search=A7K3` is also
-something a staff member can reload or bookmark mid-queue.
+find it. The filter travels as `?search=`, and R18 stays true for a page:
+`/admin/players?search=A7K3` is also something a staff member can reload or
+bookmark mid-queue.
+
+**Found at the counter, and it cost this half its reasoning (R31, R32).**
+The customer's page used to link back *with* the search, which is how that
+same decision was first written. The shop's report: "All customers" came
+back to a list of one, with the previous code still in the box. Three things
+were wrong at once. The control promised the whole list and did not give it.
+The box takes focus for the scanner ([F33](./F33-a-barcode-the-counter-can-scan.md)
+R20), so the next scan was typed *onto* that code — twenty-two digits,
+matching nobody. And worse: the moment those appended digits passed through a
+card's twelve, the one row on screen was still the customer the old code had
+found, and R6 opened them. Somebody else's page, under a code that is not
+theirs, with a prize about to be handed over on it.
+
+R31 is the control telling the truth. R32 is the rule R6 was always missing:
+a single match is only a match when the list it is in answers what is in the
+box. The search still lives in the URL for the list's own sake — reload,
+bookmark — but nothing carries it onto a customer's page any more, because
+nothing there read it except the back link, and a query string nobody reads
+is one somebody later believes.
 
 ## 7. Data model
 
@@ -285,6 +306,10 @@ table keeps [F11](./F11-admin-tables.md)'s horizontal scroll.
       listed on its customer's page and can be collected.
 - [ ] Given a customer's page at 375px, then there is no horizontal scroll
       and every hand-over control is reachable.
+- [x] Given a customer's page reached from a search, when "All customers" is
+      pressed, then the whole list is shown and the box is empty (R31).
+- [x] Given a list showing one customer, when a complete code that matches
+      nobody is typed, then no customer's page opens (R32).
 - [x] Every label this feature adds exists in English, French, Chinese and
       Vietnamese.
 - [x] The four fast suites pass.
@@ -308,7 +333,16 @@ two groups and their order, the sheet grouping, a win with no code, the
 hand-over in place, the dash for an unsigned claim, and the undo.
 `PlayersModule.test.tsx` covers R1 to R9 including R6 as narrowed above and
 R7's message. `SpinsModule.test.tsx` covers R23 to R25 and the author's
-column. `npm run typecheck` and `npm run lint` are clean — lint reports the
+column.
+
+R31 and R32 arrived later, with the counter's report. R31 is two assertions
+on the back link's `href` — with a search in the address bar and without —
+and R32 is a list of one, a complete code typed that matches nobody, and no
+customer's page either before the refetch or after it. R32's test was
+checked against the bug: without the guard it opens the customer the
+previous code found. What found the bug in the first place was the real
+admin driven in a browser, which is also where the appended twenty-two
+digits were read off the box. `npm run typecheck` and `npm run lint` are clean — lint reports the
 same `set-state-in-effect` warning every module in this admin reports.
 
 **Not looked at in a browser.** Every screen here is behind the admin

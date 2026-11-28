@@ -89,16 +89,26 @@ export function PlayersModule() {
   const [total, setTotal] = useState(0)
   // F31 R7: nothing matched, and the reason is a prize nobody owns.
   const [orphan, setOrphan] = useState(false)
+  /*
+   * R32. What `players` is the answer to.
+   *
+   * The list is refetched after a pause, so between a keystroke and that
+   * pause the rows on screen belong to an earlier filter — and "one row"
+   * then means one row of somebody else's search. R6 and Enter both act on
+   * a single match, so both have to know that the match is about what is in
+   * the box now. Null while nothing has been answered yet.
+   */
+  const [answers, setAnswers] = useState<string | null>(null)
 
   /*
    * The filter lives in the URL (F31 R1, R18), and the box is driven from
    * state of its own that the URL follows.
    *
-   * Opening a customer is a page of its own now, and F09 R12 kept the
-   * history inside the row precisely so that opening it could not lose the
-   * search somebody typed to find it. Carrying the search in the query
-   * string keeps that true: the customer's page links back with it, and a
-   * staff member can bookmark or reload mid-queue.
+   * It is in the URL so that `/admin/players?search=A7K3` is something a
+   * staff member can reload or bookmark mid-queue. The customer's page no
+   * longer links back with it (R31): what is worth not losing is the list
+   * you are standing in, not the one you were standing in two customers
+   * ago.
    *
    * What the box must not do is read its value back out of the URL.
    * `BrowserRouter` puts every location change inside `startTransition`, so
@@ -120,12 +130,13 @@ export function PlayersModule() {
    *
    * F39's sting. R6 opens a customer when a complete code finds exactly
    * one, and since F39 made the codes digits, ten digits — a phone number —
-   * is a complete code's shape. Arriving at the list with one already in
-   * the URL is precisely what "All customers" does from that customer's
-   * page, so the list opened them again and the way back became a door that
-   * would not let go.
+   * is a complete code's shape. "All customers" used to come back with one
+   * already in the URL, so the list opened that customer again and the way
+   * back became a door that would not let go.
    *
-   * What R6 is for is a code that has just *arrived*: scanned, or typed.
+   * F31 R31 closed that path — the way back is the plain list now — but a
+   * reload or a bookmark still arrives with a code in the address bar, and
+   * what R6 is for is a code that has just *arrived*: scanned, or typed.
    * That is this flag, armed by the box and spent by the navigation.
    */
   const arrived = useRef(false)
@@ -151,12 +162,14 @@ export function PlayersModule() {
       setPlayers(list.players)
       setTotal(list.total)
       setOrphan(list.winWithoutCustomer)
+      setAnswers(typed)
       setPhase('ready')
     } catch {
       if (signal?.aborted === true) {
         return
       }
 
+      setAnswers(null)
       setPhase('failed')
     }
   }, [])
@@ -211,6 +224,11 @@ export function PlayersModule() {
       return
     }
 
+    // R32. One row found for an earlier filter is not this code's customer.
+    if (answers !== filter) {
+      return
+    }
+
     // Arriving with a code in the URL is a person coming back, not a code
     // arriving. Opening them again is the bug this flag exists for.
     if (!arrived.current) {
@@ -219,8 +237,8 @@ export function PlayersModule() {
 
     arrived.current = false
 
-    void navigate(customerPath(players[0].id, filter))
-  }, [filter, navigate, phase, players])
+    void navigate(customerPath(players[0].id))
+  }, [answers, filter, navigate, phase, players])
 
   return (
     <>
@@ -278,8 +296,19 @@ export function PlayersModule() {
 
             event.preventDefault()
 
-            if (phase === 'ready' && players.length === 1) {
-              void navigate(customerPath(players[0].id, filter))
+            /*
+             * R32, and this is the press the rule exists for. A scan ends
+             * with Enter (F33 R21), so a scan typed onto a box that already
+             * held a code arrives here with the previous customer still the
+             * only row — and Enter is deliberate enough to look like a
+             * decision when it opens the wrong page.
+             *
+             * Nothing happens instead. A code opens on its own as soon as
+             * the list it asked for lands, by the effect above; a number
+             * typed by hand opens on the next press, with the list ready.
+             */
+            if (phase === 'ready' && answers === filter && players.length === 1) {
+              void navigate(customerPath(players[0].id))
             }
           }}
           data-testid="player-filter"
@@ -340,7 +369,7 @@ export function PlayersModule() {
                       has to press at a counter cannot live inside a table
                       that scrolls sideways on a phone (R29). */}
                   <Link
-                    to={customerPath(player.id, filter)}
+                    to={customerPath(player.id)}
                     data-testid="player-open"
                     className="block w-full truncate text-left underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
@@ -376,13 +405,18 @@ export function PlayersModule() {
 }
 
 /**
- * The customer's page, carrying the search that found them (R18).
+ * The customer's page.
  *
- * One place, because the row's link and R6's automatic open must agree:
- * two spellings of this would mean the back link worked from one of them.
+ * It used to carry the search that found them, for the back link to put
+ * back (R18). R31 made that link the whole list, so nothing read the
+ * parameter any more — and a query string nobody reads is one somebody
+ * later believes.
+ *
+ * One place, because the row's link, Enter and R6's automatic open must
+ * agree on where a customer lives.
  */
-function customerPath(id: number, filter: string): string {
-  return `/admin/players/${id}${filter === '' ? '' : `?search=${encodeURIComponent(filter)}`}`
+function customerPath(id: number): string {
+  return `/admin/players/${id}`
 }
 
 const sectionClass = 'mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm'

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Barcode } from '../reward/Barcode'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
   fetchCustomer,
   setSpinClaimed,
@@ -28,7 +28,6 @@ type LoadPhase = 'loading' | 'ready' | 'failed'
 export function CustomerModule() {
   const t = useT()
   const { id } = useParams()
-  const [search] = useSearchParams()
   const [phase, setPhase] = useState<LoadPhase>('loading')
   const [detail, setDetail] = useState<CustomerDetail | null>(null)
 
@@ -81,14 +80,18 @@ export function CustomerModule() {
   }
 
   /**
-   * R1, R18. Back to the list with the search still in it.
+   * R31. "All customers" is the whole list, and it says so on the control.
    *
-   * The filter travels in the URL rather than in component state, which is
-   * what makes this page affordable at all: F09 R12 kept the history inside
-   * the row precisely so that opening it could not lose the search, and
-   * carrying the search in the link keeps that true for a page.
+   * It used to carry the search back, so that opening a customer could not
+   * lose what had been typed to find them (F09 R12). At a counter that is
+   * the wrong half of the loop: by the time somebody presses this, the
+   * customer in front of them has been served and the next one is holding
+   * out a ticket — and they arrived at a list of one, with the previous
+   * code sitting in the box the scanner is about to type into. The search
+   * that found this customer is still one Back away, in the history, which
+   * is where "the way I came" belongs.
    */
-  const backTo = `/admin/players${search.has('search') ? `?search=${encodeURIComponent(search.get('search') ?? '')}` : ''}`
+  const backTo = '/admin/players'
 
   return (
     <>
