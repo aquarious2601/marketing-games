@@ -484,6 +484,7 @@ function losingSlice(rewardId: number): DraftPrize {
 }
 
 function TotalBadge({ total, error }: { total: number | null; error: string | null }) {
+  const t = useT()
   const invalid = error !== null || total === null
 
   return (
@@ -496,13 +497,9 @@ function TotalBadge({ total, error }: { total: number | null; error: string | nu
         invalid ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700',
       ].join(' ')}
     >
-      {total === null ? (
-        <>Total: —</>
-      ) : (
-        <>
-          Total: {total}% of {REQUIRED_TOTAL}%
-        </>
-      )}
+      {total === null
+        ? t('game.totalUnknown')
+        : t('game.total', { total, required: REQUIRED_TOTAL })}
     </div>
   )
 }
