@@ -102,12 +102,17 @@ describe('who the customer is', () => {
     expect(screen.getAllByTestId('win-card')).toHaveLength(1)
   })
 
-  it('offers a way back to the list, keeping the search', async () => {
+  /**
+   * R31. It used to carry the search back, and at a counter that left the
+   * next person's scan landing in a box that still held the last one's
+   * code. "All customers" means all customers.
+   */
+  it('offers a way back to the whole list, search or no search', async () => {
     renderCustomer('/admin/players/1?search=A7K3')
 
     expect(await screen.findByTestId('back-to-customers')).toHaveAttribute(
       'href',
-      '/admin/players?search=A7K3',
+      '/admin/players',
     )
   })
 

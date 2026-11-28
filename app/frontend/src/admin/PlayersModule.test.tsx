@@ -382,7 +382,12 @@ describe('the phone filter', () => {
 
 /** F31 R1, R6, R7, R10: the list is the way in to a customer. */
 describe('opening a customer', () => {
-  it('links to the customer page, carrying the search that found them', async () => {
+  /**
+   * R31. The search used to travel into this link, for the page's back
+   * link to put back. Nothing reads it there now, and a query string
+   * nobody reads is one somebody later believes.
+   */
+  it('links to the customer page, and carries no search into it', async () => {
     const user = userEvent.setup()
 
     renderList()
@@ -391,12 +396,39 @@ describe('opening a customer', () => {
     await user.type(screen.getByTestId('player-filter'), '5678')
     await waitFor(() => expect(fetchPlayersMock).toHaveBeenCalledWith('5678', expect.anything()))
 
-    const link = screen.getAllByTestId('player-open')[0]
+    expect(screen.getAllByTestId('player-open')[0]).toHaveAttribute('href', '/admin/players/1')
+  })
 
-    // The filter travels in the URL, which is what lets the customer's page
-    // link back to the list somebody typed to find them (F09 R12's reason,
-    // kept true for a page).
-    expect(link).toHaveAttribute('href', '/admin/players/1?search=5678')
+  /**
+   * R32, and the counter's own report of it: "All customers" came back with
+   * the previous code still in the box, so the next scan was typed onto a
+   * list of one — and the moment the value reached a card's twelve digits,
+   * the single row on screen was still the customer the *old* code had
+   * found. It opened them: somebody else's page, under a code that is not
+   * theirs.
+   */
+  it('does not open the customer an earlier search found', async () => {
+    const user = userEvent.setup()
+
+    fetchPlayersMock.mockImplementation(async (typed: string) =>
+      typed === '520744189163'
+        ? { players: [], total: 0, winWithoutCustomer: false }
+        : { players: [ANH], total: 1, winWithoutCustomer: false },
+    )
+
+    renderList('/admin/players?search=6360290458')
+    await screen.findByTestId('player-list')
+
+    await user.clear(screen.getByTestId('player-filter'))
+    await user.type(screen.getByTestId('player-filter'), '520744189163')
+
+    // Before the list is refetched: twelve digits, one row, and that row is
+    // not what they were typed to find.
+    expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
+
+    // And after, because the code matches nobody.
+    expect(await screen.findByTestId('players-empty')).toBeInTheDocument()
+    expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
   })
 
   it('opens the customer when the row is pressed', async () => {
@@ -497,6 +529,33 @@ describe('opening a customer', () => {
 
 /** F33 R20 to R23: the counter's half of a scan. */
 describe('a scanned code', () => {
+  /**
+   * F31 R32, and this is the press that rule exists for. A scan ends with
+   * Enter (R21), so a scan landing in a box that still holds the last
+   * customer's code arrives with that customer as the only row — and Enter
+   * is deliberate enough to look like a decision when it opens their page.
+   */
+  it('does not open the previous customer on the next scan', async () => {
+    const user = userEvent.setup()
+
+    fetchPlayersMock.mockImplementation(async (typed: string) =>
+      typed === '6360290458'
+        ? { players: [ANH], total: 1, winWithoutCustomer: false }
+        : { players: [], total: 0, winWithoutCustomer: false },
+    )
+
+    renderList('/admin/players?search=6360290458')
+    await screen.findByTestId('player-list')
+
+    // Two more digits make twelve: a card's shape, matching nobody — and
+    // then the scanner's own Enter, before the list has been asked again.
+    await user.type(screen.getByTestId('player-filter'), '52{Enter}')
+
+    expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('players-empty')).toBeInTheDocument()
+    expect(screen.queryByTestId('customer-page')).not.toBeInTheDocument()
+  })
+
   /*
    * R20. A scanner types into whatever is focused, and a scan that lands
    * nowhere is lost without a sound: no beep to say it went missing, nothing
