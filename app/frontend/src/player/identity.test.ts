@@ -6,6 +6,7 @@ import {
   NAME_MAX_LENGTH,
   canonicalisePhone,
   detailsProblems,
+  frenchNumberNote,
   hasProblems,
   phoneProblem,
 } from './identity'
@@ -201,5 +202,126 @@ describe('detailsProblems', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+})
+
+/**
+ * F40 — the French check.
+ *
+ * Two things are being tested here and the second matters more than the
+ * first. One: that the shapes are right. Two: that the check keeps its hands
+ * off everything it was not asked about — a foreign number, a page in
+ * another language, a number F08 already refuses. Every bug this feature
+ * could have is in that second list, because the cost of a wrong note is
+ * paid by somebody whose number was correct.
+ */
+describe('frenchNumberNote', () => {
+  const NOTE = 'identity.phoneNotFrench'
+
+  /** R5. Ten digits, the first 0 and the second 1-9. */
+  it.each(['0614856240', '0123456789', '0987654321', '0712345678'])(
+    'says nothing about %s on a French page',
+    (typed) => {
+      expect(frenchNumberNote(typed, 'fr')).toBeNull()
+    },
+  )
+
+  /** R8. The grouping is not part of the question (F08 R3). */
+  it.each(['06 14 85 62 40', '06.14.85.62.40', '06-14-85-62-40', '  0614856240  '])(
+    'reads %j as the French number it is',
+    (typed) => {
+      expect(frenchNumberNote(typed, 'fr')).toBeNull()
+    },
+  )
+
+  /** R9. Where the typos are: a dropped digit, a doubled one, a lost zero. */
+  it.each([
+    ['nine digits', '061485624'],
+    ['eleven digits', '06148562400'],
+    ['no leading zero', '6614856240'],
+    ['six digits', '061485'],
+  ])('notes %s', (_name, typed) => {
+    expect(frenchNumberNote(typed, 'fr')).toBe(NOTE)
+  })
+
+  /** R6. The international form, which needs no help from the language. */
+  it.each(['+33614856240', '+33 6 14 85 62 40', '0033614856240'])(
+    'says nothing about %j',
+    (typed) => {
+      expect(frenchNumberNote(typed, 'fr')).toBeNull()
+    },
+  )
+
+  /**
+   * R7. The trunk zero people keep after the dialling code. F19's matching
+   * already calls this the same person as `0614856240`, so a note here would
+   * be the page contradicting the application.
+   */
+  it('accepts a trunk zero after the dialling code', () => {
+    expect(frenchNumberNote('+33 0 6 14 85 62 40', 'fr')).toBeNull()
+    expect(frenchNumberNote('0033614856240', 'fr')).toBeNull()
+  })
+
+  /** R6, R9. Wrong after the code is still wrong. */
+  it.each(['+3361485624', '+336148562400', '+330014856240'])('notes %j', (typed) => {
+    expect(frenchNumberNote(typed, 'fr')).toBe(NOTE)
+  })
+
+  /**
+   * R1. A number that named France is checked whatever the page is in,
+   * because there is no assumption left to be wrong about.
+   */
+  it.each(['en', 'zh', 'vi'] as const)('checks a +33 number on a %s page', (locale) => {
+    expect(frenchNumberNote('+3361485624', locale)).toBe(NOTE)
+    expect(frenchNumberNote('+33614856240', locale)).toBeNull()
+  })
+
+  /**
+   * R2. The important half. Somebody has said where their number is from and
+   * it is not France — a note here is the feature being wrong at the one
+   * person it must not be wrong at.
+   */
+  it.each([
+    ['Vietnam', '+84912345678'],
+    ['the United Kingdom', '+447700900123'],
+    ['the United States', '+14155552671'],
+    ['China', '+8613800138000'],
+    ['Réunion', '+262262123456'],
+    ['Vietnam, written with 00', '0084912345678'],
+  ])('says nothing about a number from %s on a French page', (_name, typed) => {
+    expect(frenchNumberNote(typed, 'fr')).toBeNull()
+  })
+
+  /** R3. No prefix and no French page is no question. */
+  it.each(['en', 'zh', 'vi'] as const)('asks nothing on a %s page', (locale) => {
+    expect(frenchNumberNote('061485624', locale)).toBeNull()
+    expect(frenchNumberNote('0912345678', locale)).toBeNull()
+    expect(frenchNumberNote('6614856240', locale)).toBeNull()
+  })
+
+  /**
+   * R13. A number F08 R4 refuses outright has its own message, and two
+   * sentences under one field is one too many.
+   */
+  it.each(['', '   ', 'abc', '12345', '123456789012345678901'])(
+    'leaves %j to F08',
+    (typed) => {
+      expect(frenchNumberNote(typed, 'fr')).toBeNull()
+    },
+  )
+
+  /**
+   * R10, in the one place a pure function can show it: the note is a value,
+   * not a refusal. `phoneProblem` is what the step obeys, and it has not
+   * learned anything about France.
+   */
+  it('does not change what the step will accept', () => {
+    expect(frenchNumberNote('061485624', 'fr')).toBe(NOTE)
+    expect(phoneProblem('061485624')).toBeNull()
+  })
+
+  /** Every language can show it: a +33 number is checked in all four. */
+  it('is a key that exists', () => {
+    expect(en[NOTE]).toBeTruthy()
   })
 })

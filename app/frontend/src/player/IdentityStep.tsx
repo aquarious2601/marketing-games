@@ -15,6 +15,7 @@ import {
   NAME_MAX_LENGTH,
   canonicalisePhone,
   detailsProblems,
+  frenchNumberNote,
   hasProblems,
   phoneProblem,
   type DetailsDraft,
@@ -69,9 +70,21 @@ interface FieldErrors {
  */
 export function IdentityStep({ onIdentified }: IdentityStepProps) {
   const t = useT()
+  // F40 R4: the language the page is in is the whole of what suggests a
+  // country. Nothing is stored and nothing is configured.
+  const { locale } = useI18n()
 
   const [phase, setPhase] = useState<Phase>({ name: 'phone' })
   const [phone, setPhone] = useState('')
+  /**
+   * F40 R14. Whether the player has finished with the field — left it, or
+   * pressed Continue.
+   *
+   * The note waits for this because "that does not look like a French
+   * number" is true of every number halfway through being typed, and a
+   * message that is right too early reads as a message that is wrong.
+   */
+  const [phoneLeft, setPhoneLeft] = useState(false)
   const [details, setDetails] = useState<DetailsDraft>({
     firstName: '',
     lastName: '',
@@ -89,6 +102,10 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
     if (busy) {
       return
     }
+
+    // F40 R14. Pressing Continue is finishing with the field, whether or not
+    // it ever lost focus — on a phone keyboard it often does not.
+    setPhoneLeft(true)
 
     // Checked here first so an unusable number costs no round trip, and so
     // the message arrives instantly on a bad connection (F08 R4).
@@ -314,6 +331,14 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
     )
   }
 
+  /**
+   * F40 R12, R13. The note, or nothing.
+   *
+   * It yields to a real error — two sentences under one field is one too
+   * many, and the one that stops the step is the one worth reading.
+   */
+  const noteKey = phoneLeft && phoneError === null ? frenchNumberNote(phone, locale) : null
+
   return (
     <form
       onSubmit={(event) => void onSubmitPhone(event)}
@@ -335,7 +360,14 @@ export function IdentityStep({ onIdentified }: IdentityStepProps) {
         placeholder={t('identity.phonePlaceholder')}
         value={phone}
         error={phoneError ?? undefined}
-        onChange={setPhone}
+        note={noteKey === null ? undefined : t(noteKey)}
+        onChange={(value) => {
+          setPhone(value)
+          // R14 again, from the other side: a number being edited is not a
+          // number anybody has finished with.
+          setPhoneLeft(false)
+        }}
+        onLeave={() => setPhoneLeft(true)}
         autoFocus
       />
 
@@ -405,7 +437,14 @@ interface FieldProps {
   testId: string
   value: string
   onChange: (value: string) => void
+  onLeave?: () => void
   error?: string
+  /**
+   * F40 R12. Something to read about the value, which is not a reason to
+   * stop. Rendered in the body colour, never in `--danger`, and announced
+   * as a status rather than an alert.
+   */
+  note?: string
   type?: string
   inputMode?: 'tel' | 'text'
   autoComplete?: string
@@ -507,7 +546,9 @@ function Field({
   testId,
   value,
   onChange,
+  onLeave,
   error,
+  note,
   type = 'text',
   inputMode,
   autoComplete,
@@ -517,6 +558,7 @@ function Field({
   min,
 }: FieldProps) {
   const errorId = `${id}-error`
+  const noteId = `${id}-note`
 
   return (
     <div>
@@ -535,8 +577,9 @@ function Field({
         min={min}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onLeave}
         aria-invalid={error !== undefined}
-        aria-describedby={error !== undefined ? errorId : undefined}
+        aria-describedby={error !== undefined ? errorId : note !== undefined ? noteId : undefined}
         data-testid={testId}
         className={inputClass}
         style={{
@@ -551,6 +594,28 @@ function Field({
       {error !== undefined && (
         <p id={errorId} role="alert" className="mt-1 text-xs" style={{ color: 'var(--danger)' }}>
           {error}
+        </p>
+      )}
+      {/*
+       * F40 R12. The body colour rather than a colour of its own: `--body` is
+       * already contrast-checked against both of the card's surfaces (F04
+       * R11), so this cannot become unreadable on a theme, and a seventh
+       * token on six palettes is a lot of machinery for one sentence that is
+       * not an error.
+       *
+       * `status`, not `alert`: a screen reader should mention it when it gets
+       * there, not interrupt somebody mid-field for something that stops
+       * nothing.
+       */}
+      {error === undefined && note !== undefined && (
+        <p
+          id={noteId}
+          role="status"
+          data-testid={`${testId}-note`}
+          className="mt-1 text-xs"
+          style={{ color: 'var(--body)' }}
+        >
+          {note}
         </p>
       )}
     </div>
