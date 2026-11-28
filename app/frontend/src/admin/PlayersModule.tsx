@@ -91,15 +91,29 @@ export function PlayersModule() {
   const [orphan, setOrphan] = useState(false)
 
   /*
-   * The filter lives in the URL (F31 R1, R18).
+   * The filter lives in the URL (F31 R1, R18), and the box is driven from
+   * state of its own that the URL follows.
    *
    * Opening a customer is a page of its own now, and F09 R12 kept the
    * history inside the row precisely so that opening it could not lose the
    * search somebody typed to find it. Carrying the search in the query
    * string keeps that true: the customer's page links back with it, and a
    * staff member can bookmark or reload mid-queue.
+   *
+   * What the box must not do is read its value back out of the URL.
+   * `BrowserRouter` puts every location change inside `startTransition`, so
+   * the rendered query string lags behind the keystrokes — and when React
+   * commits a render made from the location it had, it writes that shorter
+   * value back into the input. Typing is fast enough to notice; a scanner,
+   * which fires twelve digits in the time one render takes, loses digits
+   * outright and the counter searches for a number nobody has. The URL is
+   * the record, not the source: it is written here and read only on arrival.
+   *
+   * Safe to read once because the list only ever reaches the URL with
+   * `replace`, so there is no second entry for this route to come back to:
+   * every later change to `?search` is one the box made.
    */
-  const filter = search.get('search') ?? ''
+  const [filter, setTyped] = useState(() => search.get('search') ?? '')
 
   /**
    * Whether the filter below came from somebody using the box.
@@ -118,6 +132,7 @@ export function PlayersModule() {
 
   const setFilter = (typed: string) => {
     arrived.current = true
+    setTyped(typed)
     setSearch(typed === '' ? {} : { search: typed }, { replace: true })
   }
 

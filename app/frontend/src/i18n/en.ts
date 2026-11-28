@@ -81,6 +81,10 @@ export const en = {
   'identity.phoneRequired': 'Enter your phone number.',
   'identity.phoneInvalid':
     'That does not look like a phone number. It needs between %min% and %max% digits.',
+  // F40 R11. A remark, not a refusal: the step continues either way, so the
+  // wording says what we noticed rather than what the player did wrong.
+  'identity.phoneNotFrench':
+    'That does not look like a French number. A French one has ten digits, like 06 14 85 62 40.',
   'identity.firstNameRequired': 'Enter your first name.',
   'identity.lastNameRequired': 'Enter your last name.',
   'identity.firstNameTooLong': 'A first name can be at most %max% characters.',

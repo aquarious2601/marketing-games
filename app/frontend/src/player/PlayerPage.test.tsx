@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiValidationError } from '../api/client'
 import {
   fetchIdentity,
@@ -16,6 +16,8 @@ import {
   type SpinReward,
 } from '../api/player'
 import { THEMES, THEME_NAMES } from '../branding/themes'
+import { I18nProvider } from '../i18n/I18nContext'
+import { STORAGE_KEY } from '../i18n/locales'
 import { colourFor } from '../games/wheel/palette'
 import { CELEBRATION_MS } from './Confetti'
 import { PlayerPage } from './PlayerPage'
@@ -1984,5 +1986,179 @@ describe('a link with no game behind it', () => {
     render(<PlayerPage />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be loaded/i)
+  })
+})
+
+/**
+ * F40 — the note under the phone field.
+ *
+ * The rules themselves are tested as a pure function in `identity.test.ts`.
+ * What is tested here is the part that function cannot show: that the note
+ * waits for the player to finish typing (R14), that it looks like something
+ * to read rather than something that went wrong (R12), and — the one that
+ * matters most — that it never stops the step (R10).
+ */
+describe('a number that does not look French (F40)', () => {
+  /**
+   * The language set the way a player sets it (F12 R7), through the real
+   * provider, rather than by mocking the hook: this feature reads the
+   * locale and nothing else, so the locale is the thing worth getting
+   * honestly.
+   */
+  async function renderIn(locale: 'en' | 'fr') {
+    localStorage.setItem(STORAGE_KEY, locale)
+    fetchIdentityMock.mockResolvedValue(NOBODY)
+    identifyPhoneMock.mockResolvedValue(KNOWN_NUMBER)
+
+    const user = userEvent.setup()
+    render(
+      <I18nProvider>
+        <PlayerPage />
+      </I18nProvider>,
+    )
+    await screen.findByTestId('identity-phone')
+
+    return user
+  }
+
+  afterEach(() => {
+    localStorage.removeItem(STORAGE_KEY)
+  })
+
+  /** R1, R5, R14 */
+  it('says the number does not look French once the field is left', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), '061485624')
+    await user.tab()
+
+    expect(await screen.findByTestId('phone-input-note')).toHaveTextContent(
+      /ne ressemble pas à un numéro français/i,
+    )
+  })
+
+  /**
+   * R10. The whole feature, in one test. If this ever fails, the note has
+   * become the gate F08 §13 spent a paragraph refusing to build.
+   */
+  it('lets the number through anyway', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), '061485624')
+    await user.click(screen.getByTestId('phone-submit'))
+
+    expect(await screen.findByTestId('wheel-preview')).toBeInTheDocument()
+    expect(identifyPhoneMock).toHaveBeenCalledWith('061485624')
+  })
+
+  /** R14. Every number is wrong halfway through being typed. */
+  it('says nothing while the digits are still arriving', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), '0614')
+
+    expect(screen.queryByTestId('phone-input-note')).not.toBeInTheDocument()
+  })
+
+  /**
+   * R14. Continue counts as finishing with the field too — seen here on a
+   * lookup that failed, because that is when the step is still on screen
+   * afterwards to be read. When the lookup succeeds the step advances and
+   * the note goes with it, which is R10 working as intended: see F40 §13.
+   */
+  it('shows the note when the step is still there after Continue', async () => {
+    const user = await renderIn('fr')
+    identifyPhoneMock.mockRejectedValue(new ApiError('offline', 500))
+
+    await user.type(screen.getByTestId('phone-input'), '061485624')
+    await user.click(screen.getByTestId('phone-submit'))
+
+    expect(await screen.findByTestId('phone-input-note')).toBeInTheDocument()
+  })
+
+  /** R14. And goes away again while the number is being corrected. */
+  it('goes away when the number is edited', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), '061485624')
+    await user.tab()
+    await screen.findByTestId('phone-input-note')
+
+    await user.type(screen.getByTestId('phone-input'), '0')
+
+    expect(screen.queryByTestId('phone-input-note')).not.toBeInTheDocument()
+  })
+
+  /** R5. A number that does look French is not remarked upon. */
+  it('says nothing about a French number', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), '06 14 85 62 40')
+    await user.tab()
+
+    expect(screen.queryByTestId('phone-input-note')).not.toBeInTheDocument()
+  })
+
+  /** R2. The person said where their number is from. */
+  it('says nothing about a foreign number on a French page', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), '+84912345678')
+    await user.tab()
+
+    expect(screen.queryByTestId('phone-input-note')).not.toBeInTheDocument()
+  })
+
+  /** R3. An English page suggests no country at all. */
+  it('says nothing on an English page', async () => {
+    const user = await renderIn('en')
+
+    await user.type(screen.getByTestId('phone-input'), '061485624')
+    await user.tab()
+
+    expect(screen.queryByTestId('phone-input-note')).not.toBeInTheDocument()
+  })
+
+  /** R1. Unless the number named France itself. */
+  it('checks a +33 number on an English page', async () => {
+    const user = await renderIn('en')
+
+    await user.type(screen.getByTestId('phone-input'), '+3361485624')
+    await user.tab()
+
+    expect(await screen.findByTestId('phone-input-note')).toHaveTextContent(
+      /does not look like a French number/i,
+    )
+  })
+
+  /**
+   * R12. Not an error: the body colour, and a status rather than an alert.
+   * The colour is asserted as the token, because jsdom resolves no
+   * custom properties — what matters is that it is not `--danger`.
+   */
+  it('reads as a remark and not as an error', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), '061485624')
+    await user.tab()
+
+    const note = await screen.findByTestId('phone-input-note')
+
+    expect(note).toHaveAttribute('role', 'status')
+    expect(note.style.color).toBe('var(--body)')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  /** R13. One problem at a time: F08's message wins the space. */
+  it('leaves the field to F08 when the number is not a number', async () => {
+    const user = await renderIn('fr')
+
+    await user.type(screen.getByTestId('phone-input'), 'abc')
+    await user.click(screen.getByTestId('phone-submit'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /ne ressemble pas à un numéro de téléphone/i,
+    )
+    expect(screen.queryByTestId('phone-input-note')).not.toBeInTheDocument()
   })
 })

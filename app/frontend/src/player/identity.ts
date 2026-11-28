@@ -16,6 +16,7 @@
  */
 
 import type { MessageKey } from '../i18n/en'
+import type { Locale } from '../i18n/locales'
 import { isADate } from '../i18n/months'
 
 /** F08 R4 */
@@ -62,6 +63,96 @@ export function phoneProblem(raw: string): MessageKey | null {
   }
 
   return null
+}
+
+/** F40 R1. The one dialling code this feature knows anything about. */
+const FRENCH_CODE = '33'
+
+/**
+ * F40. Whether the number does not look like a French one — and null
+ * whenever that question does not apply.
+ *
+ * The one thing to understand before changing this: **it never refuses**
+ * (R10). It returns something to read, and the step carries on whatever it
+ * returns. That is not an oversight to be tidied up into a `Violation`; it
+ * is the whole shape of the feature, and F40 §13 says why at length. The
+ * short version is F08 §13's: a check that refuses a legitimate foreign
+ * number at a counter costs more than a typo does.
+ *
+ * It also lives only here, with no counterpart on the server, for the same
+ * reason — there is no authority to establish when nothing is being refused.
+ */
+export function frenchNumberNote(raw: string, locale: Locale): MessageKey | null {
+  const canonical = canonicalisePhone(raw)
+
+  // R13. A number F08 R4 already refuses has its own message, and two
+  // sentences under one field is one too many.
+  if (canonical === null) {
+    return null
+  }
+
+  const abroad = internationalBody(canonical)
+
+  if (abroad !== null) {
+    // R1, R2. The number named a country. If it is not France there is
+    // nothing here to check, in any language — the person has told us where
+    // their number is from.
+    return abroad.startsWith(FRENCH_CODE) && !frenchSubscriber(abroad.slice(FRENCH_CODE.length))
+      ? 'identity.phoneNotFrench'
+      : null
+  }
+
+  // R3. No prefix, so the only thing suggesting France is the page. On any
+  // other language nothing is assumed: F18 is what assuming costs.
+  if (locale !== 'fr') {
+    return null
+  }
+
+  return frenchNational(canonical) ? null : 'identity.phoneNotFrench'
+}
+
+/**
+ * The digits after an international prefix, or null for a number that named
+ * no country.
+ *
+ * A leading `00` counts as one, because that is already what this
+ * application believes a `00` is — see `PhoneMatch::significant`, which
+ * strips it as "a way of writing `+`". Holding a second opinion about `00`
+ * in a sibling module is how two rules that each look right produce a bug
+ * neither of them describes.
+ */
+function internationalBody(canonical: string): string | null {
+  if (canonical.startsWith('+')) {
+    return canonical.slice(1)
+  }
+
+  return canonical.startsWith('00') ? canonical.slice(2) : null
+}
+
+/**
+ * R6, R7. What follows `+33`: nine digits beginning 1-9, and optionally the
+ * trunk `0` that people keep in when they write `+33 0 6 …`.
+ *
+ * That spelling is accepted rather than flagged because it is common and
+ * because F19's matching already reads it as the same person as the national
+ * number — flagging a number the application itself considers correct would
+ * be the note contradicting the app.
+ */
+function frenchSubscriber(digits: string): boolean {
+  const national = digits.startsWith('0') ? digits.slice(1) : digits
+
+  return /^[1-9]\d{8}$/.test(national)
+}
+
+/**
+ * R5. Ten digits, the first `0` and the second 1-9.
+ *
+ * The trunk `0` is required here, unlike in `frenchSubscriber`: a bare
+ * `614856240` with no prefix at all is a dropped leading zero, which is
+ * exactly the typo this note exists to catch.
+ */
+function frenchNational(digits: string): boolean {
+  return /^0[1-9]\d{8}$/.test(digits)
 }
 
 export interface DetailsDraft {
