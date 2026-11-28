@@ -257,6 +257,13 @@ first version of one of them passed with the bug still present, because it
 asked whether the customer's page was on screen one render before it would
 have been.
 
+**What the counter said about it afterwards.** That the way back worked was
+not the same as it being right: it came back to a list of one, holding the
+code of the customer just served, in the box a scanner types into.
+[F31](./F31-claiming-at-the-counter.md) R31 made the way back the whole
+list, so nothing carries a code onto a customer's page any more. R20 still
+stands, for the reload and the bookmark that do.
+
 ## 14. Open questions
 
 - Should the barcode's height or quiet zone change now that it is narrower?
